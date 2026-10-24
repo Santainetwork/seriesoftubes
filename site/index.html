@@ -1022,13 +1022,13 @@ function custLevel(){const pops=Object.keys(S.pops).length,pk=S.stats.peak;if(pk
 /* PRD F7: your role decides which kinds of customer you may serve and how far you can grow.
    'isp' is the classic game and stays unrestricted; the other roles are deliberately narrower. */
 const ROLES={
- hosting:{l:'Hosting',cash:50000,maxPops:3,bb:false,types:['host','gpu','onramp','ai'],
+ hosting:{l:'Hosting',cash:90000,maxPops:3,bb:false,types:['host','gpu','onramp','ai'],
    blurb:'Colo and AI hosting. Hosting, GPU, cloud on-ramp and AI deals only. Max 3 POPs, no home broadband.'},
  nap:{l:'NAP',cash:2000000,minPops:5,bb:false,types:['isp','hyper','ai'],
    blurb:'Carrier hotel. Sells to ISPs, hyperscalers and AI. No profit-relevant offers until you run 5 POPs.'},
  isp:{l:'ISP',cash:START_CASH,all:true,bb:true,
    blurb:'The classic all-rounder: home broadband, DIA, downstream ISPs, streaming, education and GPU deals. No extra limits.'},
- rtnet:{l:'RT/RW net',cash:2000,maxPops:2,bb:false,types:['dia'],
+ rtnet:{l:'RT/RW net',cash:45000,maxPops:2,bb:false,types:['dia'],
    blurb:'Neighbourhood network. Small DIA deals only, max 2 POPs, and you must buy transit from another ISP first.'},
 };
 const ROLE_IDS=['hosting','nap','isp','rtnet'];
@@ -1039,12 +1039,21 @@ function roleBlockOffers(){const R=roleDef();return !!(R.minPops&&Object.keys(S.
    and (for RT/RW nets) a transit port already bought from another ISP. */
 function roleOfferOk(o){if(!o||!roleAllowsType(o.type))return false;if(roleBlockOffers())return false;if(S.role==='rtnet'&&!S.transit.length)return false;return true;}
 function popCap(){const R=roleDef();return R.maxPops||Infinity;}
-function canAddPop(){return Object.keys(S.pops).length<popCap();}
+/* Soft cap: the role's limit is a price signal, not a wall. Beyond it every extra POP
+   costs POP_COST × overMul, so the role keeps its identity without making any goal
+   structurally impossible. */
+function popOverMul(){
+  const R=roleDef(), cap=R.maxPops;
+  if(!cap) return 1;
+  const n=Object.keys(S.pops).length;
+  return n<cap ? 1 : 1+0.75*(n-cap+1);   // (cap+1)th POP → 1.75×, (cap+2)th → 2.5×, …
+}
+function canAddPop(){return true;}        // never blocks; the cap only raises the price
 const BIZ_N=['Byte-Size Bakery','Hamster Wheel Power Co.','Llama Logistics','Cloud Nine Hosting','Rural Rabbit Broadband','Tiny Telco','Pixel Pirates Games','Moo-Moo Dairy Corp','Snack Overflow','Git Happens Ltd','Kernel Sanders Fried Code','Lag-Free Llamas','404 Bistro','Ping Pong Sports','Null Pointer Pets','Buffer Bloat Boats','Packet Pizza','Latency Lattes','Ctrl-Alt-Deli','Sudo Sandwiches','Cache Me Outside','Hertz So Good Radio','Jitterbug Dance Hall','Bit Barn Hosting','Fiber Optimists','The Daily Ping','Squirrel Mesh Wireless','Spam & Eggs Diner','Router Rooter Plumbing','Kilobyte Kebab','Gigglebit Studios','Uptime Funk Records','Ohm Sweet Ohm','Dial-Up Nostalgia Club','Two-Factor Tacos'];
 
 /* ================= GOALS ================= */
 const GOALS=[
- {id:'bb',t:'Light up your first customers',d:'Open your home city and press “Launch broadband”. Eyeballs are people at home watching cat videos. They pay you every month.',r:5000,ok:()=>Object.values(S.pops).some(p=>p.bb)},
+ {id:'bb',by:['isp'],t:'Light up your first customers',d:'Open your home city and press “Launch broadband”. Eyeballs are people at home watching cat videos. They pay you every month.',r:5000,ok:()=>Object.values(S.pops).some(p=>p.bb)},
  {id:'tr',t:'Reach the whole internet',d:'Your eyeballs want everything. Buy IP transit from a Tier 1 or Tier 2 in your city. Transit gives you the full routing table.',r:5000,ok:()=>S.transit.length>0},
  {id:'ix',t:'Join an Internet Exchange',d:'Get a port at an IX: a big shared switch where networks swap traffic for free instead of paying transit.',r:7500,ok:()=>Object.keys(S.ixp).length>0},
  {id:'p5',t:'Make 5 peering friends',d:'On the Peering tab, request sessions, or join the route server to peer with every open network at once.',r:10000,ok:()=>R.sessions>=5},
@@ -1054,15 +1063,57 @@ const GOALS=[
  {id:'ca',t:'Host an embedded cache',d:'Big CDNs give you free cache boxes once you send them enough traffic. Free bandwidth, just add power.',r:12500,ok:()=>S.caches.length>0},
  {id:'pn',t:'Set up a PNI',d:'A private cross-connect to one network in the same data center, for when traffic outgrows the IX.',r:15000,ok:()=>S.pni.length>0},
  {id:'c3',t:'Go global',d:'Have POPs on 3 continents. Subsea cables cost a fortune, so plan the route.',r:50000,ok:()=>regionsCount()>=3},
- {id:'t2',t:'Become a Tier 2',d:'5+ POPs, ports on 3+ IXs and 15+ peering sessions.',r:50000,ok:()=>isTier2()},
- {id:'tb',t:'Serve 1 Tbps',d:'A terabit per second of happy traffic.',r:75000,ok:()=>R.served>=1000},
+ {id:'t2',by:['isp','nap'],t:'Become a Tier 2',d:'5+ POPs, ports on 3+ IXs and 15+ peering sessions.',r:50000,ok:()=>isTier2()},
+ {id:'tb',by:['isp','nap'],t:'Serve 1 Tbps',d:'A terabit per second of happy traffic.',r:75000,ok:()=>R.served>=1000},
  {id:'df',t:'Light your own dark fiber',d:'Lease or dig dark fiber, put a DWDM system on it and light a channel. Cheaper per bit than waves, once it works.',r:40000,ok:()=>S.links.some(l=>l.kind==='df'&&dfCap(l)>0)},
  {id:'m2',t:'Be in two buildings at once',d:'Add a second site in a metro from the Infra tab, so one power cut no longer takes the whole city dark.',r:30000,ok:()=>Object.values(S.pops).some(p=>p.site2)},
- {id:'c5',t:'Five continents',d:'POPs in five of the six regions on the map.',r:100000,ok:()=>regionsCount()>=5},
- {id:'gi',t:'Sign a giant',d:'Land an AI WAN, a multi-site training run or a fiber-pairs deal with a hyperscaler. Customer level 4 and a POP near their campus required.',r:150000,ok:()=>S.biz.some(b=>BIZ_T[b.type]&&BIZ_T[b.type].mega&&!BIZ_T[b.type].event)},
- {id:'t10',t:'Serve 10 Tbps',d:'Ten terabits per second of happy traffic. The giants will notice.',r:250000,ok:()=>R.served>=10000},
- {id:'t1',t:'Go transit-free: Tier 1!',d:'Peer with all five Tier 1s over PNIs and cancel every transit port. Then nobody charges you to reach the internet.',r:0,win:true,ok:()=>isTier1()},
+ {id:'c5',by:['isp','nap'],t:'Five continents',d:'POPs in five of the six regions on the map.',r:100000,ok:()=>regionsCount()>=5},
+ {id:'gi',by:['nap','isp'],t:'Sign a giant',d:'Land an AI WAN, a multi-site training run or a fiber-pairs deal with a hyperscaler. Customer level 4 and a POP near their campus required.',r:150000,ok:()=>S.biz.some(b=>BIZ_T[b.type]&&BIZ_T[b.type].mega&&!BIZ_T[b.type].event)},
+ {id:'t10',by:['isp','nap'],t:'Serve 10 Tbps',d:'Ten terabits per second of happy traffic. The giants will notice.',r:250000,ok:()=>R.served>=10000},
+ {id:'t1',by:['isp'],t:'Go transit-free: Tier 1!',d:'Peer with all five Tier 1s over PNIs and cancel every transit port. Then nobody charges you to reach the internet.',r:0,win:true,ok:()=>isTier1()},
+ /* --- Hosting: win with density, not reach --- */
+ {id:'h1',by:['hosting'],t:'Fill your first rack',
+  d:'Three POPs, all in cities where a hyperscaler already peers. Density beats reach when you sell racks.',
+  r:15000,ok:()=>Object.keys(S.pops).length>=3&&Object.values(S.pops).filter(p=>p.site2).length>=1},
+ {id:'h2',by:['hosting'],t:'Land a GPU tenant',
+  d:'A GPU or AI deal is the only customer that pays hosting margins. You need a POP near their campus.',
+  r:40000,ok:()=>S.biz.some(b=>['gpu','ai','host'].includes(b.type))},
+ {id:'h3',by:['hosting'],t:'Two buildings, one metro',
+  d:'A second site in a metro means one power cut no longer takes the whole city dark. Hosting without redundancy is a lawsuit waiting to happen.',
+  r:30000,ok:()=>Object.values(S.pops).filter(p=>p.site2).length>=2},
+ /* --- NAP: win with the number of ISPs under your roof --- */
+ {id:'n1',by:['nap'],t:'Five ISPs under your roof',
+  d:'A carrier hotel is worth nothing until ISPs move in. Five downstream ISPs is the point where the building pays for itself.',
+  r:60000,ok:()=>S.biz.filter(b=>b.type==='isp').length>=5},
+ {id:'n2',by:['nap'],t:'Host the exchange',
+  d:'Run your own IX inside your own building. Then every member is also your tenant.',
+  r:80000,ok:()=>Object.keys(S.myIx).length>=1},
+ {id:'n3',by:['nap'],t:'Ten megawatts of eyeballs',
+  d:'Carriers do not buy gigabits, they buy cross-connects. Serve 2 Tbps and the hyperscalers will call you.',
+  r:120000,ok:()=>R.served>=2000},
+ /* --- RT/RW net: win by surviving, not growing --- */
+ {id:'r1',by:['rtnet'],t:'Pay your first transit bill',
+  d:'You resell someone else’s bandwidth. Buy a transit port and keep the lights on for 90 days.',
+  r:8000,ok:()=>S.transit.length>0&&S.day>=90},
+ {id:'r2',by:['rtnet'],t:'Fifty neighbours online',
+  d:'A neighbourhood network lives on density. Fifty broadband subscribers in two POPs is a real business.',
+  r:20000,ok:()=>R.served>=50},
+ {id:'r3',by:['rtnet'],t:'Survive a bad month',
+  d:'One cable cut, one unpaid bill, one angry customer. Come out the other side still solvent.',
+  r:25000,ok:()=>S.stats.survived>0&&S.cash>0},
+ /* --- One winning goal per role --- */
+ {id:'h4',by:['hosting'],win:true,t:'The rack is full',
+  d:'Every rack at capacity, every tenant paying. You are no longer a landlord, you are infrastructure.',
+  r:0,ok:()=>Object.keys(S.pops).length>=3&&R.served>=500},
+ {id:'n4',by:['nap'],win:true,t:'The building is the internet',
+  d:'Twenty ISPs, three IXs, one address. When people say “meet me at the NAP”, they mean your building.',
+  r:0,ok:()=>S.biz.filter(b=>b.type==='isp').length>=20&&Object.keys(S.myIx).length>=3},
+ {id:'r4',by:['rtnet'],win:true,t:'Still here',
+  d:'Two years, no debt, customers who pay. Most neighbourhood networks do not make it this far.',
+  r:0,ok:()=>S.day>=730&&S.cash>0&&S.transit.length>0},
 ];
+/* Goals are filtered per role; a goal without `by` is open to everyone. */
+const goalsFor=(role)=>GOALS.filter(g=>!g.by||g.by.includes(role||(S&&S.role)||'isp'));
 
 /* ================= STATE ================= */
 let S=null, R=emptyR();
@@ -2236,7 +2287,7 @@ function badgeGrid(){const h=hof(),got=BADGES.filter(b=>S.ach&&S.ach[b.id]!==und
   return `<h3 style="font-size:15px;margin:14px 0 6px">Badges <span class="meta">${got}/${BADGES.length} this game · ${Object.keys(h).filter(k=>BADGES.some(b=>b.id===k)).length} ever</span></h3><div class="badges">${BADGES.map(b=>{const on=S.ach&&S.ach[b.id]!==undefined,ever=!!h[b.id],R0=RARITY[b.r],hide=b.secret&&!on&&!ever;
     return `<div class="bdg ${on?'on':ever?'ever':''}" style="--rc:${R0.col}" title="${esc(hide?'A secret badge':b.t+': '+b.d)}"><span class="bi">${hide?'❔':b.i}</span><span class="bt">${esc(hide?'???':b.t)}</span><span class="br">${R0.n}${ever&&!on?' · earned before':''}</span>${hide?'':`<span class="bd">${esc(b.d)}</span>`}</div>`;}).join('')}</div>`;}
 function checkGoals(){checkBadges();
-  for(const g of GOALS){if(S.done[g.id]!==undefined)continue;let ok=false;try{ok=g.ok();}catch(e){}
+  for(const g of goalsFor()){if(S.done[g.id]!==undefined)continue;let ok=false;try{ok=g.ok();}catch(e){}
     if(ok){S.done[g.id]=S.day;if(g.r&&S.mode!=='sandbox'){S.cash+=g.r;}
       toast(`<b>Goal complete: ${esc(g.t)}</b>${g.r?`<br>Reward: +${fmt$(g.r)}`:''}`,'goal');sfx('coin');
       track('goal_'+g.id);if(g.win&&!S.won){S.won=true;track('win_tier1');checkBadges();showWin();}}}
@@ -2282,7 +2333,10 @@ const ACT={
  toggleLeft:()=>{UI.leftOpen=!UI.leftOpen;renderLeft();},
  focusCity:({city})=>{selectCity(city);const C=CITY[city];cam.x=C.x;cam.y=C.y;cam.z=Math.max(cam.z,1.2);if(innerWidth<760)UI.leftOpen=false;renderLeft();},
  selLink:({id})=>{UI.sel={type:'link',id};UI.confirm=null;renderPanel();},
- buildPop:({city})=>{if(S.pops[city])return;if(!canAddPop()){toast(`<b>POP limit reached.</b><br>Your role caps you at ${popCap()} POPs.`,'bad');sfx('err');return;}if(cnCity(city)&&!cnOk()){toast('<b>You need a license first.</b><br>Foreign networks need a joint venture to build in mainland China.','bad');sfx('err');return;}if(!spend(popCost(city)))return;S.pops[city]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};floater(CITY[city].x,CITY[city].y-30,'New POP!','#FF4F9A');UI.tab='cust';after();},
+ buildPop:({city})=>{if(S.pops[city])return;if(cnCity(city)&&!cnOk()){toast('<b>You need a license first.</b><br>Foreign networks need a joint venture to build in mainland China.','bad');sfx('err');return;}
+   const n=Object.keys(S.pops).length,cap=popCap(),over=popOverMul(),cost=popCost(city)*over;
+   if(n>=cap)toast(`<b>Beyond your role's footprint.</b><br>POP ${n+1} costs ${fmt$(cost)} — ${Math.round((over-1)*100)}% over the list price.`,'warn');
+   if(!spend(cost))return;S.pops[city]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};floater(CITY[city].x,CITY[city].y-30,'New POP!','#FF4F9A');UI.tab='cust';after();},
  launchBB:({city})=>{const p=S.pops[city];if(!p||p.bb)return;if(!roleDef().bb){toast('<b>Home broadband is not part of your role.</b><br>Hosting, NAP and RT/RW networks sell to businesses instead.','bad');sfx('err');return;}const C=CITY[city];if(!spend(bbCost(city)))return;p.bb={d:Math.max(8,C.P*0.03)};floater(C.x,C.y-30,'Eyeballs online!','#16A866');after();},
  ad:({city})=>{const p=S.pops[city];if(!p||!p.bb)return;if(!spend(8000))return;p.boost=S.day+30;floater(CITY[city].x,CITY[city].y-30,'Ad campaign!','#FF8A3D');after();},
  buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}if(!S.pops[city]||!NET[net]||!NET[net].price||!NET[net].pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;if(!spend(PORT[tier].setup*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.transit.push({id:uid(),city,net,tier,down:0});toast(`<b>${esc(NET[net].name)} transit is live in ${CITY[city].name}.</b><br>Full table received: ~1,000,000 routes.`,'good');after();},
@@ -2364,9 +2418,10 @@ const ACT={
    S.myIx[city]={name:nm,members:[],next:S.day+4};S.ixp[city]=2;toast(`<b>You founded ${esc(nm)}!</b><br>Networks will join over time and pay you for ports. Open members peer with you for free.`,'goal');after();},
  buildLink:({tier})=>{tier=+tier;const p=UI.pending;if(!p)return;const {a,b}=p;const km=kmBetween(a,b),sub=isSub(a,b),sib=pairLinks(a,b).filter(l=>l.kind!=='vxc'),same=sib.length>0&&UI.route==='same',border=cnCity(a)!==cnCity(b),mult=(sib.length&&!same?DIVERSE:1)*(border?3*(UI.cnPrem&&(a==='hkg'||b==='hkg')?1.6:1):1);
    if((cnCity(a)||cnCity(b))&&!cnOk())return;
-   if(!S.pops[b]&&!canAddPop()){toast(`<b>POP limit reached.</b><br>Your role caps you at ${popCap()} POPs.`,'bad');sfx('err');return;}
    if(!waveOk(a,b,tier)){toast(`<b>A ${LT[tier].n} wave needs ${esc(waveNeed(tier))} routers at both ends.</b>`,'bad');sfx('err');return;}
-   const wr=waveRoute(a,b,mult,border);if(!wr){toast('<b>No cable available for that route right now.</b>','bad');sfx('err');return;}const base=Math.round(waveMo(wr.km,wr.sub,tier)*wr.wm),cost=base+(S.pops[b]?0:popCost(b));
+   const wr=waveRoute(a,b,mult,border);if(!wr){toast('<b>No cable available for that route right now.</b>','bad');sfx('err');return;}
+   const over=popOverMul();if(!S.pops[b]&&Object.keys(S.pops).length>=popCap())toast(`<b>Beyond your role's footprint.</b><br>POP ${Object.keys(S.pops).length+1} costs ${fmt$(popCost(b)*over)} — ${Math.round((over-1)*100)}% over the list price.`,'warn');
+   const base=Math.round(waveMo(wr.km,wr.sub,tier)*wr.wm),cost=base+(S.pops[b]?0:popCost(b)*over);
    if(!portGate(a,1)||!portGate(b,1))return;if(!spend(cost))return;if(!S.pops[b])S.pops[b]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};
    const id=uid();const l={id,a,b,kind:'wave',border,premium:border&&!!UI.cnPrem&&(a==='hkg'||b==='hkg'),tier,km:wr.km,sub:wr.sub,cable:wr.cab,mo:base,mult:wr.wm,trench:wr.cab?'cab:'+wr.cab:(same?(sib[0].trench||sib[0].id):id),cut:0,day:S.day};S.links.push(l);closeModal();
    if(sib.length){UI.sel={type:'link',id};}else{UI.sel={type:'city',id:b};UI.tab='cust';}
@@ -2403,9 +2458,9 @@ const ACT={
  dfSrc:({v})=>{UI.dfSrc=v;if(UI.pending)openLinkModal(UI.pending.a,UI.pending.b);},
  dfSys:({v})=>{UI.dfSys=v;if(UI.pending)openLinkModal(UI.pending.a,UI.pending.b);},
  orderDf:()=>{const p=UI.pending;if(!p)return;const {a,b}=p;if(!dfAllowed(a,b))return;const sc=isSub(a,b)?subDfCable(a,b):null,km=sc?sc.km:kmBetween(a,b);
-   if(!S.pops[b]&&!canAddPop()){toast(`<b>POP limit reached.</b><br>Your role caps you at ${popCap()} POPs.`,'bad');sfx('err');return;}
    const own=UI.dfSrc==='build'&&lvl()>=3&&!sc,sys=DF_SYS[UI.dfSys]&&DF_SYS[UI.dfSys].lvl<=lvl()?UI.dfSys:'lite';if(lvl()<2)return;
-   const up=(own?dfBuildCost(km):0)+DF_SYS[sys].cost+ampCount(km)*AMP_COST+(S.pops[b]?0:popCost(b));if(!spend(up))return;
+   const over=popOverMul();if(!S.pops[b]&&Object.keys(S.pops).length>=popCap())toast(`<b>Beyond your role's footprint.</b><br>POP ${Object.keys(S.pops).length+1} costs ${fmt$(popCost(b)*over)} — ${Math.round((over-1)*100)}% over the list price.`,'warn');
+   const up=(own?dfBuildCost(km):0)+DF_SYS[sys].cost+ampCount(km)*AMP_COST+(S.pops[b]?0:popCost(b)*over);if(!spend(up))return;
    if(!S.pops[b])S.pops[b]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false,rgen:0};
    const sib=pairLinks(a,b).filter(l=>l.kind!=='vxc'),id=uid();
    const l={id,a,b,kind:'df',own,sys,ch:[],km,sub:!!sc,cable:sc?sc.cid:null,mo:own?Math.round(km*0.15):dfLeaseMo(km),trench:sc?'cab:'+sc.cid:id,cut:0,day:S.day,ready:S.day+(own?dfBuildDays(km):30),spares:false};
@@ -2588,13 +2643,13 @@ function renderLeft(){
   // while a city or link is open and comes back with the toggle button.
   const tab=isTablet(),L=$('left');L.classList.toggle('closed',tab?(!!UI.sel&&!UI.leftOpen):!UI.leftOpen);const tg=$('leftToggle');if(tg&&innerWidth>760)tg.hidden=!(tab&&L.classList.contains('closed'));
   if(!S){L.hidden=true;return;}L.hidden=false;
-  const ndone=GOALS.filter(g=>S.done[g.id]!==undefined).length;
-  const tabs=[['goals',`Goals<span class="cnt">${ndone}/${GOALS.length}</span>`],['deals',`Deals${S.offers.length?`<span class="cnt">${S.offers.length}</span>`:''}`],['noc',`NOC${S.inc.length?`<span class="cnt red">${S.inc.length}</span>`:''}`],['nets','Networks']];
+  const myGoals=goalsFor(),ndone=myGoals.filter(g=>S.done[g.id]!==undefined).length;
+  const tabs=[['goals',`Goals<span class="cnt">${ndone}/${myGoals.length}</span>`],['deals',`Deals${S.offers.length?`<span class="cnt">${S.offers.length}</span>`:''}`],['noc',`NOC${S.inc.length?`<span class="cnt red">${S.inc.length}</span>`:''}`],['nets','Networks']];
   $('leftTabs').innerHTML=tabs.map(([k,l])=>`<button class="${UI.left===k?'on':''}" data-act="leftTab" data-args='{"t":"${k}"}'>${l}</button>`).join('')+(innerWidth<760?`<button data-act="toggleLeft" style="margin-left:auto" aria-label="Close">×</button>`:'');
   let h='';
   if(UI.left==='goals'){
-    const cur=GOALS.find(g=>S.done[g.id]===undefined);
-    h+=GOALS.map(g=>{const d=S.done[g.id]!==undefined,c=g===cur;return `<div class="goal ${d?'done':''} ${c?'cur':''}"><div class="ck">${d?'✓':''}</div><div><div class="gt">${esc(g.t)}</div>${c||!d?`<div class="gd">${esc(g.d)}</div>`:''}${!d&&g.r?`<div class="gr">Reward ${fmt$(g.r)}</div>`:''}</div></div>`;}).join('');
+    const cur=myGoals.find(g=>S.done[g.id]===undefined);
+    h+=myGoals.map(g=>{const d=S.done[g.id]!==undefined,c=g===cur;return `<div class="goal ${d?'done':''} ${c?'cur':''}"><div class="ck">${d?'✓':''}</div><div><div class="gt">${esc(g.t)}</div>${c||!d?`<div class="gd">${esc(g.d)}</div>`:''}${!d&&g.r?`<div class="gr">Reward ${fmt$(g.r)}</div>`:''}</div></div>`;}).join('');
     h+=badgeGrid();
   }else if(UI.left==='deals'){
     h+=confSection();
@@ -2990,7 +3045,18 @@ function showHelp(){
   <dt>Conferences</dt><dd>NANOG-ish, RIPE-ish, DENOG-ish and friends come round every year. Register in the Deals tab for $8k. For 45 days after, selective networks with a presence in that region need only half the usual traffic before they peer with you. Sometimes you also win the raffle.</dd><dt>Modes</dt><dd>Sandbox gives you a billion dollars, every unlock and no failures, but no badges. Scenarios are hand-built challenges with a goal and a deadline, and the weekly challenge gives everyone the same world for a week. Share your result with the card in the menu.</dd><dt>Traceroute</dt><dd>Tap 🔍 Traceroute on any of your cities, or open it from the NOC tab, to see the exact path to a network or POP, hop by hop, with latency, the exit and the AS path.</dd><dt>Badges</dt><dd>Below your goals sits a wall of badges, from common to legendary. Some take luck, some take years, and a couple are secret. Badges you earned in earlier games stay on this device with a dashed outline.</dd><dt>The giants</dt><dd>At customer level 3 and 4, hyperscalers and AI clouds show up with deals only they would ask for: terabit AI WANs between gigawatt campuses, training runs spread over several sites, week-long dataset ingests, and hundreds of fiber pairs in a trench you dug yourself. They pay like nobody else, and they want diverse paths, two sites per metro and zero excuses. Cities near their campuses list them under “Who’s here”.</dd><dt>RouteScript</dt><dd>Once Auto-TE is installed, you can program it from the NOC tab. Rules include <code>spill at 80%</code>, <code>prefer pni for goggle</code>, <code>avoid transit for netchill</code>, <code>cap transit cogentle at 20 gbps</code>, <code>drain paris</code>, <code>avoid link fra-ams</code> and <code>blackhole ddos</code>. Check runs a dry run against live traffic; Deploy makes it real, mistakes included.</dd><dt>Auto-TE</dt><dd>Traffic follows the shortest path by distance and link metric, and reroutes by itself when links fail. When a path is merely full, the overflow is dropped, just like a real IGP. From customer level 3 you can install Auto-TE in the NOC tab: it spills overflow onto up to two alternate paths with free capacity, as long as they are no more than twice as long.</dd><dt>Metro diversity</dt><dd>A POP is one building until you add a second site in the Infra tab. Then a power cut, cleaner or A/C failure only takes out half the city, and you choose which site each transit, PNI and IX port plugs into, or pick Both to split a LAG across the two buildings. Spread them out, or both halves of your redundancy will sit in the same dark room. Watch out for metro ring cuts, which cut site B off.</dd><dt>Wave markets</dt><dd>What a wave costs depends on where it runs. Europe is cheap (lots of competing fiber), North America is average, Asia and South America are pricier, and anything into Africa is several times the price. Every route has its own going rate, and new leases get about 8% cheaper each year, so waiting can pay. The link planner tells you how a route compares.</dd><dt>Regional quirks</dt><dd>In the Gulf, Saudi POPs need a local telecom licence and data on Saudi users stays in the Kingdom; gigaprojects ask for huge demo networks; and now and then the neighbours fall out and every link between Qatar and Saudi Arabia or the UAE goes dark for months, so keep a sea route. South America hangs off Miami: transit is pricier, nothing crosses the Darién Gap by land, and fiber over the Andes costs double and breaks often. IX.brrr in Brazil is run by a nonprofit with cheap public prices, and small Brazilian provedores buy transit in bulk. Inside the UAE only the duopoly may run fiber, so no dark fiber and 3× waves. Taiwan’s cables meet a lot of anchors, Indian fiber meets road widening and the monsoon, and South Africa has load shedding: bring a generator.</dd><dt>Boot times</dt><dd>Some routers take forever to boot. The Infra tab shows how long yours takes. Slow booters make crashes last longer and turn a one-router swap into a three-day outage. Bigger chassis, especially anything with a PacketOinker™ inside, are slow more often. Twin routers make it someone else’s problem.</dd><dt>Failures</dt><dd>Things break all the time: fiber cuts, router crashes, power cuts, IX loops, fabric outages, route leaks, DDoS, fat fingers, cooling failures, and geopolitics: sanctions, tariffs, BGP hijacks, landing permit disputes, exam-day shutdowns and Red Sea cable cuts. Traffic reroutes automatically over other paths and upstreams. Parallel links on diverse routes, a second router and a backup generator all help. Or pay to rush repairs.</dd>
   </dl><div class="btns" style="margin-top:14px">${btn(UI.started?'Back to the map':'Got it','helpClose',{},'big')}${RELEASE_NOTES.length?btn(`What’s new in ${esc(APP_VERSION)}`,'whatsNewShow',{},'ghost'):''}${UI.started&&S&&!S.lost?btn('Start a new network','resetAsk',{},'ghost sm'):''}</div><div class="btns" style="margin-top:6px">${UI.started&&S&&!S.lost?btn('Export save','exportSave',{},'ghost sm'):''}${btn('Import a save','importPick',{},'ghost sm')}</div>${settingsRow()}`);
 }
-function showWin(){setTimeout(()=>{const m=$('modalCard');if(m&&!m.querySelector('[data-act=share]'))m.insertAdjacentHTML('beforeend',`<div class="btns" style="margin-top:8px">${btn('Share my network','share',{},'pink')}</div>`);},0);openModal(`<h1 style="font-family:var(--display);font-size:44px;margin:0">You're a <span style="color:var(--me)">Tier 1</span>!</h1><p class="tagline">${esc(S.name)} (AS${S.asn}) is transit-free. You peer with every giant on the planet and pay nobody to reach the internet. Took you ${S.day} days and ${S.stats.incidents} incidents.</p>${btn('Keep building','keepPlaying',{},'pink big')}`);sfx('coin');}
+function showWin(){
+  /* One win screen, one story per role: the heading is the role the player picked, not a Tier 1. */
+  const R=roleDef(),tail=`Took you ${S.day} days and ${S.stats.incidents} incidents.`;
+  const story={
+    isp:`${esc(S.name)} (AS${S.asn}) is transit-free. You peer with every giant on the planet and pay nobody to reach the internet.`,
+    hosting:`${esc(S.name)} (AS${S.asn}) runs the racks every tenant wants. Density, redundancy and a waiting list.`,
+    nap:`${esc(S.name)} (AS${S.asn}) is the address carriers meet at. ISPs, IXs and hyperscalers all pay rent under your roof.`,
+    rtnet:`${esc(S.name)} (AS${S.asn}) is still here: two years of transit bills paid, neighbours online and no debt collectors at the door.`,
+  };
+  setTimeout(()=>{const m=$('modalCard');if(m&&!m.querySelector('[data-act=share]'))m.insertAdjacentHTML('beforeend',`<div class="btns" style="margin-top:8px">${btn('Share my network','share',{},'pink')}</div>`);},0);
+  openModal(`<h1 style="font-family:var(--display);font-size:44px;margin:0">You're a <span style="color:var(--me)">${esc(R.l)}</span>!</h1><p class="tagline">${story[S.role]||story.isp} ${tail}</p>${btn('Keep building','keepPlaying',{},'pink big')}`);sfx('coin');
+}
 function showLose(){openModal(`<h1 style="font-family:var(--display);font-size:40px;margin:0">Bankrupt</h1><p class="tagline">The bank repossessed your routers and sold them on eBuy. ${esc(S.name)} lasted ${S.day} days and peaked at ${fmtG(S.stats.peak)}.</p>${btn('Try again','newgame',{},'pink big')}`);clearSave(S.region||UI.region);}
 function openLinkModal(a,b){
   if([a,b].includes('kyv')&&[a,b].includes('mos')){openModal(`<div style="display:flex;align-items:center"><h2 style="font-size:24px">Not happening</h2><button class="x" data-act="closeModal" aria-label="Close">×</button></div><p class="lead" style="margin-top:8px">Nobody sells capacity between Kyiv and Moscow, and nobody is going to. Route through Warsaw, Bucharest or Helsinki instead.</p>`);return;}
