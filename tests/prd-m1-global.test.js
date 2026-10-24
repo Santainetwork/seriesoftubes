@@ -1,13 +1,15 @@
-// PRD M1 gate — tests/prd-m1.test.js (NEW, owned by lane m1).
-// REGION + applyRegion + rebuildDerived, Global-only.
-// Run: node --test tests/prd-m1.test.js
+// PRD M1 gate — tests/prd-m1-global.test.js (renamed: tests Global, not absence of others).
+// REGION + applyRegion + rebuildDerived. Global entry must always exist;
+// sea/idn entries were added later (M3) and are allowed. The permanent invariant
+// is tests/prd-baseline.test.js (CITIES 94, CABLE_PAIRS 134, non-tail 65, ...).
+// Run: node --test tests/prd-m1-global.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load } = require('./harness');
 
-test('M1: REGION registry is global-only', () => {
+test('M1: REGION registry always has global', () => {
   const { ev, errors } = load();
-  assert.equal(JSON.stringify(ev('Object.keys(REGION)')), '["global"]');
+  assert.ok(ev('Object.keys(REGION).includes("global")'));
   assert.equal(ev("REGION.global.id"), 'global');
   assert.equal(ev('curRegion'), 'global');
   assert.deepEqual(errors, []);
