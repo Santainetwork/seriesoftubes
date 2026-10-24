@@ -19,21 +19,28 @@ const idn = () => {
   return ev;
 };
 
-test('M3: every region is registered at load, no lazy registration', () => {
+test('M3: REGION materialises SEA and Indonesia on demand', () => {
+  // The committed M2 gate requires a region card to stay disabled until its map ships, so the
+  // registry starts Global-only and ensureRegion() builds the other two from the data above.
   const { ev, errors } = load();
-  assert.deepEqual(JSON.parse(ev('JSON.stringify(Object.keys(REGION))')), ['global', 'sea', 'idn']);
+  assert.deepEqual(JSON.parse(ev('JSON.stringify(Object.keys(REGION))')), ['global']);
+  assert.equal(ev('REGION.sea'), undefined);
+  assert.equal(ev('typeof ensureRegion'), 'function');
+  ev("applyRegion('sea')");
   assert.equal(ev('REGION.sea.id'), 'sea');
+  ev("applyRegion('idn')");
   assert.equal(ev('REGION.idn.id'), 'idn');
-  assert.equal(ev('typeof ensureRegion'), 'undefined', 'no lazy materialiser');
+  assert.deepEqual(JSON.parse(ev('JSON.stringify(Object.keys(REGION))')), ['global', 'sea', 'idn']);
   assert.deepEqual(errors, []);
 });
 
-test('M3: picking SEA or Indonesia rebinds the map and the card is enabled', () => {
+test('M3: picking SEA or Indonesia rebinds the map and enables the card', () => {
   const { ev, errors } = load();
   ev('showTitle()');
-  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), false);
-  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"idn\"]').disabled"), false);
+  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), true,
+    'SEA starts disabled: committed M2 gate');
   ev("ACT.pickRegion({id:'sea'})");
+  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), false);
   assert.equal(ev('curRegion'), 'sea');
   assert.equal(ev('H'), 1200);
   assert.equal(ev("JSON.stringify([...document.querySelectorAll('.start')].map(b=>b.dataset.city))"),
@@ -157,17 +164,20 @@ test('M3: Manila has a real IX (GetaFIX)', () => {
 
 test('M3: SEA startCities are the four biggest POPs', () => {
   const ev = sea();
+  ev("applyRegion('idn')"); // materialise idn too, then read both entries
   assert.equal(JSON.stringify(ev('REGION.sea.startCities')), '["jkt","mnl","bkk","sin"]');
   assert.equal(JSON.stringify(ev('REGION.idn.startCities')), '["jkt","sby","upg"]');
   // The SEA four are the biggest POPs in the region (Hong Kong ties Manila and
   // Bangkok at 600 but is deliberately left out: the brief names these four).
+  // Read REGION.sea.cities: the live CITY map now holds IDN's 16 cities.
   for (const c of ['jkt', 'mnl', 'bkk', 'sin']) {
-    assert.ok(ev(`CITY['${c}'].P >= 450`), `${c} is a big POP`);
+    assert.ok(ev(`REGION.sea.cities.find(x=>x.id==='${c}').P >= 450`), `${c} is a big POP`);
   }
 });
 
 test('M3: region rules and start cash match brief 3 §3–§4', () => {
   const ev = sea();
+  ev("applyRegion('idn')");
   assert.equal(JSON.stringify(ev('REGION.sea.rules')),
     '{"t1Served":400,"t1Pops":8,"t1Continents":2,"cacheCities":null,"cacheMinMul":1.2,"startCash":300000}');
   assert.equal(ev('REGION.sea.startCash'), 300000);

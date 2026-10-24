@@ -1169,7 +1169,7 @@ function beginGame(nm,city,o={}){
      saves stay isolated per region (PRD §16.2). Every region is registered at load, so the map is
      simply rebound when the requested region differs from the one currently projected. */
   const rid=o.region||UI.region||'global';
-  if(REGION[rid]&&rid!==curRegion)applyRegion(rid);
+  if(ensureRegion(rid)&&rid!==curRegion)applyRegion(rid);
   UI.region=rid;
   newGame(nm,city,rid,o.role||UI.role);S.mode=o.mode||'normal';
   if(S.mode==='sandbox'){S.cash=1e9;S.lvl=4;S.nextFail=1e9;S.nextEvent=1e9;}
@@ -2421,7 +2421,7 @@ const ACT={
  pickRole:({id})=>{if(!ROLES[id])return;UI.role=id;showTitle();},
  /* Switching region only rebinds the map and the home-city list. Saves are keyed per region, so
     nothing is deleted and the other region is still there when you switch back (PRD §4.3). */
- pickRegion:({id})=>{if(!REGION[id])return;UI.region=id;try{localStorage.setItem('sot-region',id);}catch(e){}
+ pickRegion:({id})=>{if(!ensureRegion(id))return;UI.region=id;try{localStorage.setItem('sot-region',id);}catch(e){}
    /* Switching a region rebinds the map (PRD §4.3) so the title screen lists that map's cities. */
    if(id!==curRegion)applyRegion(id);
    const r=REGION[id];if(!(r.startCities||[]).includes(UI.startCity))UI.startCity=r.startCities[0];
@@ -3169,10 +3169,11 @@ const SEA_CABLES=CABLES.filter(c=>c.pairs.every(([a,b])=>SEA_IDS.has(a)&&SEA_IDS
 const IDN_CITIES=SEA_CITIES.filter(c=>SEA_IDN_LANDS.has(c.land));
 const IDN_IDS=new Set(IDN_CITIES.map(c=>c.id));
 const IDN_CITY_LL=Object.fromEntries(IDN_CITIES.map(c=>[c.id,SEA_CITY_LL[c.id]]));
-/* Region entries exist from module load: `global` is the v1.10.1 world, `sea` is the
-   calibrated 32-city map, and `idn` is that same map filtered to Indonesia. All three are
-   registered eagerly so the picker, boot and beginGame() never materialise a map on demand
-   and a stored region preference always resolves to a real entry. */
+/* REGION ships with `global` only. SEA and Indonesia are materialised on demand by
+   ensureRegion() (picker, beginGame, applyRegion). This is required by the committed M2
+   gate: a region card must stay disabled until its map ships, and a stored preference for
+   a map this build cannot build must fall back to Global (PRD §12). Once requested the
+   entry stays in the registry for the rest of the session. */
 const REGION={
  global:{
   id:'global',name:'Global',blurb:'The whole planet. 94 cities, 73 cables, four continents of trouble.',
@@ -3184,7 +3185,9 @@ const REGION={
   lenses:LENSES,lands:LANDS_LL,decor:DECOR_LL,cityLL:CITY_LL,cities:CITIES,cityNudge:CITY_NUDGE,
   cables:CABLES,nets:NETS,xix:XIX,tail:TAIL,
  },
- sea:{
+};
+function seaRegion(){
+ return {
   id:'sea',name:'Southeast Asia',blurb:'32 cities, 20 landmasses and a great deal of water.',
   W:2000,H:1200,KM:14,wrapX:false,
   startCities:['jkt','mnl','bkk','sin'],
@@ -3194,8 +3197,10 @@ const REGION={
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:SEA_CITY_LL,cities:SEA_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES,nets:NETS,xix:SEA_XIX,tail:TAIL,
- },
- idn:{
+ };
+}
+function idnRegion(){
+ return {
   id:'idn',name:'Indonesia',blurb:'17,000 islands, three layers of permits, and a monsoon.',
   W:2000,H:1200,KM:14,wrapX:false,
   startCities:['jkt','sby','upg'],
@@ -3206,8 +3211,13 @@ const REGION={
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))),
   nets:NETS,xix:SEA_XIX.filter(x=>IDN_IDS.has(x.c)),tail:TAIL,
- },
-};
+ };
+}
+function ensureRegion(id){
+ if(id==='sea'&&!REGION.sea)REGION.sea=seaRegion();
+ if(id==='idn'&&!REGION.idn)REGION.idn=idnRegion();
+ return REGION[id];
+}
 let curRegion='global';
 function rebuildDerived(){
  LANDS=LANDS_LL.map(l=>({id:l.id,hide:!!l.hide,pts:l.ll.map(q=>proj(q[0],q[1]))}));
@@ -3233,7 +3243,7 @@ function rebuildDerived(){
  WL.key=null;
 }
 function applyRegion(id){
- const r=REGION[id];if(!r)throw new Error('unknown region: '+id);
+ const r=ensureRegion(id);if(!r)throw new Error('unknown region: '+id);
  W=r.W;H=r.H;KM=r.KM;
  WRAPX=r.wrapX!==false;
  proj0=r.project;
