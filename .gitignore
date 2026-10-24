@@ -1,3 +1,7 @@
 node_modules/
 _site/
 .DS_Store
+
+# Local-only planning docs — not for the public repo or the served site
+PRD.md
+*.pdf
