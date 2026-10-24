@@ -151,6 +151,7 @@ test('M3: SEA land masses are not glued together', () => {
   assert.equal(ev("isSub('sin','bkk')"), true, 'Singapore–Bangkok is subsea');
   assert.equal(ev("isSub('jkt','sby')"), false, 'Jakarta–Surabaya is overland');
   assert.equal(ev("isSub('sby','dps')"), true, 'Surabaya–Denpasar is subsea');
+  assert.equal(ev("isSub('kul','sin')"), true, 'KL–Singapore is subsea (causeway notwithstanding)');
   assert.equal(ev("isSub('mdn','plm')"), false, 'Medan–Palembang is overland');
   assert.equal(ev("isSub('upg','mdc')"), false, 'Makassar–Manado is overland');
 });
