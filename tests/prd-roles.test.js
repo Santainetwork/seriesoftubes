@@ -1,0 +1,128 @@
+// PRD F7 gate: tests/prd-roles.test.js (NEW, owned by lane roles).
+// Role picker, role-limited offers, POP caps and broadband gating. PRD §8.
+// Run: node --test tests/prd-roles.test.js
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { load } = require('./harness');
+
+test('ROLES: title screen offers four roles and defaults to ISP', () => {
+  const { ev, errors } = load();
+  const text = ev("document.getElementById('modalCard').textContent");
+  assert.equal(ev("document.querySelectorAll('[data-act=pickRole]').length"), 4);
+  for (const label of ['Hosting', 'NAP', 'ISP', 'RT/RW net']) assert.ok(text.includes(label), label);
+  assert.equal(ev("document.querySelector('[data-act=pickRole].on').dataset.args.includes('isp')"), true);
+  // The blurb spells out the limits of the selected role (English UI, decision 7A).
+  assert.match(text, /classic all-rounder/);
+  ev("ACT.pickRole({id:'hosting'})");
+  assert.equal(ev('UI.role'), 'hosting');
+  assert.match(ev("document.getElementById('modalCard').textContent"), /Max 3 POPs, no home broadband/);
+  assert.equal(ev("document.querySelector('[data-act=pickRole].on').dataset.args.includes('hosting')"), true);
+  assert.deepEqual(errors, []);
+});
+
+test('ROLES: role is stored in the save and restored on reload', () => {
+  const a = load();
+  assert.equal(a.ev("sanitize({v:1,pops:{},links:[]}).role"), 'isp', 'legacy saves default to isp');
+  assert.equal(a.ev("sanitize({v:1,role:'atlantis',pops:{},links:[]}).role"), 'isp', 'unknown roles fall back');
+  a.ev("ACT.start({})");
+  assert.equal(a.ev('S.role'), 'isp');
+  assert.equal(a.ev('S.cash'), 200000, 'ISP keeps the classic starting cash');
+  a.ev("save()");
+  assert.equal(a.ev("JSON.parse(localStorage.getItem('sot-save-v1:global')).role"), 'isp');
+
+  a.ev("UI.role='hosting';ACT.start({});save()");
+  assert.equal(a.ev('S.role'), 'hosting');
+  assert.equal(a.ev('S.cash'), 50000, 'hosting starts with $50k');
+  assert.equal(a.ev("JSON.parse(localStorage.getItem('sot-save-v1:global')).role"), 'hosting');
+
+  const b = load({ storage: { 'sot-save-v1:global': a.ev("localStorage.getItem('sot-save-v1:global')") } });
+  assert.equal(b.ev('S.role'), 'hosting', 'the role survives a reload');
+  assert.deepEqual(a.errors, []);
+  assert.deepEqual(b.errors, []);
+});
+
+test('ROLES: hosting cannot sell broadband and is capped at 3 POPs', () => {
+  const { ev, errors } = load();
+  ev("UI.role='hosting';ACT.start({});S.cash=1e6");
+  assert.equal(ev("bbCost('fra')"), Infinity, 'no broadband price for hosting');
+  ev("ACT.launchBB({city:'fra'})");
+  assert.equal(ev("S.pops.fra.bb"), null, 'launchBB is a no-op');
+  ev("renderPanel()");
+  assert.equal(ev("document.getElementById('panelBody').textContent.includes('Launch broadband')"), false,
+    'the button is not offered');
+
+  ev("for(const c of ['ams','lon'])ACT.buildPop({city:c})");
+  assert.equal(ev('Object.keys(S.pops).length'), 3, 'three POPs allowed');
+  ev("ACT.buildPop({city:'par'})");
+  assert.equal(ev('Object.keys(S.pops).length'), 3, 'the fourth POP is refused');
+  ev("ACT.buildPop({city:'nyc'})");
+  assert.equal(ev('Object.keys(S.pops).length'), 3);
+
+  // A link into a new city must not smuggle a fourth POP in either.
+  ev("UI.pending={a:'fra',b:'par'};ACT.buildLink({tier:0})");
+  assert.equal(ev('Object.keys(S.pops).length'), 3, 'link path respects the POP cap');
+  assert.equal(ev("S.links.length"), 0, 'nothing was built');
+  assert.deepEqual(errors, []);
+});
+
+test('ROLES: hosting sees hosting/GPU/on-ramp/AI offers only', () => {
+  const { ev, errors } = load();
+  ev("UI.role='hosting';ACT.start({});S.lvl=4;S.cash=1e6");
+  ev("for(let i=0;i<300;i++){S.offers=[];spawnOffer();if(S.offers.length)break}");
+  const seen = JSON.parse(ev("JSON.stringify((()=>{const s=new Set();for(let i=0;i<400;i++){S.offers=[];spawnOffer();for(const o of S.offers)s.add(o.type)}return [...s]})())"));
+  assert.ok(seen.length > 0, 'offers still spawn');
+  for (const t of seen) assert.ok(['host', 'gpu', 'onramp', 'ai'].includes(t), `unexpected type ${t}`);
+  // offersHere() hides a contract the role cannot take, and shows one it can.
+  ev("S.offers=[{id:'a',city:'fra',city2:null,name:'Enterprise DIA Co',type:'dia',bw:1,rate:1,reqs:[],exp:999},{id:'b',city:'fra',city2:null,name:'Rack Renters',type:'host',bw:10,rate:1,reqs:[],exp:999}]");
+  const html = ev("offersHere('fra')");
+  assert.equal(html.includes('Enterprise DIA Co'), false, 'dia is filtered out');
+  assert.ok(html.includes('Rack Renters'), 'hosting is shown');
+  assert.deepEqual(errors, []);
+});
+
+test('ROLES: RT/RW net takes small DIA only, max 2 POPs, needs transit first', () => {
+  const { ev, errors } = load();
+  ev("UI.role='rtnet';ACT.start({});S.cash=1e6");
+  assert.equal(ev('S.cash'), 1000000, 'test topped the tiny $2k budget up');
+  assert.equal(ev("ROLES.rtnet.cash"), 2000, 'PRD starting cash for rtnet is $2k');
+
+  // No transit bought yet: nothing is offered at all.
+  ev("S.transit=[];for(let i=0;i<200;i++){S.offers=[];spawnOffer()}");
+  assert.equal(ev('S.offers.length'), 0, 'no offers before transit');
+
+  // With a transit port, only small DIA appears.
+  ev("S.transit=[{id:'t1',city:'fra',net:'cog',tier:0,n:1,down:0}]");
+  const seen = JSON.parse(ev("JSON.stringify((()=>{const a=[];for(let i=0;i<400;i++){S.offers=[];spawnOffer();for(const o of S.offers)a.push([o.type,o.bw])}return a})())"));
+  assert.ok(seen.length > 0, 'DIA offers appear');
+  for (const [t, bw] of seen) {
+    assert.equal(t, 'dia', 'only DIA is allowed');
+    assert.ok(bw <= 2, `small scale only, got ${bw}G`);
+  }
+
+  // Two POPs, not three.
+  ev("ACT.buildPop({city:'ams'})");
+  assert.equal(ev('Object.keys(S.pops).length'), 2);
+  ev("ACT.buildPop({city:'lon'})");
+  assert.equal(ev('Object.keys(S.pops).length'), 2, 'the third POP is refused');
+  assert.deepEqual(errors, []);
+});
+
+test('ROLES: NAP gates all offers until 5 POPs, then only ISP/hyperscaler/AI', () => {
+  const { ev, errors } = load();
+  ev("UI.role='nap';ACT.start({});S.cash=1e7");
+  assert.equal(ev('S.cash'), 10000000);
+  assert.equal(ev("ROLES.nap.cash"), 2000000, 'PRD starting cash for NAP is $2M');
+
+  ev("for(let i=0;i<300;i++){S.offers=[];spawnOffer()}");
+  assert.equal(ev('S.offers.length'), 0, 'under 5 POPs there are no profit-relevant offers');
+  assert.equal(ev('roleBlockOffers()'), true);
+
+  ev("for(const c of ['ams','lon','par','nyc'])ACT.buildPop({city:c})");
+  assert.equal(ev('Object.keys(S.pops).length'), 5);
+  assert.equal(ev('roleBlockOffers()'), false);
+
+  const seen = JSON.parse(ev("JSON.stringify((()=>{const s=new Set();for(let i=0;i<400;i++){S.offers=[];spawnOffer();for(const o of S.offers)s.add(o.type)}return [...s]})())"));
+  assert.ok(seen.length > 0, 'offers start once the NAP is big enough');
+  for (const t of seen) assert.ok(['isp', 'hyper', 'ai'].includes(t), `unexpected type ${t}`);
+  assert.deepEqual(errors, []);
+});

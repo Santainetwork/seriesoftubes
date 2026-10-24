@@ -325,6 +325,7 @@ label.f{display:block;font-weight:900;font-size:12px;letter-spacing:.06em;text-t
 input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radius:12px;padding:8px 12px;font-family:var(--display);font-weight:800;font-size:18px;background:var(--soft)}
 .starts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pick3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.pick4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .pick{border:3px solid var(--ink);border-radius:12px;padding:7px 4px;background:var(--paper);cursor:pointer;box-shadow:0 3px 0 var(--ink);text-align:center;font-family:var(--display);font-weight:800;font-size:14px;line-height:1.15}
 .pick.on{background:#FFE3F0;border-color:var(--me);box-shadow:0 3px 0 var(--me)}
 .pick:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
@@ -1017,6 +1018,27 @@ const LEVELS=[
 ];
 const lvl=()=>(S&&S.lvl)||1;
 function custLevel(){const pops=Object.keys(S.pops).length,pk=S.stats.peak;if(pk>=3000&&pops>=10&&regionsCount()>=3)return 4;if(pk>=1000&&pops>=6)return 3;if(pk>=200&&pops>=3)return 2;return 1;}
+/* PRD F7: your role decides which kinds of customer you may serve and how far you can grow.
+   'isp' is the classic game and stays unrestricted; the other roles are deliberately narrower. */
+const ROLES={
+ hosting:{l:'Hosting',cash:50000,maxPops:3,bb:false,types:['host','gpu','onramp','ai'],
+   blurb:'Colo and AI hosting. Hosting, GPU, cloud on-ramp and AI deals only. Max 3 POPs, no home broadband.'},
+ nap:{l:'NAP',cash:2000000,minPops:5,bb:false,types:['isp','hyper','ai'],
+   blurb:'Carrier hotel. Sells to ISPs, hyperscalers and AI. No profit-relevant offers until you run 5 POPs.'},
+ isp:{l:'ISP',cash:START_CASH,all:true,bb:true,
+   blurb:'The classic all-rounder: home broadband, DIA, downstream ISPs, streaming, education and GPU deals. No extra limits.'},
+ rtnet:{l:'RT/RW net',cash:2000,maxPops:2,bb:false,types:['dia'],
+   blurb:'Neighbourhood network. Small DIA deals only, max 2 POPs, and you must buy transit from another ISP first.'},
+};
+const ROLE_IDS=['hosting','nap','isp','rtnet'];
+const roleDef=()=>ROLES[(S&&S.role)]||ROLES.isp;
+function roleAllowsType(t){const R=roleDef();return !!R.all||(R.types||[]).includes(t);}
+function roleBlockOffers(){const R=roleDef();return !!(R.minPops&&Object.keys(S.pops).length<R.minPops);}
+/* An offer is only real for this role: the right customer type, the role's POP threshold met,
+   and (for RT/RW nets) a transit port already bought from another ISP. */
+function roleOfferOk(o){if(!o||!roleAllowsType(o.type))return false;if(roleBlockOffers())return false;if(S.role==='rtnet'&&!S.transit.length)return false;return true;}
+function popCap(){const R=roleDef();return R.maxPops||Infinity;}
+function canAddPop(){return Object.keys(S.pops).length<popCap();}
 const BIZ_N=['Byte-Size Bakery','Hamster Wheel Power Co.','Llama Logistics','Cloud Nine Hosting','Rural Rabbit Broadband','Tiny Telco','Pixel Pirates Games','Moo-Moo Dairy Corp','Snack Overflow','Git Happens Ltd','Kernel Sanders Fried Code','Lag-Free Llamas','404 Bistro','Ping Pong Sports','Null Pointer Pets','Buffer Bloat Boats','Packet Pizza','Latency Lattes','Ctrl-Alt-Deli','Sudo Sandwiches','Cache Me Outside','Hertz So Good Radio','Jitterbug Dance Hall','Bit Barn Hosting','Fiber Optimists','The Daily Ping','Squirrel Mesh Wireless','Spam & Eggs Diner','Router Rooter Plumbing','Kilobyte Kebab','Gigglebit Studios','Uptime Funk Records','Ohm Sweet Ohm','Dial-Up Nostalgia Club','Two-Factor Tacos'];
 
 /* ================= GOALS ================= */
@@ -1043,7 +1065,7 @@ const GOALS=[
 
 /* ================= STATE ================= */
 let S=null, R=emptyR();
-const UI={sel:null,tab:'cust',left:'goals',speed:1,hover:null,drag:null,snap:null,pending:null,confirm:null,leftOpen:false,muted:false,startCity:'fra',hintOff:false,region:'global',saveMode:'device'};
+const UI={sel:null,tab:'cust',left:'goals',speed:1,hover:null,drag:null,snap:null,pending:null,confirm:null,leftOpen:false,muted:false,startCity:'fra',hintOff:false,region:'global',saveMode:'device',role:'isp'};
 let uidN=1; const uid=()=>'i'+(Date.now()%1e7).toString(36)+(uidN++);
 function emptyR(){return {teBlack:0,tNet:{},egT:{},netEg:{},l2lat:{},nodeLoad:{},nodeCap:{},div:{},l2:{},gfwLost:0,gfwCross:0,ef:{},egDesc:{},p95:{},peered:0,peerShare:0,load:{},useT:{},useIx:{},usePni:{},useCache:{},cityDem:{},citySrv:{},cityEye:{},demTo:{},served:0,demand:0,reach:0,sessions:0,revMo:0,costMo:0,cost:{},rev:{},reachable:{}};}
 /* ================= BANKS & LOANS =================
@@ -1149,7 +1171,7 @@ function beginGame(nm,city,o={}){
   const rid=o.region||UI.region||'global';
   if(REGION[rid]&&rid!==curRegion)applyRegion(rid);
   UI.region=rid;
-  newGame(nm,city,rid);S.mode=o.mode||'normal';
+  newGame(nm,city,rid,o.role||UI.role);S.mode=o.mode||'normal';
   if(S.mode==='sandbox'){S.cash=1e9;S.lvl=4;S.nextFail=1e9;S.nextEvent=1e9;}
   if(o.scn){const sc=o.scn;S.scn={id:sc.id,rules:sc.rules||{},days:sc.days,name:sc.n||('Weekly challenge '+sc.key),key:sc.key||null,mods:(sc.mods||[]).map(m=>m.id)};S.rng=(o.seed||hstr(sc.id))|0;S.mode='scenario';S.asn=200000+Math.floor(Math.random()*15000);
     if(sc.cash)S.cash=sc.cash;if(sc.setup)sc.setup();
@@ -1282,8 +1304,9 @@ function scenarioModal(){const wk=weekly(),h=scnHof();let best=null;try{best=JSO
   openModal(`<div style="display:flex;align-items:center"><div><div class="eyebrow">Scenarios</div><h2 style="font-size:28px">Pick a challenge</h2></div><button class="x" data-act="${UI.started?'closeModal':'helpClose'}" aria-label="Close">×</button></div>
   <div class="scn wk"><div class="grow"><div class="nm">Weekly challenge ${esc(wk.key)}</div><div class="meta">Start in ${esc(CITY[wk.city].name)} · ${wk.mods.map(m=>esc(m.n)).join(' · ')} · one year, score = peak traffic. The same world for everyone this week.${best?` Your best: ${fmtG(best)}.`:''}</div></div>${btn('Play','startWeekly',{},'pink')}</div>
   ${SCN.map(x=>`<div class="scn"><div class="grow"><div class="nm">${esc(x.n)} ${h[x.id]?`<span class="tag open">done in ${h[x.id].days} days</span>`:''}</div><div class="meta">${esc(x.d)}</div><div class="meta"><b>Goal:</b> ${esc(x.goal)} · <b>Time:</b> ${x.days} days · start in ${esc(CITY[x.city].name)}</div></div>${btn('Play','startScn',{id:x.id},'')}</div>`).join('')}`);}
-function newGame(name,home,region){
-  S={v:1,name,region:region||curRegion,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:START_CASH,
+function newGame(name,home,region,role){
+  role=ROLES[role]?role:'isp';
+  S={v:1,name,region:region||curRegion,role,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:ROLES[role].cash,
     ltv:2,pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},
     done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
 }
@@ -1719,6 +1742,7 @@ function sanitize(s){
   for(const c of Object.keys(s.pops)){const p=s.pops[c];if(!isCity(c)||!p||typeof p!=='object'){delete s.pops[c];continue;}p.routers=int(p.routers,1,RMAX,1);if(p.rgen!==undefined)p.rgen=int(p.rgen,0,RG.length-1,0);p.down=num(p.down,0);if(p.bb&&typeof p.bb==='object')p.bb.d=num(p.bb.d,0);else p.bb=null;}
   if(!isCity(s.home))s.home=Object.keys(s.pops)[0]||'fra';
   if(!own(REGION,s.region))s.region='global';
+  if(!own(ROLES,s.role))s.role='isp';
   const tier=v=>int(v,0,PORT.length-1,0),lag=v=>int(v,1,LAG_MAX,1),sid=v=>String(v==null?uid():v).slice(0,40);
   s.links=s.links.filter(l=>l&&isCity(l.a)&&isCity(l.b)&&l.a!==l.b).map(l=>{l.id=sid(l.id);l.km=num(l.km,kmBetween(l.a,l.b));l.mo=num(l.mo,0);l.cut=num(l.cut,0);if(l.kind!=='df'&&l.kind!=='vxc')l.kind='wave';if(l.kind==='wave')l.tier=int(l.tier,0,LT.length-1,0);if(l.cable&&!own(CAB,l.cable))l.cable=null;if(l.kind==='vxc'&&!own(VXC,l.vt))l.vt=0;if(l.kind==='df'){if(!own(DF_SYS,l.sys))l.sys='lite';l.ch=Array.isArray(l.ch)?l.ch.filter(o=>own(OPT,o)):[];l.ready=num(l.ready,0);}if(l.metric&&!own(MET,l.metric))l.metric='normal';return l;});
   s.transit=s.transit.filter(t=>t&&isCity(t.city)&&isNet(t.net)).map(t=>(t.site=['a','b','ab'].includes(t.site)?t.site:'a',t.id=sid(t.id),t.tier=tier(t.tier),t.n=lag(t.n),t.down=num(t.down,0),t));
@@ -2109,11 +2133,21 @@ function spawnOffer(){
   if(S.links.some(l=>l.kind==='df'&&l.ready<=S.day))types.push('wwave','wwave');if(S.links.some(l=>l.kind==='df'&&l.own&&l.ready<=S.day))types.push('dfpair');if(lv>=3)types.push('gpu','gpu','onramp','onramp');if(lv>=4)types.push('ai','ai','hyper','hyper');
   if(lv>=3&&MEGA.some(m=>mine.includes(m.c)))types.push('ingest');if(lv>=4&&MEGA.some(m=>mine.includes(m.c)))types.push('aiwan','aiwan','mtrain');if(lv>=4&&S.links.some(l=>l.kind==='df'&&l.own&&l.ready<=S.day))types.push('pairs');
   const br=mine.filter(c=>CITY[c].br);if(br.length)types.push('provedor','provedor','provedor');
-  const t=pick(types),T=BIZ_T[t];
+  /* PRD F7: a role only ever sees the customer types it may serve, and a NAP gets no offers at
+     all until it runs 5 POPs. An RT/RW net also has to buy transit before anyone signs. */
+  if(roleBlockOffers())return;
+  if(S.role==='rtnet'&&!S.transit.length)return;
+  const RD=roleDef();
+  /* A restricted role draws from its own list of trades, not the level-gated general pool: a NAP
+     sells to ISPs from day one, a hosting outfit sells hosting from day one. */
+  const allowed=RD.all?types:RD.types.slice();
+  if(!allowed.length)return;
+  const t=pick(allowed),T=BIZ_T[t];
   if(T.event||T.sdwan||T.fiber||T.mega){spawnSpecial(t);return;}
   let city=(Math.random()<0.65&&mine.length)?pick(mine):pick(ALLC.concat(cnOk()?['pek','sha']:[])),city2=null;
   if(T.l2){city=pick(mine);const pool=(Math.random()<(T.lv>=3?0.8:0.6)?mine:ALLC).filter(c=>c!==city);city2=pick(pool.length?pool:ALLC.filter(c=>c!==city));}
   const bw=T.lv>=2?pick(T.opts):pick(T.opts.slice(0,mine.length>=4?4:3));
+  const bwRole=S.role==='rtnet'&&t==='dia'?pick([1,2]):bw;
   const list=(T.names||BIZ_N).filter(n=>!S.usedNames.includes(n));
   let name=list.length?pick(list):(T.names?pick(T.names):'Startup #'+Math.floor(Math.random()*999));
   S.usedNames.push(name);
@@ -2124,7 +2158,7 @@ function spawnOffer(){
   if(Math.random()<(T.lv>=3?0.65:0.3))reqs.push(pick(pool));
   if(T.lv>=3&&Math.random()<0.35){const more=pool.filter(k=>!reqs.includes(k));if(more.length)reqs.push(pick(more));}
   const r2=Math.round(rate*(1+reqs.reduce((a,k)=>a+REQS[k].bonus,0)));
-  S.offers.push({id:uid(),city,city2,name,type:t,bw,rate:r2,reqs,latMax:T.lat?+(kmBetween(city,city2)/200*1.35).toFixed(1):null,exp:S.day+40});
+  S.offers.push({id:uid(),city,city2,name,type:t,bw:bwRole,rate:r2,reqs,latMax:T.lat?+(kmBetween(city,city2)/200*1.35).toFixed(1):null,exp:S.day+40});
 }
 /* Badges: achievements with rarities. Earned per game, and also remembered across games on this
    device in a hall of fame, so there is always something grand to work towards. */
@@ -2244,8 +2278,8 @@ const ACT={
  toggleLeft:()=>{UI.leftOpen=!UI.leftOpen;renderLeft();},
  focusCity:({city})=>{selectCity(city);const C=CITY[city];cam.x=C.x;cam.y=C.y;cam.z=Math.max(cam.z,1.2);if(innerWidth<760)UI.leftOpen=false;renderLeft();},
  selLink:({id})=>{UI.sel={type:'link',id};UI.confirm=null;renderPanel();},
- buildPop:({city})=>{if(S.pops[city])return;if(cnCity(city)&&!cnOk()){toast('<b>You need a license first.</b><br>Foreign networks need a joint venture to build in mainland China.','bad');sfx('err');return;}if(!spend(popCost(city)))return;S.pops[city]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};floater(CITY[city].x,CITY[city].y-30,'New POP!','#FF4F9A');UI.tab='cust';after();},
- launchBB:({city})=>{const p=S.pops[city];if(!p||p.bb)return;const C=CITY[city];if(!spend(bbCost(city)))return;p.bb={d:Math.max(8,C.P*0.03)};floater(C.x,C.y-30,'Eyeballs online!','#16A866');after();},
+ buildPop:({city})=>{if(S.pops[city])return;if(!canAddPop()){toast(`<b>POP limit reached.</b><br>Your role caps you at ${popCap()} POPs.`,'bad');sfx('err');return;}if(cnCity(city)&&!cnOk()){toast('<b>You need a license first.</b><br>Foreign networks need a joint venture to build in mainland China.','bad');sfx('err');return;}if(!spend(popCost(city)))return;S.pops[city]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};floater(CITY[city].x,CITY[city].y-30,'New POP!','#FF4F9A');UI.tab='cust';after();},
+ launchBB:({city})=>{const p=S.pops[city];if(!p||p.bb)return;if(!roleDef().bb){toast('<b>Home broadband is not part of your role.</b><br>Hosting, NAP and RT/RW networks sell to businesses instead.','bad');sfx('err');return;}const C=CITY[city];if(!spend(bbCost(city)))return;p.bb={d:Math.max(8,C.P*0.03)};floater(C.x,C.y-30,'Eyeballs online!','#16A866');after();},
  ad:({city})=>{const p=S.pops[city];if(!p||!p.bb)return;if(!spend(8000))return;p.boost=S.day+30;floater(CITY[city].x,CITY[city].y-30,'Ad campaign!','#FF8A3D');after();},
  buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}if(!S.pops[city]||!NET[net]||!NET[net].price||!NET[net].pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;if(!spend(PORT[tier].setup*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.transit.push({id:uid(),city,net,tier,down:0});toast(`<b>${esc(NET[net].name)} transit is live in ${CITY[city].name}.</b><br>Full table received: ~1,000,000 routes.`,'good');after();},
  lagT:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const t=S.transit.find(x=>x.id===id);if(!t)return;const n=(t.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0){if(!portOk(t.city,t.tier)||!portGate(t.city,PORT_SLOT(t.tier)))return;if(!spend(PORT[t.tier].setup))return;}t.n=n;if(n<2&&t.site==='ab')t.site='a';toast(+d>0?`<b>LAG member added.</b><br>${esc(NET[t.net].name)} in ${CITY[t.city].name} is now ${lagName(t.tier,n)}.`:`<b>LAG member removed.</b>`,'good');after();},
@@ -2304,7 +2338,7 @@ const ACT={
  cache:({city,net})=>{const n=NET[net];if(!n||!n.cache||!S.pops[city]||S.caches.filter(x=>x.city===city&&x.net===net).length>=4)return;if((R.demTo[net]||0)<n.cache.min){toast(`<b>${esc(n.name)} says not yet.</b><br>Send them ${n.cache.min}+ Gbps first.`,'bad');sfx('err');return;}if(!portGate(city,1))return;
    S.caches.push({id:uid(),city,net});toast(`<b>${esc(n.cache.name)} installed in ${CITY[city].name}!</b><br>${esc(n.name)} shipped it for free. You pay ${fmt$(CACHE_MO)}/mo power.`,'good');sfx('build');after();},
  rmCache:({id})=>{S.caches=S.caches.filter(c=>c.id!==id);after();},
- accept:({id})=>{const o=S.offers.find(x=>x.id===id);if(!o)return;if(!bHas(o)){toast('<b>You need a POP in every city on the contract first.</b>','bad');return;}
+ accept:({id})=>{const o=S.offers.find(x=>x.id===id);if(!o)return;if(!roleOfferOk(o)){toast('<b>Not your line of business.</b><br>Your role cannot take this contract.','bad');sfx('err');return;}if(!bHas(o)){toast('<b>You need a POP in every city on the contract first.</b>','bad');return;}
    if(o.type==='wwave'){const l=S.links.find(x=>x.id===o.link);if(!l||DF_SYS[l.sys].max-(l.ch||[]).length-soldSlots(l)<o.slots){toast('<b>Not enough free channels on that fiber any more.</b>','bad');return;}}
    if(BIZ_T[o.type].event&&S.day>=o.start){toast('<b>Too late: the event has already started.</b>','bad');return;}
    S.offers=S.offers.filter(x=>x!==o);S.biz.push({id:o.id,city:o.city,city2:o.city2||null,reqs:o.reqs||[],latMax:o.latMax||null,route:BIZ_T[o.type].scenic?'scenic':BIZ_T[o.type].lat?'fast':'normal',name:o.name,type:o.type,bw:o.bw,rate:o.rate,mood:100,since:S.day,sites:o.sites||null,start:o.start,dur:o.dur,fee:o.fee,link:o.link,slots:o.slots||0,what:o.what});
@@ -2320,6 +2354,7 @@ const ACT={
    S.myIx[city]={name:nm,members:[],next:S.day+4};S.ixp[city]=2;toast(`<b>You founded ${esc(nm)}!</b><br>Networks will join over time and pay you for ports. Open members peer with you for free.`,'goal');after();},
  buildLink:({tier})=>{tier=+tier;const p=UI.pending;if(!p)return;const {a,b}=p;const km=kmBetween(a,b),sub=isSub(a,b),sib=pairLinks(a,b).filter(l=>l.kind!=='vxc'),same=sib.length>0&&UI.route==='same',border=cnCity(a)!==cnCity(b),mult=(sib.length&&!same?DIVERSE:1)*(border?3*(UI.cnPrem&&(a==='hkg'||b==='hkg')?1.6:1):1);
    if((cnCity(a)||cnCity(b))&&!cnOk())return;
+   if(!S.pops[b]&&!canAddPop()){toast(`<b>POP limit reached.</b><br>Your role caps you at ${popCap()} POPs.`,'bad');sfx('err');return;}
    if(!waveOk(a,b,tier)){toast(`<b>A ${LT[tier].n} wave needs ${esc(waveNeed(tier))} routers at both ends.</b>`,'bad');sfx('err');return;}
    const wr=waveRoute(a,b,mult,border);if(!wr){toast('<b>No cable available for that route right now.</b>','bad');sfx('err');return;}const base=Math.round(waveMo(wr.km,wr.sub,tier)*wr.wm),cost=base+(S.pops[b]?0:popCost(b));
    if(!portGate(a,1)||!portGate(b,1))return;if(!spend(cost))return;if(!S.pops[b])S.pops[b]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};
@@ -2358,6 +2393,7 @@ const ACT={
  dfSrc:({v})=>{UI.dfSrc=v;if(UI.pending)openLinkModal(UI.pending.a,UI.pending.b);},
  dfSys:({v})=>{UI.dfSys=v;if(UI.pending)openLinkModal(UI.pending.a,UI.pending.b);},
  orderDf:()=>{const p=UI.pending;if(!p)return;const {a,b}=p;if(!dfAllowed(a,b))return;const sc=isSub(a,b)?subDfCable(a,b):null,km=sc?sc.km:kmBetween(a,b);
+   if(!S.pops[b]&&!canAddPop()){toast(`<b>POP limit reached.</b><br>Your role caps you at ${popCap()} POPs.`,'bad');sfx('err');return;}
    const own=UI.dfSrc==='build'&&lvl()>=3&&!sc,sys=DF_SYS[UI.dfSys]&&DF_SYS[UI.dfSys].lvl<=lvl()?UI.dfSys:'lite';if(lvl()<2)return;
    const up=(own?dfBuildCost(km):0)+DF_SYS[sys].cost+ampCount(km)*AMP_COST+(S.pops[b]?0:popCost(b));if(!spend(up))return;
    if(!S.pops[b])S.pops[b]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false,rgen:0};
@@ -2371,7 +2407,8 @@ const ACT={
  spares:({id})=>{const l=S.links.find(x=>x.id===id);if(!l)return;l.spares=!l.spares;sfx('click');after();},
  crews:({id})=>{const l=S.links.find(x=>x.id===id);if(!l||l.ready<=S.day)return;const c=Math.round(15000+l.km*6);if(!spend(c))return;l.ready=Math.max(S.day+1,l.ready-30);toast('<b>More crews on site.</b><br>Construction is 30 days ahead.','good');after();},
  addGen:({city})=>{const p=S.pops[city];if(!p||p.gen)return;if(!spend(GEN_COST))return;p.gen=true;floater(CITY[city].x,CITY[city].y-30,'Generator!','#FF8A3D');after();},
- start:()=>{const nm=(($('nmIn')&&$('nmIn').value)||'Packet Pals').slice(0,24);beginGame(nm,UI.startCity,{mode:UI.mode==='sandbox'?'sandbox':'normal',region:UI.region});},
+ start:()=>{const nm=(($('nmIn')&&$('nmIn').value)||'Packet Pals').slice(0,24);beginGame(nm,UI.startCity,{mode:UI.mode==='sandbox'?'sandbox':'normal',region:UI.region,role:UI.role});},
+ pickRole:({id})=>{if(!ROLES[id])return;UI.role=id;showTitle();},
  /* Switching region only rebinds the map and the home-city list. Saves are keyed per region, so
     nothing is deleted and the other region is still there when you switch back (PRD §4.3). */
  pickRegion:({id})=>{if(!REGION[id])return;UI.region=id;try{localStorage.setItem('sot-region',id);}catch(e){}
@@ -2380,8 +2417,8 @@ const ACT={
  pickSaveMode:({m})=>{if(!SAVE_MODES.some(([k])=>k===m))return;UI.saveMode=m;showTitle();},
  modeSet:({m})=>{UI.mode=m;document.querySelectorAll('.modeb').forEach(b=>b.classList.toggle('pink',b.dataset.m===m));document.querySelectorAll('.modeb').forEach(b=>b.classList.toggle('ghost',b.dataset.m!==m));},
  scenarios:()=>{UI.nm=(($('nmIn')&&$('nmIn').value)||UI.nm||(S&&S.name)||'Packet Pals').slice(0,24);scenarioModal();},
- startScn:({id,sure})=>{const sc=SCN.find(x=>x.id===id);if(!sc)return;if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start ${esc(sc.n)}?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the scenario','startScn',{id,sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}beginGame(UI.nm||(S&&S.name)||'Packet Pals',sc.city,{scn:sc});},
- startWeekly:({sure}={})=>{if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start the weekly challenge?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the challenge','startWeekly',{sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}const wk=weekly();beginGame(UI.nm||(S&&S.name)||'Packet Pals',wk.city,{scn:wk,seed:wk.seed});},
+ startScn:({id,sure})=>{const sc=SCN.find(x=>x.id===id);if(!sc)return;if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start ${esc(sc.n)}?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the scenario','startScn',{id,sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}beginGame(UI.nm||(S&&S.name)||'Packet Pals',sc.city,{scn:sc,role:'isp'});},
+ startWeekly:({sure}={})=>{if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start the weekly challenge?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the challenge','startWeekly',{sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}const wk=weekly();beginGame(UI.nm||(S&&S.name)||'Packet Pals',wk.city,{scn:wk,seed:wk.seed,role:'isp'});},
  pickStart:({city})=>{const reg=REGION[UI.region]||REGION.global;if(!(reg.startCities||[]).includes(city))return;UI.startCity=city;document.querySelectorAll('.start').forEach(b=>b.classList.toggle('on',b.dataset.city===city));},
  cont:()=>{migrate(S);track('game_continue',true);UI.started=true;closeModal();renderAll();},
  newgame:()=>{clearSave((S&&S.region)||UI.region);S=null;UI.started=false;UI.sel=null;$('dash').hidden=true;$('bankBox').hidden=true;renderAll();showTitle();},
@@ -2415,7 +2452,8 @@ function optCost(o){return Math.round(OPT[o].cost*(S&&S.ev&&S.ev.tariff>S.day?1.
 function chWhy(l,o){const O=OPT[o];if(O.lvl>lvl())return `Unlocks at customer level ${O.lvl}.`;if(O.sys==='roadm'&&l.sys!=='roadm')return 'Needs a ROADMaster 9000 line system.';if(l.km>O.reach)return `Reach is ${O.reach.toLocaleString()} km; this route is ${l.km.toLocaleString()} km.`;
   if((l.ch||[]).length+soldSlots(l)>=DF_SYS[l.sys].max)return `${DF_SYS[l.sys].n} is full (${DF_SYS[l.sys].max} channels${soldSlots(l)?`, ${soldSlots(l)} sold to customers`:''}).`;
   for(const c of [l.a,l.b]){const p=S.pops[c];if(p&&RG[p.rgen||0].cls<O.rg)return `Needs ${RG[O.rg].n} routers at both ends (${CITY[c].name}).`;}return '';}
-function bbCost(c){return 15000+CITY[c].P*20;}
+/* PRD F7: only ISPs sell home broadband. The other roles get no broadband button at all. */
+function bbCost(c){if(S&&!roleDef().bb)return Infinity;return 15000+CITY[c].P*20;}
 function after(){if(S)purgeInc();compute();checkGoals();renderAll();save();}
 const isTablet=()=>innerWidth>760&&innerWidth<=1200;
 function selectCity(c){UI.sel={type:'city',id:c};UI.confirm=null;if(isTablet())UI.leftOpen=false;if(!S.pops[c])UI.tab='cust';renderPanel();}
@@ -2549,8 +2587,9 @@ function renderLeft(){
   }else if(UI.left==='deals'){
     h+=confSection();
     {const lv=S.lvl||1,nx=LEVELS[lv];h+=`<div class="inc" style="background:#FFF6CF"><div class="nm">Customer level ${lv}: ${LEVELS[lv-1].n}</div><div class="meta">${nx?`Next: ${nx.req} unlocks ${nx.unlock.toLowerCase()}`:'Every customer type is unlocked. Go get those terabits.'}</div></div>`;}
-    if(!S.offers.length)h+=`<p class="empty">No open offers right now. Businesses look for networks with POPs in their city. New ones pop up every few weeks.</p>`;
-    for(const o of S.offers.slice().sort((a,b)=>a.exp-b.exp)){const has=bHas(o);
+    const roleOffers=S.offers.filter(roleOfferOk);
+    if(!roleOffers.length)h+=`<p class="empty">No open offers right now. Businesses look for networks with POPs in their city. New ones pop up every few weeks.</p>`;
+    for(const o of roleOffers.sort((a,b)=>a.exp-b.exp)){const has=bHas(o);
       h+=`<div class="row"><div class="grow"><div class="nm">${esc(o.name)}</div><div class="meta">${esc(BIZ_T[o.type].l)} · ${CITY[o.city].name}${o.city2?' ⇄ '+CITY[o.city2].name:''} · <b>${bTerms(o)}</b> · ${o.exp-S.day}d left${(o.reqs||[]).length?` · ${o.reqs.length} special requirement${o.reqs.length>1?'s':''}`:''}</div>${reqList(o)}
       <div class="btns">${has?btn('Accept','accept',{id:o.id},'green sm'):btn('Go there','focusCity',{city:o.city},'ghost sm')}${btn('Decline','decline',{id:o.id},'ghost sm')}</div>${has?'':`<div class="why">Needs a POP in ${bCities(o).filter(x=>!S.pops[x]).map(x=>CITY[x].name).join(', ')}</div>`}</div></div>`;}
   }else if(UI.left==='noc'){
@@ -2609,7 +2648,7 @@ function cityPanel(c){
   if(down){const i=S.inc.filter(x=>x.ref===c&&POPDOWN.includes(x.type)).sort((a,b)=>b.until-a.until)[0];h+=`<section><h3 style="color:var(--bad)">This POP is down</h3><p class="lead">${i?esc(i.msg):''} Customers here get nothing until it's back.</p>${i&&i.cost?btn(`${i.fix} ${fmt$(i.cost)}`,'fixInc',{id:i.id},'red'):''}</section>`;}
   if(UI.tab==='cust'){
     {const nl=R.nodeLoad[c]||0,nc=R.nodeCap[c]||1;if(nl>=nc*0.95)h+=`<section><h3 style="color:var(--bad)">Router maxed out</h3><p class="lead">Your routers here are forwarding ${fmtG(nl)} of ${fmtG(nc)}. Traffic is being dropped. Upgrade or add a router in the Infra tab.</p>${btn('Open Infra','tab',{t:'links'},'pink sm')}</section>`;}
-    h+=`<section><h3>Home broadband</h3>`;
+    if(roleDef().bb){h+=`<section><h3>Home broadband</h3>`;
     if(!p.bb){const s=Math.max(8,C.P*0.03);h+=`<p class="lead">Sell internet to homes here. Starts around ${fmtG(s)} and grows toward ${fmtG(C.P)} while service is good. Pays ${fmt$(EYE_RATE)} per Gbps served, every month.</p>${btn(`Launch broadband <small>${fmt$(bbCost(c))}</small>`,'launchBB',{city:c},'pink big',S.cash<bbCost(c))}`;}
     else{const eye=R.cityEye[c]||0;
       h+=`<div class="kv"><span>Eyeball demand</span><b>${fmtG(eye)} of ${fmtG(C.P)}</b></div><div class="bar me"><i style="width:${eye/C.P*100}%"></i></div>
@@ -2618,7 +2657,8 @@ function cityPanel(c){
       <div class="kv"><span>Network-wide peering ratio</span><b>${pct(R.peerShare||0)}</b></div><p class="note">More traffic over peering, PNIs and caches means lower latency, and happier users grow faster.</p>
       ${sf<0.9?`<p class="why">Customers are unhappy and leaving. Add upstream capacity, peering, or a bigger link.</p>`:''}
       <div class="btns">${p.boost>S.day?`<span class="tag st on">Ad campaign: ${p.boost-S.day}d left</span>`:btn('Run ad campaign <small>$8k · 2× growth 30d</small>','ad',{city:c},'',S.cash<8000)}</div>`;}
-    h+=`</section><section><h3>Business customers</h3>`;
+    h+=`</section>`;}
+    h+=`<section><h3>Business customers</h3>`;
     const bz=S.biz.filter(b=>bCities(b).includes(c));
     if(!bz.length)h+=`<p class="empty">No businesses yet. Offers pop up as $ bubbles on the map.</p>`;
     for(const b of bz)h+=`<div class="row"><div class="grow"><div class="nm">${esc(b.name)}</div><div class="meta">${esc(BIZ_T[b.type].l)}${b.city2?` ${CITY[b.city].name} ⇄ ${CITY[b.city2].name}`:''} · ${bTerms(b)}${BIZ_T[b.type].l2?` · carrying ${fmtG(R.l2[b.id]||0)}${b.sites?' per site':''}`:''}${BIZ_T[b.type].fiber&&!fiberOk(b)?' · <b style="color:var(--bad)">fiber is down</b>':''}${BIZ_T[b.type].event&&eventLive(b)?` · <b>serving ${pct(sfOf(R,b.city))}</b>`:''}${b.type==='scrub'&&!S.scrubAt?' · <b style="color:var(--bad)">needs a scrubbing center</b>':''}${S.day-(b.since||0)<15?` · <b>provisioning, ${15-(S.day-(b.since||0))}d grace</b>`:''}</div>${reqList(b)}${BIZ_T[b.type].l2?routeCtl(b):''}<div class="bar ${b.mood<30?'bad':b.mood<65?'warn':''}"><i style="width:${b.mood}%"></i></div><div class="meta">Happiness ${Math.round(b.mood)}%</div></div>${btn(UI.confirm===b.id?'Really drop?':'Drop','dropBiz',{id:b.id},'ghost sm')}</div>`;
@@ -2763,7 +2803,7 @@ function dfPanel(l){
   return h;
 }
 function offersHere(c){
-  const os=S.offers.filter(o=>bCities(o).includes(c));if(!os.length)return '';
+  const os=S.offers.filter(o=>bCities(o).includes(c)&&roleOfferOk(o));if(!os.length)return '';
   return `<section><h3>Offers here</h3>${os.map(o=>`<div class="row"><div class="grow"><div class="nm">${esc(o.name)}</div><div class="meta">${esc(BIZ_T[o.type].l)}${o.city2?` ${CITY[o.city].name} ⇄ ${CITY[o.city2].name}`:''} · ${bTerms(o)} · ${o.exp-S.day}d left</div>${R.reach<0.99&&!BIZ_T[o.type].l2?`<div class="why">They need the full internet. Your reach is ${pct(R.reach)}.</div>`:''}${o.type==='scrub'&&!S.scrubAt?`<div class="why">Needs your own scrubbing center (Infra tab).</div>`:''}${reqList(o)}${bHas(o)?'':`<div class="why">Needs a POP in ${bCities(o).filter(x=>!S.pops[x]).map(x=>CITY[x].name).join(', ')} too.</div>`}</div>${bHas(o)?btn('Accept','accept',{id:o.id},'green sm'):''}${btn('No','decline',{id:o.id},'ghost sm')}</div>`).join('')}</section>`;
 }
 function linkPanel(id){
@@ -2885,12 +2925,15 @@ function showTitle(){
   const regionBtns=PICK_REGIONS.map(([id,l])=>`<button class="pick ${UI.region===id?'on':''}" data-act="pickRegion" data-args='{"id":"${id}"}'${REGION[id]?'':' disabled title="Arrives with the region map"'}>${l}</button>`).join('');
   const modeBtns=SAVE_MODES.map(([m,l])=>`<button class="pick ${UI.saveMode===m?'on':''}" data-act="pickSaveMode" data-args='{"m":"${m}"}'>${l}</button>`).join('');
   const modeNote=UI.saveMode==='none'?'Nothing is written. Close the tab and this run is gone.':UI.saveMode==='session'?'Kept in this tab only. Closing it deletes the run.':'Autosaves on this device and shows up in Continue.';
+  const roleBtns=ROLE_IDS.map(id=>`<button class="pick ${UI.role===id?'on':''}" data-act="pickRole" data-args='{"id":"${id}"}' title="${esc(ROLES[id].blurb)}">${ROLES[id].l}</button>`).join('');
+  const roleNote=ROLES[UI.role]?ROLES[UI.role].blurb:ROLES.isp.blurb;
   openModal(`<div class="title-art"><svg width="74" height="74" viewBox="0 0 74 74" aria-hidden="true"><path d="M10 60V40c0-14 10-24 24-24h18" fill="none" stroke="#1E2640" stroke-width="16" stroke-linecap="round"/><path d="M10 60V40c0-14 10-24 24-24h18" fill="none" stroke="#FFD23F" stroke-width="9" stroke-linecap="round"/><circle cx="58" cy="16" r="11" fill="#FF4F9A" stroke="#1E2640" stroke-width="4"/><circle cx="21" cy="44" r="3" fill="#fff"/><circle cx="30" cy="27" r="3" fill="#fff"/></svg>
   <h1>Series<br>of <span>Tubes</span></h1></div>
   <p class="tagline">Build an internet. Lay fiber between cities, buy transit, peer at exchanges, sign up businesses, and keep the eyeballs happy while backhoes, sharks and route leaks do their best to stop you.</p>
   ${sv?`<div class="btns" style="margin-bottom:6px">${btn(`Continue ${esc(sv.name)} · ${dateStr(sv.day)}`,'cont',{},'pink big')}</div>`:''}
   <label class="f">Play in</label><div class="pick3">${regionBtns}</div><p class="pickdesc">${reg.cities.length} cities · ${reg.cables.length} cables · ${reg.id==='global'?'full rules':'local rules'}</p>
   <label class="f">Saving</label><div class="pick3">${modeBtns}</div><p class="pickdesc">${modeNote}</p>
+  <label class="f">Your role</label><div class="pick4">${roleBtns}</div><p class="pickdesc">${esc(roleNote)}</p>
   <label class="f" for="nmIn">Name your network</label><input class="t" id="nmIn" maxlength="24" value="Packet Pals" autocomplete="off">
   <label class="f">Pick your home city</label><div class="starts">${starts.map(([c,d])=>`<button class="start ${UI.startCity===c?'on':''}" data-city="${c}" data-act="pickStart" data-args='{"city":"${c}"}'><b>${CITY[c].name}</b><span>${d}</span></button>`).join('')}</div>
   <label class="f">Mode</label><div class="btns">${[['normal','Normal'],['sandbox','Sandbox']].map(([m,l])=>`<button class="b sm modeb ${(UI.mode||'normal')===m?'pink':'ghost'}" data-m="${m}" data-act="modeSet" data-args='{"m":"${m}"}'>${l}</button>`).join('')}${btn('Scenarios &amp; weekly challenge →','scenarios',{},'sm')}</div>
@@ -3320,7 +3363,7 @@ let pressing=false;
 document.addEventListener('pointerdown',e=>{if(e.target.closest('#panel,#left'))pressing=true;});
 addEventListener('pointerup',()=>setTimeout(()=>pressing=false,0));
 addEventListener('pointercancel',()=>{pressing=false;});addEventListener('blur',()=>{pressing=false;});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;audioInit();const fn=ACT[b.dataset.act];if(!fn)return;if(!S&&!['start','pickStart','pickRegion','pickSaveMode','cont','help','helpClose','newgame','mute','animSet','soundSet','closeModal','speed','bankClose','whatsNewShow','updateNow','updateLater','importPick','importGo','modeSet','scenarios','startScn','startWeekly'].includes(b.dataset.act))return;let a={};try{a=JSON.parse(b.dataset.args||'{}');}catch(_){}fn(a);});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;audioInit();const fn=ACT[b.dataset.act];if(!fn)return;if(!S&&!['start','pickStart','pickRegion','pickSaveMode','pickRole','cont','help','helpClose','newgame','mute','animSet','soundSet','closeModal','speed','bankClose','whatsNewShow','updateNow','updateLater','importPick','importGo','modeSet','scenarios','startScn','startWeekly'].includes(b.dataset.act))return;let a={};try{a=JSON.parse(b.dataset.args||'{}');}catch(_){}fn(a);});
 
 /* ================= LOOP ================= */
 let last=performance.now(),acc=0,hudT=0,animT=0,tickErr=0;
