@@ -1028,12 +1028,66 @@ const ROLES={
    blurb:'Carrier hotel. Sells to ISPs, hyperscalers and AI. No profit-relevant offers until you run 5 POPs.'},
  isp:{l:'ISP',cash:START_CASH,all:true,bb:true,
    blurb:'The classic all-rounder: home broadband, DIA, downstream ISPs, streaming, education and GPU deals. No extra limits.'},
- rtnet:{l:'RT/RW net',cash:45000,maxPops:2,bb:false,types:['dia'],
+ rtnet:{l:'RT/RW net',cash:45000,maxPops:2,bb:false,types:['dia'],bwMax:2,
    blurb:'Neighbourhood network. Small DIA deals only, max 2 POPs, and you must buy transit from another ISP first.'},
 };
 const ROLE_IDS=['hosting','nap','isp','rtnet'];
-const roleDef=()=>ROLES[(S&&S.role)]||ROLES.isp;
+/* Brief 6 §3: the role table is global, but each region may override individual numbers
+   (starting cash, POP limits, RT/RW bandwidth). Global ships roles:null, so its table is
+   exactly the brief-5 one. */
+function roleDef(role){
+  const id=role||(S&&S.role)||'isp';
+  const base=ROLES[id]||ROLES.isp;
+  const rr=(typeof REGION!=='undefined'&&REGION[curRegion]&&REGION[curRegion].roles)||null;
+  const ov=(rr&&rr[id])||null;
+  return ov?{...base,...ov}:base;
+}
+/* Brief 6 §2: the legality ladder. Each step mixes traffic with the things that really
+   gate an ISP in the physical world — POPs, tenants, an exchange, a building, time and cash.
+   The network itself is carried across untouched. */
+const ROLE_UP=[
+ { from:'rtnet', to:'isp',
+   req:{ served:50, pops:2, transit:1, days:120, cash:100000, lic:['oss'] },
+   cost:60000,
+   why:'50 Gbps of paying traffic, two POPs, a transit port, four months of books and $60k for the licence.' },
+ { from:'isp', to:'nap',
+   req:{ served:1000, pops:6, myIx:1, bizIsp:10, days:540, cash:500000 },
+   cost:400000,
+   why:'A terabit of traffic, six POPs, your own exchange, ten ISP tenants and half a million for the building.' },
+ { from:'hosting', to:'nap',
+   req:{ served:300, pops:3, site2:2, days:365, cash:400000 },
+   cost:400000,
+   why:'Every rack full, two metros with redundancy, and $400k to buy the building instead of renting racks.' },
+ { from:'nap', to:'isp',
+   req:{ served:2000, pops:8, bb:1, days:730, cash:1000000 },
+   cost:0,
+   why:'You already own the building. Selling broadband yourself is just a decision — but you need a terabit of eyeballs first.' },
+];
 function roleAllowsType(t){const R=roleDef();return !!R.all||(R.types||[]).includes(t);}
+/* Brief 6 §2.2: what it would take to move one rung up. `missing` blocks the move; `pending`
+   lists requirements whose mechanic has not shipped yet (M5 licences) and is shown as a note. */
+function roleUpOffer(){
+  if(!S||!S.role) return null;
+  return ROLE_UP.filter(u=>u.from===S.role).map(u=>{
+    const r=u.req, miss=[], pending=[], items=[];
+    const chk=(ok,l)=>{items.push({l,ok:!!ok});if(!ok)miss.push(l);};
+    chk((R.served||0)>=r.served,`${r.served} Gbps served (${fmtG(R.served||0)})`);
+    chk(Object.keys(S.pops).length>=r.pops,`${r.pops} POPs`);
+    if(r.transit) chk(S.transit.length>=r.transit,'a transit port');
+    if(r.myIx) chk(Object.keys(S.myIx).length>=r.myIx,'your own IX');
+    if(r.bizIsp) chk(S.biz.filter(b=>b.type==='isp').length>=r.bizIsp,`${r.bizIsp} ISP tenants`);
+    if(r.site2) chk(Object.values(S.pops).filter(p=>p.site2).length>=r.site2,`${r.site2} second sites`);
+    if(r.days) chk(S.day>=r.days,`${r.days} days of operation (day ${S.day})`);
+    if(r.cash) chk(S.cash>=r.cash+u.cost,`${fmt$(r.cash+u.cost)} in the bank`);
+    /* Licences arrive with M5. Until S.idLic exists the check is skipped and the step is still
+       allowed, but the requirement is surfaced so the UI never pretends it was satisfied. */
+    if(r.lic){
+      if(typeof S.idLic==='undefined') pending.push(`${r.lic.join(', ')} licence (pending M5 licences)`);
+      else for(const l of r.lic) chk(!!S.idLic[l],`the ${l} licence`);
+    }
+    return {...u, ok:!miss.length, missing:miss, pending, items};
+  });
+}
 function roleBlockOffers(){const R=roleDef();return !!(R.minPops&&Object.keys(S.pops).length<R.minPops);}
 /* An offer is only real for this role: the right customer type, the role's POP threshold met,
    and (for RT/RW nets) a transit port already bought from another ISP. */
@@ -1357,11 +1411,13 @@ function scenarioModal(){const wk=weekly(),h=scnHof();let best=null;try{best=JSO
   ${SCN.map(x=>`<div class="scn"><div class="grow"><div class="nm">${esc(x.n)} ${h[x.id]?`<span class="tag open">done in ${h[x.id].days} days</span>`:''}</div><div class="meta">${esc(x.d)}</div><div class="meta"><b>Goal:</b> ${esc(x.goal)} · <b>Time:</b> ${x.days} days · start in ${esc(CITY[x.city].name)}</div></div>${btn('Play','startScn',{id:x.id},'')}</div>`).join('')}`);}
 function newGame(name,home,region,role){
   role=ROLES[role]?role:'isp';
-  /* Brief 3 §4: SEA starts with $300k (1.5× Global) and IDN with $250k. The Asia multiplier is
-     2.5×, but matching that would erase the challenge. Only the classic ISP role is re-based;
-     other roles keep their own starting cash. */
-  const rr=REGION[region||curRegion],startCash=role==='isp'&&rr&&rr.startCash?rr.startCash:ROLES[role].cash;
+  /* Brief 3 §4: SEA starts with $300k (1.5× Global) and IDN with $250k. Brief 6 §3.1 moves
+     those numbers into REGION.*.roles so every role has a region-aware starting cash; Global
+     keeps the brief-5 table (roles:null). */
+  const rr=REGION[region||curRegion],rov=rr&&rr.roles&&rr.roles[role];
+  const startCash=(rov&&rov.cash)||ROLES[role].cash;
   S={v:1,name,region:region||curRegion,role,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:startCash,
+    roleUp:null,
     ltv:2,pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},
     done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
 }
@@ -1806,6 +1862,12 @@ function sanitize(s){
   if(!isCity(s.home))s.home=Object.keys(s.pops)[0]||'fra';
   if(!own(REGION,s.region))s.region='global';
   if(!own(ROLES,s.role))s.role='isp';
+  /* Brief 6 §2.2: keep the record of the last promotion across reloads; drop anything malformed. */
+  if(s.roleUp!==null&&s.roleUp!==undefined){
+    const u=s.roleUp;
+    if(u&&typeof u==='object'&&own(ROLES,u.from)&&own(ROLES,u.to))s.roleUp={from:u.from,to:u.to,day:int(u.day,0,1e7,0)};
+    else s.roleUp=null;
+  } else s.roleUp=null;
   const tier=v=>int(v,0,PORT.length-1,0),lag=v=>int(v,1,LAG_MAX,1),sid=v=>String(v==null?uid():v).slice(0,40);
   s.links=s.links.filter(l=>l&&isCity(l.a)&&isCity(l.b)&&l.a!==l.b).map(l=>{l.id=sid(l.id);l.km=num(l.km,kmBetween(l.a,l.b));l.mo=num(l.mo,0);l.cut=num(l.cut,0);if(l.kind!=='df'&&l.kind!=='vxc')l.kind='wave';if(l.kind==='wave')l.tier=int(l.tier,0,LT.length-1,0);if(l.cable&&!own(CAB,l.cable))l.cable=null;if(l.kind==='vxc'&&!own(VXC,l.vt))l.vt=0;if(l.kind==='df'){if(!own(DF_SYS,l.sys))l.sys='lite';l.ch=Array.isArray(l.ch)?l.ch.filter(o=>own(OPT,o)):[];l.ready=num(l.ready,0);}if(l.metric&&!own(MET,l.metric))l.metric='normal';return l;});
   s.transit=s.transit.filter(t=>t&&isCity(t.city)&&isNet(t.net)).map(t=>(t.site=['a','b','ab'].includes(t.site)?t.site:'a',t.id=sid(t.id),t.tier=tier(t.tier),t.n=lag(t.n),t.down=num(t.down,0),t));
@@ -2210,7 +2272,12 @@ function spawnOffer(){
   let city=(Math.random()<0.65&&mine.length)?pick(mine):pick(ALLC.concat(cnOk()?['pek','sha']:[])),city2=null;
   if(T.l2){city=pick(mine);const pool=(Math.random()<(T.lv>=3?0.8:0.6)?mine:ALLC).filter(c=>c!==city);city2=pick(pool.length?pool:ALLC.filter(c=>c!==city));}
   const bw=T.lv>=2?pick(T.opts):pick(T.opts.slice(0,mine.length>=4?4:3));
-  const bwRole=S.role==='rtnet'&&t==='dia'?pick([1,2]):bw;
+  /* Brief 6 §3: an RT/RW net sells DIA sizes up to its region's bwMax (2G global, 5G SEA,
+     10G IDN). Without an override this is exactly the brief-5 [1,2] behaviour. */
+  const bwCap=RD.bwMax;
+  const bwRole=S.role==='rtnet'&&t==='dia'&&bwCap
+    ? pick(T.opts.filter(v=>v<=bwCap).length?T.opts.filter(v=>v<=bwCap):[1])
+    : bw;
   const list=(T.names||BIZ_N).filter(n=>!S.usedNames.includes(n));
   let name=list.length?pick(list):(T.names?pick(T.names):'Startup #'+Math.floor(Math.random()*999));
   S.usedNames.push(name);
@@ -2336,6 +2403,20 @@ const ACT={
  mute:()=>{UI.muted=!UI.muted;try{localStorage.setItem('sot-mute',UI.muted?'1':'0');}catch(e){}renderHUD();},
  closePanel:()=>{UI.sel=null;UI.confirm=null;renderPanel();renderLeft();},
  closeModal:()=>closeModal(),
+ /* Brief 6 §2.2: climb one rung. All validation and payment happen before S.role changes, and
+    nothing in S.pops/links/transit/pni/caches/biz is touched — the network comes with you. */
+ roleUp:({to,sure})=>{
+   const off=roleUpOffer().find(o=>o.to===to);
+   if(!off||!off.ok) return;
+   if(!sure){openModal(`<h2>Become a ${esc(ROLES[to].l)}?</h2><p class="tagline">${esc(off.why)}</p>
+     <p class="meta">You keep every POP, link, peer and customer. Only the rules change: ${esc(ROLES[to].blurb)}</p>
+     ${(off.pending||[]).length?`<p class="meta"><b>Note:</b> ${esc(off.pending.join(' · '))} — not enforced yet.</p>`:''}
+     <div class="btns">${btn('Do it','roleUp',{to,sure:1},'pink big')}${btn('Not yet','closeModal',{},'ghost big')}</div>`);return;}
+   if(!spend(off.cost)) return;
+   const from=S.role; S.role=to; S.roleUp={from,to,day:S.day};
+   toast(`<b>You are a ${esc(ROLES[to].l)} now.</b><br>${esc(ROLES[to].blurb)}`,'goal'); sfx('coin');
+   track('role_up_'+from+'_'+to); after(); closeModal();
+ },
  tab:({t})=>{UI.tab=t;UI.confirm=null;renderPanel();},
  leftTab:({t})=>{UI.left=t;UI.leftOpen=true;renderLeft();},
  toggleLeft:()=>{UI.leftOpen=!UI.leftOpen;renderLeft();},
@@ -2646,6 +2727,17 @@ function syncHud(){
   const h=Math.round(r.bottom+8);
   if(h!==UI._hudh){UI._hudh=h;document.documentElement.style.setProperty('--hudh',h+'px');}
 }
+/* Brief 6 §2.2 UI: the NEXT STEP card at the bottom of Goals. Shows every rung the current role
+   can climb and ticks off each requirement, so the ladder is discoverable without a manual. */
+function roleUpSection(){
+  const offs=roleUpOffer();
+  if(!offs||!offs.length) return '';
+  return `<h3 style="font-size:15px;margin:12px 0 4px">Next step</h3>`+offs.map(o=>{
+    const rows=o.items.map(it=>`<div class="meta">${it.ok?'✓':'✗'} ${esc(it.l)}</div>`).join('');
+    const pend=(o.pending||[]).map(p=>`<div class="meta">… ${esc(p)}</div>`).join('');
+    return `<div class="inc" style="${o.ok?'background:#EAF7EE':''}"><div class="nm">Become a ${esc(ROLES[o.to].l)} <span class="meta">${o.cost?fmt$(o.cost):'free'}</span></div>${rows}${pend}<div class="btns">${btn(o.ok?'Promote':'Not yet','roleUp',{to:o.to},o.ok?'pink sm':'ghost sm',!o.ok)}</div></div>`;
+  }).join('');
+}
 function renderLeft(){
   // Tablets in landscape: both side panels don't fit next to the map, so the left one tucks away
   // while a city or link is open and comes back with the toggle button.
@@ -2659,6 +2751,7 @@ function renderLeft(){
     const cur=myGoals.find(g=>S.done[g.id]===undefined);
     h+=myGoals.map(g=>{const d=S.done[g.id]!==undefined,c=g===cur;return `<div class="goal ${d?'done':''} ${c?'cur':''}"><div class="ck">${d?'✓':''}</div><div><div class="gt">${esc(g.t)}</div>${c||!d?`<div class="gd">${esc(g.d)}</div>`:''}${!d&&g.r?`<div class="gr">Reward ${fmt$(g.r)}</div>`:''}</div></div>`;}).join('');
     h+=badgeGrid();
+    h+=roleUpSection();
   }else if(UI.left==='deals'){
     h+=confSection();
     {const lv=S.lvl||1,nx=LEVELS[lv];h+=`<div class="inc" style="background:#FFF6CF"><div class="nm">Customer level ${lv}: ${LEVELS[lv-1].n}</div><div class="meta">${nx?`Next: ${nx.req} unlocks ${nx.unlock.toLowerCase()}`:'Every customer type is unlocked. Go get those terabits.'}</div></div>`;}
@@ -3252,6 +3345,7 @@ const REGION={
   startCities:['fra','nyc','sin','sao'],
   regionMult:{AS:2.5,AF:2,OC:1.8,SA:1.6,EU:1},
   rules:{},
+  roles:null,
   project:(lon,lat)=>[(lon+180)/360*W,(84-lat)*6.4],
   lenses:LENSES,lands:LANDS_LL,decor:DECOR_LL,cityLL:CITY_LL,cities:CITIES,cityNudge:CITY_NUDGE,
   cables:CABLES,nets:NETS,xix:XIX,tail:TAIL,
@@ -3265,6 +3359,12 @@ function seaRegion(){
   startCash:300000,
   regionMult:{AS:2.5,AF:2,OC:1.4,SA:1.6,EU:1},
   rules:{t1Served:400,t1Pops:8,t1Continents:2,cacheCities:null,cacheMinMul:1.2,startCash:300000},
+  roles:{
+    hosting:{cash:120000,maxPops:4},
+    nap:{cash:900000,minPops:4},
+    isp:{cash:300000},
+    rtnet:{cash:60000,maxPops:3,bwMax:5},
+  },
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:SEA_CITY_LL,cities:SEA_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES,nets:NETS,xix:SEA_XIX,tail:TAIL,
@@ -3278,6 +3378,12 @@ function idnRegion(){
   startCash:250000,
   regionMult:{AS:2.5,AF:2,OC:1.4,SA:1.6,EU:1},
   rules:{indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','sin'],cacheMinMul:1.6},
+  roles:{
+    hosting:{cash:150000,maxPops:5},
+    nap:{cash:600000,minPops:3},
+    isp:{cash:250000},
+    rtnet:{cash:75000,maxPops:4,bwMax:10},
+  },
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))),
