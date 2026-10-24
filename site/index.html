@@ -2935,10 +2935,7 @@ const START_DESC={fra:'Crossroads of Europe. DE-KICKS IX, cheap transit.',nyc:'H
 function showTitle(){
   const sv=loadSave();
   const reg=REGION[UI.region]||REGION.global;
-  /* Resolve against the region's own city list: SEA/Indonesia are not bound into CITY until the
-     game starts, so looking at the live CITY map would silently drop their home cities. */
-  const known=new Set((reg.cities||CITIES).map(c=>c.id));
-  const starts=(reg.startCities||[]).filter(c=>known.has(c)||CITY[c]).map(c=>[c,START_DESC[c]||'A quiet market with room to grow.']);
+  const starts=(reg.startCities||[]).filter(c=>CITY[c]).map(c=>[c,START_DESC[c]||'A quiet market with room to grow.']);
   const regionBtns=PICK_REGIONS.map(([id,l])=>`<button class="pick ${UI.region===id?'on':''}" data-act="pickRegion" data-args='{"id":"${id}"}'${REGION[id]?'':' disabled title="Arrives with the region map"'}>${l}</button>`).join('');
   const modeBtns=SAVE_MODES.map(([m,l])=>`<button class="pick ${UI.saveMode===m?'on':''}" data-act="pickSaveMode" data-args='{"m":"${m}"}'>${l}</button>`).join('');
   const modeNote=UI.saveMode==='none'?'Nothing is written. Close the tab and this run is gone.':UI.saveMode==='session'?'Kept in this tab only. Closing it deletes the run.':'Autosaves on this device and shows up in Continue.';
