@@ -128,6 +128,9 @@ button{font:inherit;color:inherit}
 .speed button.on{background:var(--sun)}
 .spacer{flex:1}
 .noc{cursor:pointer;border:3px solid var(--ink)}
+.savechip{cursor:pointer;border:3px solid var(--ink);background:var(--sun)}
+.savechip.none{background:var(--bad);color:#fff}
+.savechip.none .lbl{color:#FFDCE0}
 .hotk{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 4px;border-radius:12px;border:2px solid var(--ink,#1E2640);font:900 11px Nunito,sans-serif;margin-right:8px;color:#fff;background:#FF4D5E}
 .hotk.hk-ix{color:#1E2640;background:#FFD23F}
 .noc.hot{background:var(--bad);color:#fff;animation:throb 1s ease-in-out infinite}
@@ -321,6 +324,11 @@ section h3{font-size:17px;margin-bottom:6px;display:flex;align-items:center;gap:
 label.f{display:block;font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin:12px 0 5px}
 input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radius:12px;padding:8px 12px;font-family:var(--display);font-weight:800;font-size:18px;background:var(--soft)}
 .starts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pick3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.pick{border:3px solid var(--ink);border-radius:12px;padding:7px 4px;background:var(--paper);cursor:pointer;box-shadow:0 3px 0 var(--ink);text-align:center;font-family:var(--display);font-weight:800;font-size:14px;line-height:1.15}
+.pick.on{background:#FFE3F0;border-color:var(--me);box-shadow:0 3px 0 var(--me)}
+.pick:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.pickdesc{font-size:12px;color:var(--ink2);margin:5px 0 0;line-height:1.35}
 .start{border:3px solid var(--ink);border-radius:14px;padding:8px 10px;background:var(--paper);cursor:pointer;text-align:left;box-shadow:0 3px 0 var(--ink)}
 .start.on{background:#FFE3F0;border-color:var(--me);box-shadow:0 3px 0 var(--me)}
 .start b{font-family:var(--display);font-size:17px;display:block}
@@ -432,6 +440,7 @@ input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radi
     <svg class="tube" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22c0-7 5-12 12-12h6" fill="none" stroke="#1E2640" stroke-width="7" stroke-linecap="round"/><path d="M4 22c0-7 5-12 12-12h6" fill="none" stroke="#FFD23F" stroke-width="3.5" stroke-linecap="round"/><circle cx="25" cy="10" r="5" fill="#fff" stroke="#1E2640" stroke-width="2.5"/></svg>
     <div><div class="val" id="hName">Series of Tubes</div><div class="lbl" id="hAsn">AS —</div></div><span class="caret" aria-hidden="true">▾</span>
   </button>
+  <button class="chip savechip" id="hSave" data-act="menu" hidden><span class="lbl">Saving</span><span class="val" id="hSaveVal">·</span></button>
   <button class="chip cashbtn" data-act="bank" aria-label="Cash and bank"><span class="lbl">Cash · Bank</span><span class="val num" id="hCash">$0</span><span class="sub num" id="hRate">—</span><span class="badge" id="hBank" hidden></span></button>
   <div class="chip hide-sm hide-md2"><div class="lbl">Traffic served</div><div class="val num" id="hTraffic">0</div><div class="minibar"><i id="hTrafBar" style="width:0"></i></div></div>
   <button class="chip reachbtn" data-act="reach" title="Reach report: see what is missing and how to fix it" aria-label="Reach report"><span class="lbl">Reach <span class="reachq" id="hReachQ" hidden>?</span></span><span class="val num" id="hReach">0%</span></button>
@@ -1034,7 +1043,7 @@ const GOALS=[
 
 /* ================= STATE ================= */
 let S=null, R=emptyR();
-const UI={sel:null,tab:'cust',left:'goals',speed:1,hover:null,drag:null,snap:null,pending:null,confirm:null,leftOpen:false,muted:false,startCity:'fra',hintOff:false};
+const UI={sel:null,tab:'cust',left:'goals',speed:1,hover:null,drag:null,snap:null,pending:null,confirm:null,leftOpen:false,muted:false,startCity:'fra',hintOff:false,region:'global',saveMode:'device'};
 let uidN=1; const uid=()=>'i'+(Date.now()%1e7).toString(36)+(uidN++);
 function emptyR(){return {teBlack:0,tNet:{},egT:{},netEg:{},l2lat:{},nodeLoad:{},nodeCap:{},div:{},l2:{},gfwLost:0,gfwCross:0,ef:{},egDesc:{},p95:{},peered:0,peerShare:0,load:{},useT:{},useIx:{},usePni:{},useCache:{},cityDem:{},citySrv:{},cityEye:{},demTo:{},served:0,demand:0,reach:0,sessions:0,revMo:0,costMo:0,cost:{},rev:{},reachable:{}};}
 /* ================= BANKS & LOANS =================
@@ -1132,7 +1141,15 @@ const WEEK_MODS=[{id:'pricey',n:'Transit costs 30% more'},{id:'chaos',n:'Twice t
 function weekly(){const {y,w}=isoWeek(new Date());let r=(y*100+w)*2654435761>>>0;const nx=()=>{r=(r*1103515245+12345)>>>0;return r/4294967296;};const city=WEEK_CITIES[Math.floor(nx()*WEEK_CITIES.length)];const mods=[];while(mods.length<2){const m=WEEK_MODS[Math.floor(nx()*WEEK_MODS.length)];if(!mods.includes(m))mods.push(m);}return {id:'weekly',key:`${y}-W${String(w).padStart(2,'0')}`,seed:y*100+w,city,mods,days:365};}
 const scnRule=k=>!!(S&&S.scn&&S.scn.rules&&S.scn.rules[k]);
 function scnHof(){try{return JSON.parse(localStorage.getItem('sot-scn')||'{}')||{};}catch(e){return {};}}
-function beginGame(nm,city,o={}){newGame(nm,city);S.mode=o.mode||'normal';
+function beginGame(nm,city,o={}){
+  /* The save's region comes from the picked id, not from whichever map happens to be loaded, so
+     saves stay isolated per region even before that region's map ships (PRD §16.2 gate). The map
+     itself is only rebound when the region has data; until M3, SEA/IDN still render the Global map
+     and their cards stay disabled in the picker. */
+  const rid=o.region||UI.region||'global';
+  if(REGION[rid]&&rid!==curRegion)applyRegion(rid);
+  UI.region=rid;
+  newGame(nm,city,rid);S.mode=o.mode||'normal';
   if(S.mode==='sandbox'){S.cash=1e9;S.lvl=4;S.nextFail=1e9;S.nextEvent=1e9;}
   if(o.scn){const sc=o.scn;S.scn={id:sc.id,rules:sc.rules||{},days:sc.days,name:sc.n||('Weekly challenge '+sc.key),key:sc.key||null,mods:(sc.mods||[]).map(m=>m.id)};S.rng=(o.seed||hstr(sc.id))|0;S.mode='scenario';S.asn=200000+Math.floor(Math.random()*15000);
     if(sc.cash)S.cash=sc.cash;if(sc.setup)sc.setup();
@@ -1265,8 +1282,8 @@ function scenarioModal(){const wk=weekly(),h=scnHof();let best=null;try{best=JSO
   openModal(`<div style="display:flex;align-items:center"><div><div class="eyebrow">Scenarios</div><h2 style="font-size:28px">Pick a challenge</h2></div><button class="x" data-act="${UI.started?'closeModal':'helpClose'}" aria-label="Close">×</button></div>
   <div class="scn wk"><div class="grow"><div class="nm">Weekly challenge ${esc(wk.key)}</div><div class="meta">Start in ${esc(CITY[wk.city].name)} · ${wk.mods.map(m=>esc(m.n)).join(' · ')} · one year, score = peak traffic. The same world for everyone this week.${best?` Your best: ${fmtG(best)}.`:''}</div></div>${btn('Play','startWeekly',{},'pink')}</div>
   ${SCN.map(x=>`<div class="scn"><div class="grow"><div class="nm">${esc(x.n)} ${h[x.id]?`<span class="tag open">done in ${h[x.id].days} days</span>`:''}</div><div class="meta">${esc(x.d)}</div><div class="meta"><b>Goal:</b> ${esc(x.goal)} · <b>Time:</b> ${x.days} days · start in ${esc(CITY[x.city].name)}</div></div>${btn('Play','startScn',{id:x.id},'')}</div>`).join('')}`);}
-function newGame(name,home){
-  S={v:1,name,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:START_CASH,
+function newGame(name,home,region){
+  S={v:1,name,region:region||curRegion,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:START_CASH,
     ltv:2,pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},
     done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
 }
@@ -1701,6 +1718,7 @@ function sanitize(s){
   for(const k of ['survived','incidents','peak'])s.stats[k]=num(s.stats[k],0);
   for(const c of Object.keys(s.pops)){const p=s.pops[c];if(!isCity(c)||!p||typeof p!=='object'){delete s.pops[c];continue;}p.routers=int(p.routers,1,RMAX,1);if(p.rgen!==undefined)p.rgen=int(p.rgen,0,RG.length-1,0);p.down=num(p.down,0);if(p.bb&&typeof p.bb==='object')p.bb.d=num(p.bb.d,0);else p.bb=null;}
   if(!isCity(s.home))s.home=Object.keys(s.pops)[0]||'fra';
+  if(!own(REGION,s.region))s.region='global';
   const tier=v=>int(v,0,PORT.length-1,0),lag=v=>int(v,1,LAG_MAX,1),sid=v=>String(v==null?uid():v).slice(0,40);
   s.links=s.links.filter(l=>l&&isCity(l.a)&&isCity(l.b)&&l.a!==l.b).map(l=>{l.id=sid(l.id);l.km=num(l.km,kmBetween(l.a,l.b));l.mo=num(l.mo,0);l.cut=num(l.cut,0);if(l.kind!=='df'&&l.kind!=='vxc')l.kind='wave';if(l.kind==='wave')l.tier=int(l.tier,0,LT.length-1,0);if(l.cable&&!own(CAB,l.cable))l.cable=null;if(l.kind==='vxc'&&!own(VXC,l.vt))l.vt=0;if(l.kind==='df'){if(!own(DF_SYS,l.sys))l.sys='lite';l.ch=Array.isArray(l.ch)?l.ch.filter(o=>own(OPT,o)):[];l.ready=num(l.ready,0);}if(l.metric&&!own(MET,l.metric))l.metric='normal';return l;});
   s.transit=s.transit.filter(t=>t&&isCity(t.city)&&isNet(t.net)).map(t=>(t.site=['a','b','ab'].includes(t.site)?t.site:'a',t.id=sid(t.id),t.tier=tier(t.tier),t.n=lag(t.n),t.down=num(t.down,0),t));
@@ -2353,14 +2371,20 @@ const ACT={
  spares:({id})=>{const l=S.links.find(x=>x.id===id);if(!l)return;l.spares=!l.spares;sfx('click');after();},
  crews:({id})=>{const l=S.links.find(x=>x.id===id);if(!l||l.ready<=S.day)return;const c=Math.round(15000+l.km*6);if(!spend(c))return;l.ready=Math.max(S.day+1,l.ready-30);toast('<b>More crews on site.</b><br>Construction is 30 days ahead.','good');after();},
  addGen:({city})=>{const p=S.pops[city];if(!p||p.gen)return;if(!spend(GEN_COST))return;p.gen=true;floater(CITY[city].x,CITY[city].y-30,'Generator!','#FF8A3D');after();},
- start:()=>{const nm=(($('nmIn')&&$('nmIn').value)||'Packet Pals').slice(0,24);beginGame(nm,UI.startCity,{mode:UI.mode==='sandbox'?'sandbox':'normal'});},
+ start:()=>{const nm=(($('nmIn')&&$('nmIn').value)||'Packet Pals').slice(0,24);beginGame(nm,UI.startCity,{mode:UI.mode==='sandbox'?'sandbox':'normal',region:UI.region});},
+ /* Switching region only rebinds the map and the home-city list. Saves are keyed per region, so
+    nothing is deleted and the other region is still there when you switch back (PRD §4.3). */
+ pickRegion:({id})=>{if(!REGION[id])return;UI.region=id;try{localStorage.setItem('sot-region',id);}catch(e){}
+   const r=REGION[id];if(!(r.startCities||[]).includes(UI.startCity))UI.startCity=r.startCities[0];
+   showTitle();},
+ pickSaveMode:({m})=>{if(!SAVE_MODES.some(([k])=>k===m))return;UI.saveMode=m;showTitle();},
  modeSet:({m})=>{UI.mode=m;document.querySelectorAll('.modeb').forEach(b=>b.classList.toggle('pink',b.dataset.m===m));document.querySelectorAll('.modeb').forEach(b=>b.classList.toggle('ghost',b.dataset.m!==m));},
  scenarios:()=>{UI.nm=(($('nmIn')&&$('nmIn').value)||UI.nm||(S&&S.name)||'Packet Pals').slice(0,24);scenarioModal();},
  startScn:({id,sure})=>{const sc=SCN.find(x=>x.id===id);if(!sc)return;if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start ${esc(sc.n)}?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the scenario','startScn',{id,sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}beginGame(UI.nm||(S&&S.name)||'Packet Pals',sc.city,{scn:sc});},
  startWeekly:({sure}={})=>{if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start the weekly challenge?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the challenge','startWeekly',{sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}const wk=weekly();beginGame(UI.nm||(S&&S.name)||'Packet Pals',wk.city,{scn:wk,seed:wk.seed});},
- pickStart:({city})=>{UI.startCity=city;document.querySelectorAll('.start').forEach(b=>b.classList.toggle('on',b.dataset.city===city));},
+ pickStart:({city})=>{const reg=REGION[UI.region]||REGION.global;if(!(reg.startCities||[]).includes(city))return;UI.startCity=city;document.querySelectorAll('.start').forEach(b=>b.classList.toggle('on',b.dataset.city===city));},
  cont:()=>{migrate(S);track('game_continue',true);UI.started=true;closeModal();renderAll();},
- newgame:()=>{try{localStorage.removeItem('sot-save-v1');}catch(e){}S=null;UI.started=false;UI.sel=null;$('dash').hidden=true;$('bankBox').hidden=true;renderAll();showTitle();},
+ newgame:()=>{clearSave((S&&S.region)||UI.region);S=null;UI.started=false;UI.sel=null;$('dash').hidden=true;$('bankBox').hidden=true;renderAll();showTitle();},
  keepPlaying:()=>{closeModal();},
  exportSave:()=>exportSave(),
  importPick:()=>{let f=$('importIn');if(!f){f=document.createElement('input');f.type='file';f.accept='.json,application/json';f.id='importIn';f.hidden=true;document.body.appendChild(f);f.addEventListener('change',()=>{importFile(f.files[0]);f.value='';});}f.click();},
@@ -2397,9 +2421,40 @@ const isTablet=()=>innerWidth>760&&innerWidth<=1200;
 function selectCity(c){UI.sel={type:'city',id:c};UI.confirm=null;if(isTablet())UI.leftOpen=false;if(!S.pops[c])UI.tab='cust';renderPanel();}
 
 /* ================= SAVE ================= */
-function save(){if(!S||S.lost)return;S.uiSpeed=UI.speed;S.cam={x:cam.x,y:cam.y,z:cam.z};try{localStorage.setItem('sot-save-v1',JSON.stringify(S));}catch(e){}UI.lastSave=performance.now();}
+/* Saves are per region (PRD §5): device saves live at sot-save-v1:<region>, session saves at
+   sot-save-session:<region> and die with the tab. Mode 'none' never writes. */
+function saveKey(mode,region){return mode==='session'?`sot-save-session:${region}`:`sot-save-v1:${region}`;}
+function clearSave(region){
+  const r=region||UI.region;if(!r)return;
+  try{localStorage.removeItem(saveKey('device',r));localStorage.removeItem(saveKey('session',r));
+    if(r==='global')localStorage.removeItem('sot-save-v1');}catch(e){}
+}
+function save(){if(!S||S.lost)return;if(UI.saveMode==='none')return;S.uiSpeed=UI.speed;S.cam={x:cam.x,y:cam.y,z:cam.z};
+  const region=S.region||curRegion,key=saveKey(UI.saveMode,region);
+  try{localStorage.setItem(key,JSON.stringify(S));}catch(e){}
+  /* Builds up to 1.10.x read the unsuffixed key. Keep a global device save mirrored there so an
+     older tab (or a rolled-back release) still finds the network; PRD §12 forbids losing it. */
+  if(UI.saveMode==='device'&&region==='global'){try{localStorage.setItem('sot-save-v1',JSON.stringify(S));}catch(e){}}
+  UI.lastSave=performance.now();}
+// One-time move of a pre-region save. The old key is only removed once the new one is written.
+function migrateLegacySave(){
+  try{
+    const old=localStorage.getItem('sot-save-v1');if(!old)return;
+    const s=JSON.parse(old);
+    if(!s||s.v!==1||s.region)return;
+    if(localStorage.getItem('sot-save-v1:global'))return; // newer save already there
+    s.region='global';
+    localStorage.setItem('sot-save-v1:global',JSON.stringify(s));
+    localStorage.removeItem('sot-save-v1');
+  }catch(e){}
+}
 // Save whenever the player might be leaving: tab hidden, page closing or reloading.
-addEventListener('pagehide',()=>save());
+addEventListener('pagehide',()=>{
+  /* A session run dies with the tab, so remove its key. A device save in the same region belongs to
+     a different run and must survive (PRD §5.1). */
+  if(UI.saveMode==='session'){try{localStorage.removeItem(saveKey('session',(S&&S.region)||UI.region));}catch(e){}}
+  else save();
+});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')save();else checkUpdate();});
 /* Export / import: move a network to another device or keep a backup. The file is the same
    object the autosave writes, wrapped with a little metadata. */
@@ -2417,7 +2472,17 @@ function importFile(file){if(!file)return;if(file.size>8e6){toast('<b>That file 
   const rd=new FileReader();rd.onload=()=>{const r=parseSave(String(rd.result));if(r.err){toast(`<b>Import failed.</b><br>${esc(r.err)}`,'bad');sfx('err');return;}
     UI.importing=r.s;openModal(`<div class="eyebrow">Import a save</div><h2 style="font-size:26px">Load ${esc(r.name)}?</h2><p class="tagline">${esc(dateStr(r.s.day))} · ${fmt$(r.s.cash)} in the bank · ${Object.keys(r.s.pops).length} POP${Object.keys(r.s.pops).length===1?'':'s'} · saved by v${esc(r.ver)}</p>${S&&UI.started&&!S.lost?`<p class="note" style="color:var(--bad)">This replaces ${esc(S.name)}. Export it first if you want to keep it.</p>`:''}<div class="btns">${btn('Load this network','importGo',{},'pink big')}${btn('Cancel',UI.started?'closeModal':'helpClose',{},'ghost big')}</div>`);};
   rd.readAsText(file);}
-function loadSave(){try{const t=localStorage.getItem('sot-save-v1');if(t){const s=JSON.parse(t);if(s&&s.v===1&&!s.lost)return s;}}catch(e){}return null;}
+/* Only device saves are offered as Continue; a session save belongs to the tab that made it and is
+   deleted on pagehide, so resuming one from the title screen would resurrect a finished session.
+   Global device saves also read the pre-region key, so a save written by an older build or by an
+   older tab still loads (PRD §12: a Global player must never lose progress). */
+function loadSave(){
+  if(UI.saveMode==='none')return null; // no save mode: nothing to continue
+  const keys=[saveKey('device',UI.region)];
+  if(UI.region==='global')keys.push('sot-save-v1');
+  for(const k of keys){try{const t=localStorage.getItem(k);if(t){const s=JSON.parse(t);if(s&&s.v===1&&!s.lost)return s;}}catch(e){}}
+  return null;
+}
 
 /* ================= AUDIO ================= */
 let AC=null;
@@ -2453,6 +2518,10 @@ function renderHUD(){
   {const q=$('hReachQ');if(q){const short=R.reach<0.99;q.hidden=!short;}}
   $('hTier').textContent=tierLabel();
   $('hDate').textContent=dateStr(S.day);
+  {/* PRD §5.5: only warn while the run is not really saved on this device. */}
+  const sc=$('hSave');
+  if(sc){const n=UI.saveMode!=='device';sc.hidden=!n;sc.classList.toggle('none',UI.saveMode==='none');
+    if(n)$('hSaveVal').textContent=UI.saveMode==='none'?'No save · this run only':'Session only';}
   {const bo=(S.loanOffers||[]).length,hb=$('hBank');hb.hidden=!bo;hb.textContent=bo;}
   const n=S.inc.length;$('hNoc').classList.toggle('hot',n>0);$('hNocVal').textContent=n?`${n} incident${n>1?'s':''}`:'All quiet';
 }
@@ -2804,18 +2873,29 @@ function toast(html,kind='',actions=[]){
 }
 function openModal(html){$('modalCard').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;UI.pending=null;}
+/* PRD §4.2: region cards are data-driven. Regions whose data has not landed yet (SEA, Indonesia
+   arrive with the M3 map) render disabled instead of pretending to work. */
+const PICK_REGIONS=[['global','Global'],['sea','SEA'],['idn','Indonesia']];
+const SAVE_MODES=[['device','On device'],['session','This only'],['none','No save']];
+const START_DESC={fra:'Crossroads of Europe. DE-KICKS IX, cheap transit.',nyc:'Huge eyeball market. Pricey neighbours.',sin:'Asia hub. Great peering, far from home.',sao:'Big hungry market, few providers.',jkt:'The biggest market in the region. Bring permits.',sby:'Second city. Cheap transit, patient customers.',upg:'Eastern hub, one cable from everywhere.'};
 function showTitle(){
   const sv=loadSave();
-  const starts=[['fra','Crossroads of Europe. DE-KICKS IX, cheap transit.'],['nyc','Huge eyeball market. Pricey neighbours.'],['sin','Asia hub. Great peering, far from home.'],['sao','Big hungry market, few providers.']];
+  const reg=REGION[UI.region]||REGION.global;
+  const starts=(reg.startCities||[]).filter(c=>CITY[c]).map(c=>[c,START_DESC[c]||'A quiet market with room to grow.']);
+  const regionBtns=PICK_REGIONS.map(([id,l])=>`<button class="pick ${UI.region===id?'on':''}" data-act="pickRegion" data-args='{"id":"${id}"}'${REGION[id]?'':' disabled title="Arrives with the region map"'}>${l}</button>`).join('');
+  const modeBtns=SAVE_MODES.map(([m,l])=>`<button class="pick ${UI.saveMode===m?'on':''}" data-act="pickSaveMode" data-args='{"m":"${m}"}'>${l}</button>`).join('');
+  const modeNote=UI.saveMode==='none'?'Nothing is written. Close the tab and this run is gone.':UI.saveMode==='session'?'Kept in this tab only. Closing it deletes the run.':'Autosaves on this device and shows up in Continue.';
   openModal(`<div class="title-art"><svg width="74" height="74" viewBox="0 0 74 74" aria-hidden="true"><path d="M10 60V40c0-14 10-24 24-24h18" fill="none" stroke="#1E2640" stroke-width="16" stroke-linecap="round"/><path d="M10 60V40c0-14 10-24 24-24h18" fill="none" stroke="#FFD23F" stroke-width="9" stroke-linecap="round"/><circle cx="58" cy="16" r="11" fill="#FF4F9A" stroke="#1E2640" stroke-width="4"/><circle cx="21" cy="44" r="3" fill="#fff"/><circle cx="30" cy="27" r="3" fill="#fff"/></svg>
   <h1>Series<br>of <span>Tubes</span></h1></div>
   <p class="tagline">Build an internet. Lay fiber between cities, buy transit, peer at exchanges, sign up businesses, and keep the eyeballs happy while backhoes, sharks and route leaks do their best to stop you.</p>
   ${sv?`<div class="btns" style="margin-bottom:6px">${btn(`Continue ${esc(sv.name)} · ${dateStr(sv.day)}`,'cont',{},'pink big')}</div>`:''}
+  <label class="f">Play in</label><div class="pick3">${regionBtns}</div><p class="pickdesc">${reg.cities.length} cities · ${reg.cables.length} cables · ${reg.id==='global'?'full rules':'local rules'}</p>
+  <label class="f">Saving</label><div class="pick3">${modeBtns}</div><p class="pickdesc">${modeNote}</p>
   <label class="f" for="nmIn">Name your network</label><input class="t" id="nmIn" maxlength="24" value="Packet Pals" autocomplete="off">
   <label class="f">Pick your home city</label><div class="starts">${starts.map(([c,d])=>`<button class="start ${UI.startCity===c?'on':''}" data-city="${c}" data-act="pickStart" data-args='{"city":"${c}"}'><b>${CITY[c].name}</b><span>${d}</span></button>`).join('')}</div>
   <label class="f">Mode</label><div class="btns">${[['normal','Normal'],['sandbox','Sandbox']].map(([m,l])=>`<button class="b sm modeb ${(UI.mode||'normal')===m?'pink':'ghost'}" data-m="${m}" data-act="modeSet" data-args='{"m":"${m}"}'>${l}</button>`).join('')}${btn('Scenarios &amp; weekly challenge →','scenarios',{},'sm')}</div>
   <div class="btns" style="margin-top:16px;justify-content:space-between;align-items:center">${btn(sv?'Start a new network':'Start building','start',{},'big')}${btn('How to play','help',{},'ghost')}${btn('Import a save','importPick',{},'ghost sm')}</div><p class="ver">v${APP_VERSION} · <a href="https://github.com/fjaeckel/seriesoftubes" target="_blank" rel="noopener">Source on GitHub</a> · Cookieless stats, no tracking</p>`);
-  if(sv){S=migrate(sv);compute();}
+  if(sv){S=migrate(sv);compute();}else if(!UI.started)S=null;
 }
 // "What's new": shown once to returning players after an update, or on demand.
 function whatsNew(returning,force){
@@ -2854,7 +2934,7 @@ function showHelp(){
   </dl><div class="btns" style="margin-top:14px">${btn(UI.started?'Back to the map':'Got it','helpClose',{},'big')}${RELEASE_NOTES.length?btn(`What’s new in ${esc(APP_VERSION)}`,'whatsNewShow',{},'ghost'):''}${UI.started&&S&&!S.lost?btn('Start a new network','resetAsk',{},'ghost sm'):''}</div><div class="btns" style="margin-top:6px">${UI.started&&S&&!S.lost?btn('Export save','exportSave',{},'ghost sm'):''}${btn('Import a save','importPick',{},'ghost sm')}</div>${settingsRow()}`);
 }
 function showWin(){setTimeout(()=>{const m=$('modalCard');if(m&&!m.querySelector('[data-act=share]'))m.insertAdjacentHTML('beforeend',`<div class="btns" style="margin-top:8px">${btn('Share my network','share',{},'pink')}</div>`);},0);openModal(`<h1 style="font-family:var(--display);font-size:44px;margin:0">You're a <span style="color:var(--me)">Tier 1</span>!</h1><p class="tagline">${esc(S.name)} (AS${S.asn}) is transit-free. You peer with every giant on the planet and pay nobody to reach the internet. Took you ${S.day} days and ${S.stats.incidents} incidents.</p>${btn('Keep building','keepPlaying',{},'pink big')}`);sfx('coin');}
-function showLose(){openModal(`<h1 style="font-family:var(--display);font-size:40px;margin:0">Bankrupt</h1><p class="tagline">The bank repossessed your routers and sold them on eBuy. ${esc(S.name)} lasted ${S.day} days and peaked at ${fmtG(S.stats.peak)}.</p>${btn('Try again','newgame',{},'pink big')}`);try{localStorage.removeItem('sot-save-v1');}catch(e){}}
+function showLose(){openModal(`<h1 style="font-family:var(--display);font-size:40px;margin:0">Bankrupt</h1><p class="tagline">The bank repossessed your routers and sold them on eBuy. ${esc(S.name)} lasted ${S.day} days and peaked at ${fmtG(S.stats.peak)}.</p>${btn('Try again','newgame',{},'pink big')}`);clearSave(S.region||UI.region);}
 function openLinkModal(a,b){
   if([a,b].includes('kyv')&&[a,b].includes('mos')){openModal(`<div style="display:flex;align-items:center"><h2 style="font-size:24px">Not happening</h2><button class="x" data-act="closeModal" aria-label="Close">×</button></div><p class="lead" style="margin-top:8px">Nobody sells capacity between Kyiv and Moscow, and nobody is going to. Route through Warsaw, Bucharest or Helsinki instead.</p>`);return;}
   if((cnCity(a)||cnCity(b))&&!cnOk()){openModal(`<div style="display:flex;align-items:center"><h2 style="font-size:24px">Not without a license</h2><button class="x" data-act="closeModal" aria-label="Close">×</button></div><p class="lead" style="margin-top:8px">Building into mainland China needs a joint venture and an operating license. Open ${CITY[cnCity(a)?a:b].name} to apply.</p>`);return;}
@@ -3240,7 +3320,7 @@ let pressing=false;
 document.addEventListener('pointerdown',e=>{if(e.target.closest('#panel,#left'))pressing=true;});
 addEventListener('pointerup',()=>setTimeout(()=>pressing=false,0));
 addEventListener('pointercancel',()=>{pressing=false;});addEventListener('blur',()=>{pressing=false;});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;audioInit();const fn=ACT[b.dataset.act];if(!fn)return;if(!S&&!['start','pickStart','cont','help','helpClose','newgame','mute','animSet','soundSet','closeModal','speed','bankClose','whatsNewShow','updateNow','updateLater','importPick','importGo','modeSet','scenarios','startScn','startWeekly'].includes(b.dataset.act))return;let a={};try{a=JSON.parse(b.dataset.args||'{}');}catch(_){}fn(a);});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;audioInit();const fn=ACT[b.dataset.act];if(!fn)return;if(!S&&!['start','pickStart','pickRegion','pickSaveMode','cont','help','helpClose','newgame','mute','animSet','soundSet','closeModal','speed','bankClose','whatsNewShow','updateNow','updateLater','importPick','importGo','modeSet','scenarios','startScn','startWeekly'].includes(b.dataset.act))return;let a={};try{a=JSON.parse(b.dataset.args||'{}');}catch(_){}fn(a);});
 
 /* ================= LOOP ================= */
 let last=performance.now(),acc=0,hudT=0,animT=0,tickErr=0;
@@ -3279,12 +3359,17 @@ function frame(now){
   if(!window.__TUBES_TEST__)requestAnimationFrame(frame);
 }
 function boot(data){
-  applyRegion('global');
+  migrateLegacySave();
+  let wantRegion='global';
+  try{const r=localStorage.getItem('sot-region');if(r&&REGION[r])wantRegion=r;}catch(e){}
+  applyRegion(wantRegion);
+  UI.region=wantRegion;
+  {const r=REGION[UI.region];if(r&&!(r.startCities||[]).includes(UI.startCity))UI.startCity=r.startCities[0];}
   try{UI.muted=localStorage.getItem('sot-mute')==='1';UI.anim=localStorage.getItem('sot-anim')||'auto';}catch(e){}
   applyAnim();
   if(data&&data.S){S=migrate(data.S);UI.started=true;if(data.cam)Object.assign(cam,data.cam);compute();renderAll();}
   else{const sv=loadSave();
-    let okSave=false;if(sv){try{S=migrate(sv);compute();okSave=true;}catch(e){S=null;UI.started=false;try{localStorage.setItem('sot-save-broken',JSON.stringify(sv));localStorage.removeItem('sot-save-v1');}catch(e2){}}}
+    let okSave=false;if(sv){try{S=migrate(sv);compute();okSave=true;}catch(e){S=null;UI.started=false;try{localStorage.setItem('sot-save-broken',JSON.stringify(sv));clearSave(sv.region||UI.region);}catch(e2){}}}
     if(okSave){UI.started=true;UI.speed=[0,0.5,1,2,4,8].includes(S.uiSpeed)?S.uiSpeed:1;
       if(S.cam&&isFinite(S.cam.x))Object.assign(cam,S.cam);else{const h=CITY[S.home];if(h){cam.x=h.x;cam.y=h.y;cam.z=innerWidth<760?1.1:1.4;}}
       renderAll();if(!whatsNew(true))toast(`<b>Welcome back, ${esc(S.name)}.</b><br>Your network is right where you left it: ${dateStr(S.day)}.`,'good');}
