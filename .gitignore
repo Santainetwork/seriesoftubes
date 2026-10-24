@@ -5,3 +5,4 @@ _site/
 # Local-only planning docs — not for the public repo or the served site
 PRD.md
 *.pdf
+SOT_*.md
