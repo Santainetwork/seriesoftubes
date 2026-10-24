@@ -1398,10 +1398,18 @@ function ixSessions(c){
   return s;
 }
 function t1Club(){
+  /* Tier 1 thresholds are calibrated per region (brief 3): a "continent" is a projection
+     region, and SEA/IDN maps only ever cover one, so the global 3-continent rule made T1
+     impossible there. Global keeps the old numbers via the {} fallback. */
+  const rr=(REGION[curRegion]&&REGION[curRegion].rules)||{};
+  const needPops=rr.t1Pops||10;
+  const needServed=rr.t1Served||1500;
+  const needCont=rr.t1Continents!=null?rr.t1Continents:3;
+  const needTxt=needServed>=1000?`${needServed/1000} Tbps`:`${needServed} Gbps`;
   const miss=[];const pops=Object.keys(S.pops).length;
-  if(regionsCount()<3)miss.push('POPs on 3+ continents');
-  if(pops<10)miss.push(`10+ POPs (${pops})`);
-  if(R.served<1500)miss.push(`serve 1.5 Tbps (${fmtG(R.served)})`);
+  if(regionsCount()<needCont)miss.push(`POPs on ${needCont}+ continent${needCont===1?'':'s'}`);
+  if(pops<needPops)miss.push(`${needPops}+ POPs (${pops})`);
+  if(R.served<needServed)miss.push(`serve ${needTxt} (${fmtG(R.served)})`);
   if(R.sessions<20)miss.push(`20+ peering sessions (${R.sessions})`);
   return {ok:!miss.length,missing:miss};
 }
