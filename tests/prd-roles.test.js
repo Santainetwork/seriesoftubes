@@ -32,7 +32,8 @@ test('ROLES: role is stored in the save and restored on reload', () => {
 
   a.ev("UI.role='hosting';ACT.start({});save()");
   assert.equal(a.ev('S.role'), 'hosting');
-  assert.equal(a.ev('S.cash'), 50000, 'hosting starts with $50k');
+  // Brief 5 §1: hosting needs $90k so its own 3-POP footprint is affordable ($60k of POPs).
+  assert.equal(a.ev('S.cash'), 90000, 'hosting starts with $90k');
   assert.equal(a.ev("JSON.parse(localStorage.getItem('sot-save-v1:global')).role"), 'hosting');
 
   const b = load({ storage: { 'sot-save-v1:global': a.ev("localStorage.getItem('sot-save-v1:global')") } });
@@ -41,7 +42,7 @@ test('ROLES: role is stored in the save and restored on reload', () => {
   assert.deepEqual(b.errors, []);
 });
 
-test('ROLES: hosting cannot sell broadband and is capped at 3 POPs', () => {
+test('ROLES: hosting cannot sell broadband and keeps its 3-POP footprint', () => {
   const { ev, errors } = load();
   ev("UI.role='hosting';ACT.start({});S.cash=1e6");
   assert.equal(ev("bbCost('fra')"), Infinity, 'no broadband price for hosting');
@@ -53,15 +54,20 @@ test('ROLES: hosting cannot sell broadband and is capped at 3 POPs', () => {
 
   ev("for(const c of ['ams','lon'])ACT.buildPop({city:c})");
   assert.equal(ev('Object.keys(S.pops).length'), 3, 'three POPs allowed');
+  // Brief 5 §2: the cap is a price signal, not a wall — the fourth POP is allowed but costs more.
+  const before = ev('S.cash');
   ev("ACT.buildPop({city:'par'})");
-  assert.equal(ev('Object.keys(S.pops).length'), 3, 'the fourth POP is refused');
+  assert.equal(ev('Object.keys(S.pops).length'), 4, 'the fourth POP is allowed');
+  assert.ok(ev('popOverMul()') > 1, 'and it is priced over list');
+  assert.ok(ev('S.cash') < before - ev('POP_COST'), 'the fourth POP costs more than list price');
   ev("ACT.buildPop({city:'nyc'})");
-  assert.equal(ev('Object.keys(S.pops).length'), 3);
+  assert.equal(ev('Object.keys(S.pops).length'), 5, 'the fifth POP is allowed too');
 
-  // A link into a new city must not smuggle a fourth POP in either.
-  ev("UI.pending={a:'fra',b:'par'};ACT.buildLink({tier:0})");
-  assert.equal(ev('Object.keys(S.pops).length'), 3, 'link path respects the POP cap');
-  assert.equal(ev("S.links.length"), 0, 'nothing was built');
+  // A link into a new city prices the POP the same way instead of smuggling it in free.
+  const cash = ev('S.cash');
+  ev("UI.pending={a:'fra',b:'mad'};ACT.buildLink({tier:1})");
+  assert.equal(ev('Object.keys(S.pops).length'), 6, 'link path also opens the POP');
+  assert.ok(ev('S.cash') < cash, 'and charges for it');
   assert.deepEqual(errors, []);
 });
 
@@ -80,11 +86,12 @@ test('ROLES: hosting sees hosting/GPU/on-ramp/AI offers only', () => {
   assert.deepEqual(errors, []);
 });
 
-test('ROLES: RT/RW net takes small DIA only, max 2 POPs, needs transit first', () => {
+test('ROLES: RT/RW net takes small DIA only, keeps a 2-POP footprint, needs transit first', () => {
   const { ev, errors } = load();
   ev("UI.role='rtnet';ACT.start({});S.cash=1e6");
-  assert.equal(ev('S.cash'), 1000000, 'test topped the tiny $2k budget up');
-  assert.equal(ev("ROLES.rtnet.cash"), 2000, 'PRD starting cash for rtnet is $2k');
+  assert.equal(ev('S.cash'), 1000000, 'test topped the budget up');
+  // Brief 5 §1: $45k so the role can actually buy its own POPs ($20k each).
+  assert.equal(ev("ROLES.rtnet.cash"), 45000, 'starting cash covers a two-POP footprint');
 
   // No transit bought yet: nothing is offered at all.
   ev("S.transit=[];for(let i=0;i<200;i++){S.offers=[];spawnOffer()}");
@@ -99,11 +106,12 @@ test('ROLES: RT/RW net takes small DIA only, max 2 POPs, needs transit first', (
     assert.ok(bw <= 2, `small scale only, got ${bw}G`);
   }
 
-  // Two POPs, not three.
+  // Two POPs is the role's footprint; a third is allowed but priced over list (brief 5 §2).
   ev("ACT.buildPop({city:'ams'})");
   assert.equal(ev('Object.keys(S.pops).length'), 2);
   ev("ACT.buildPop({city:'lon'})");
-  assert.equal(ev('Object.keys(S.pops).length'), 2, 'the third POP is refused');
+  assert.equal(ev('Object.keys(S.pops).length'), 3, 'the third POP is allowed');
+  assert.ok(ev('popOverMul()') > 1, 'and it costs over list');
   assert.deepEqual(errors, []);
 });
 
