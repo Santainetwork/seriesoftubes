@@ -4,7 +4,23 @@ All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/). Each release is deployed to
 [seriesoftub.es](https://seriesoftub.es).
 
-## [Unreleased]
+## [1.10.1] — 2026-10-24
+
+- Reach is now a button, not a mystery. Tap the Reach chip (or the new line in
+  the NOC tab) to get a report of every network you cannot reach, grouped by
+  cause: no transit, no IX port, a peering policy, a port that is down, or an
+  incident that just has to clear. Each one says what to do next and links
+  straight to the right panel, with a "Start here" list of the three biggest
+  causes and the traffic each is worth.
+- The map stays responsive at 8×. Catch-up after a stall is capped, a slow day
+  no longer eats a whole frame, the panels redraw once per frame instead of once
+  per simulated day, and a single failing day is skipped and reported instead of
+  stopping the game.
+- Fixed a stale "Tap your city, then Launch broadband" hint that never went away
+  once that goal was completed on day 0.
+- Phone and tablet layout fixes: the HUD is two rows instead of four on a phone,
+  panels, hints, toasts and the tutorial now position themselves from the HUD's
+  real height, and the tutorial no longer sits on top of the panel it points at.
 
 ## [1.10.0] — 2026-10-24
 
