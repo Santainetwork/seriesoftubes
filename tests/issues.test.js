@@ -191,3 +191,91 @@ test('#11 pausing freezes the dots on the links', () => {
   assert.ok(ev("animT") > t0, 'and moves again on play');
   assert.deepEqual(errors, []);
 });
+
+test('the reach report explains what is missing and how to fix it', () => {
+  const { ev, errors } = load();
+  base(ev);
+  ev("compute()");
+  // With no exits at all, every network is missing and the report must say why for each.
+  const first = JSON.parse(ev("JSON.stringify(reachReport().gaps[0])"));
+  assert.ok(first && first.name && first.why && first.fix, 'a gap has a name, a reason and a fix');
+  assert.ok(first.share > 0, 'and a traffic share');
+  // The biggest gaps are first, so the panel leads with what matters.
+  const shares = JSON.parse(ev("JSON.stringify(reachReport().gaps.map(g=>g.share))"));
+  assert.deepEqual(shares, [...shares].sort((a, b) => b - a));
+  ev("ACT.reach({})");
+  const txt = ev("document.getElementById('modalCard').textContent");
+  assert.match(txt, /Who can't you reach\?/);
+  assert.match(txt, /Start here/);
+  assert.match(txt, /Do this:/);
+  // Buying transit and peering lifts reach, and the report shrinks.
+  const before = ev("reachReport().gaps.length");
+  ev("ACT.buyTransit({city:'fra',net:'cog',tier:1});ACT.buyIx({city:'fra',tier:1,signed:true});ACT.rs({city:'fra'});ACT.peerAll({city:'fra'});compute()");
+  assert.ok(ev("R.reach") > 0.5, 'transit and peering reach most of the internet');
+  assert.ok(ev("reachReport().gaps.length") < before);
+  // A blocked exit is reported as something to wait for, not as a missing purchase.
+  ev("S.ev.rpki={until:S.day+3,nets:['nfx']};compute()");
+  const rpki = JSON.parse(ev("JSON.stringify(reachReport().gaps.find(g=>g.id==='nfx'))"));
+  assert.equal(rpki.kind, 'wait');
+  assert.equal(rpki.eta, 3);
+  assert.deepEqual(errors, []);
+});
+
+test('day-0 goals do not leave a stale hint on screen', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});ACT.launchBB({city:'fra'});renderAll()");
+  assert.equal(ev("S.done.bb"), 0, 'goal completed on day 0 is stored as 0');
+  assert.doesNotMatch(ev("document.getElementById('hint').textContent"), /Launch broadband/);
+  assert.deepEqual(errors, []);
+});
+
+test('a broken day is skipped instead of killing the loop', () => {
+  const { ev, errors } = load();
+  base(ev);
+  const day = ev('S.day');
+  ev("window.__realDayTick=dayTick;window.dayTick=()=>{throw new Error('boom')};safeTick();safeTick();window.dayTick=window.__realDayTick");
+  assert.equal(ev('S.day'), day, 'no day advanced');
+  assert.equal(ev('tickErr'), 2, 'failures are counted');
+  assert.equal(ev("document.getElementById('toasts').textContent.includes('simulation hit a snag')"), true);
+  ev("dayTick()");
+  assert.equal(ev('S.day'), day + 1, 'the simulation still runs afterwards');
+  assert.deepEqual(errors, []);
+});
+
+test('speed-up catch-up is capped so one stall cannot queue hundreds of days', () => {
+  const { ev, errors } = load();
+  base(ev);
+  // A long stall (hidden tab, slow frame) banks far more sim time than two days.
+  ev("UI.speed=8;acc=DAY_MS*100;last=performance.now()");
+  const before = ev('S.day');
+  ev("frame(performance.now()+50)");
+  const advanced = ev('S.day') - before;
+  assert.ok(advanced <= 4, `at most one frame's worth of days (got ${advanced})`);
+  assert.ok(ev('acc') <= ev('DAY_MS') * 2, 'leftover backlog is dropped, not carried');
+  assert.deepEqual(errors, []);
+});
+
+test('the loop stops ticking after a frame of work and renders once', () => {
+  const { ev, errors } = load();
+  base(ev);
+  // A huge network where a day costs real time: the loop must yield instead of
+  // burning the whole frame, and panels redraw once however many days ran.
+  ev("S.cash=1e12;for(const c of ['lon','ams','nyc','ash']){if(!S.pops[c])S.pops[c]={day:0,bb:{d:500},boost:0,down:0,routers:2,gen:false,rgen:0};}for(let i=0;i<4;i++){const cs=['fra','lon','ams','nyc','ash'];S.links.push({id:'lag'+i,a:cs[i],b:cs[i+1],kind:'wave',tier:2,km:500,sub:false,mo:1,cut:0,day:0});}compute();tickErr=0;UI.speed=8;acc=DAY_MS*2;last=performance.now()-16");
+  ev("frame(performance.now())");
+  assert.ok(ev('tickErr') === 0, 'no tick failed');
+  assert.ok(ev('S.day') > 0, 'days advanced');
+  assert.deepEqual(errors, []);
+});
+
+test('crowded non-POP cities hide instead of drawing nameless dots', () => {
+  const { ev, errors } = load();
+  base(ev);
+  // Zoomed out, non-POP cities whose labels lose both slots skip their art too.
+  ev("cam.z=0.4;UI.speed=0;draw(1000)");
+  const drawn = ev("JSON.stringify((()=>{const seen=[];const keep=drawCity;drawCity=(C,sx,sy,sc,now,ly)=>{seen.push(C.id+':'+(ly===null||ly===undefined?'none':'ly'))};draw(1000);drawCity=keep;return seen;})())");
+  const list = JSON.parse(drawn);
+  const noLabel = list.filter(s => s.endsWith(':none'));
+  assert.equal(noLabel.length, 0, `no nameless city art (${list.length} drawn)`);
+  assert.ok(list.length > 0, 'labeled cities still draw');
+  assert.deepEqual(errors, []);
+});

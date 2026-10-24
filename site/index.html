@@ -91,6 +91,7 @@
   --t1:#7B61FF; --t2:#2F8CFF; --cdn:#FF8A3D; --eye:#16A866;
   --display:'Baloo 2','Trebuchet MS',system-ui,sans-serif;
   --body:'Nunito',system-ui,-apple-system,sans-serif;
+  --hudh:74px; /* measured HUD bottom edge, kept in sync by syncHud() */
   color-scheme:light;
 }
 [hidden]{display:none!important}
@@ -136,8 +137,8 @@ button{font:inherit;color:inherit}
 .minibar i{display:block;height:100%;background:var(--ok)}
 
 /* drawers */
-#left{position:fixed;top:calc(env(safe-area-inset-top,0px) + 76px);left:max(12px,env(safe-area-inset-left,0px));width:300px;max-height:calc(100% - 96px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;z-index:4}
-#panel{position:fixed;top:calc(env(safe-area-inset-top,0px) + 76px);right:max(12px,env(safe-area-inset-right,0px));width:370px;max-height:calc(100% - 96px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;z-index:4}
+#left{position:fixed;top:calc(var(--hudh) + 8px);left:max(12px,env(safe-area-inset-left,0px));width:300px;max-height:calc(100% - var(--hudh) - 22px - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;z-index:4}
+#panel{position:fixed;top:calc(var(--hudh) + 8px);right:max(12px,env(safe-area-inset-right,0px));width:370px;max-height:calc(100% - var(--hudh) - 22px - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;z-index:4}
 .scroll{overflow:auto;padding:12px 14px 14px;overscroll-behavior:contain}
 .tabs{display:flex;gap:4px;padding:8px 8px 0;border-bottom:3px solid var(--ink);flex:none}
 .tabs button{border:2.5px solid var(--ink);border-bottom:none;border-radius:11px 11px 0 0;background:var(--soft);padding:4px 10px 3px;font-family:var(--display);font-weight:800;cursor:pointer;font-size:13.5px;position:relative;top:3px}
@@ -221,7 +222,7 @@ section h3{font-size:17px;margin-bottom:6px;display:flex;align-items:center;gap:
 .toast .tx b{font-family:var(--display);font-size:14.5px}
 @keyframes pop{from{transform:scale(.8) translateY(10px);opacity:0}}
 
-#hint{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 76px);background:var(--ink);color:#fff;border-radius:12px;padding:6px 12px;font-weight:800;font-size:12.5px;z-index:3;pointer-events:none;max-width:min(440px,calc(100% - 32px));text-align:center;box-shadow:3px 3px 0 rgba(30,38,64,.25)}
+#hint{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--hudh) + 6px);background:var(--ink);color:#fff;border-radius:12px;padding:6px 12px;font-weight:800;font-size:12.5px;z-index:3;pointer-events:none;max-width:min(440px,calc(100% - 32px));text-align:center;box-shadow:3px 3px 0 rgba(30,38,64,.25)}
 
 /* modal */
 .seg.site{margin-top:4px;align-items:center}
@@ -243,7 +244,7 @@ section h3{font-size:17px;margin-bottom:6px;display:flex;align-items:center;gap:
 .trsel label{display:flex;flex-direction:column;font:800 12px Nunito,sans-serif;gap:2px}
 .trsel select{font:700 14px Nunito,sans-serif;padding:4px 6px;border:2px solid var(--ink);border-radius:8px;max-width:240px}
 .fact.trb{cursor:pointer;font:inherit;border:2px solid var(--ink);background:#fff}
-#coach{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 74px);z-index:16;width:min(520px,calc(100% - 24px));background:#fff;border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink);padding:8px 10px;display:flex;gap:8px;align-items:center}
+#coach{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--hudh) + 6px);z-index:6;width:min(520px,calc(100% - 24px));background:#fff;border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink);padding:8px 10px;display:flex;gap:8px;align-items:center}
 #coach .ct{flex:1;font-weight:800;font-size:14px;line-height:1.35}
 #coach .cs{display:block;font:900 10px Nunito,sans-serif;color:var(--me);text-transform:uppercase;letter-spacing:.05em}
 .coach-glow{animation:coachglow 1s ease-in-out infinite;position:relative;z-index:2}
@@ -265,7 +266,7 @@ section h3{font-size:17px;margin-bottom:6px;display:flex;align-items:center;gap:
 @keyframes megascroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @keyframes megaflash{0%{background:#7A86B8}50%{background:#FF4D5E}}
 @media (prefers-reduced-motion:reduce){#mega,#mega .mtrack{animation:none}}
-#update{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 70px);z-index:18;width:min(520px,calc(100% - 24px));pointer-events:auto}
+#update{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--hudh) + 6px);z-index:18;width:min(520px,calc(100% - 24px));pointer-events:auto}
 #update .b{pointer-events:auto}
 .notes{margin:10px 0 0;padding-left:20px;line-height:1.5}
 .notes li{margin:4px 0}
@@ -275,6 +276,17 @@ section h3{font-size:17px;margin-bottom:6px;display:flex;align-items:center;gap:
 .menubtn .caret{font-size:13px;margin-left:2px;opacity:.85}
 .cashbtn{cursor:pointer;text-align:left;font:inherit;color:inherit;position:relative}
 .cashbtn .badge{position:absolute;top:-8px;right:-8px;background:var(--me);color:#fff;border:2.5px solid var(--ink);border-radius:10px;font:900 11px Nunito,sans-serif;padding:0 6px;line-height:16px}
+.reachbtn{cursor:pointer;text-align:left;font:inherit;color:inherit}
+.reachq{display:inline-grid;place-items:center;width:13px;height:13px;border-radius:50%;background:var(--bad);color:#fff;font:900 9px Nunito,sans-serif;margin-left:3px;vertical-align:1px}
+/* Reach report: why part of the internet is missing, and the one thing to do about it. */
+.reachbar{position:relative;height:16px;border:3px solid var(--ink);border-radius:10px;background:#FFE1E4;overflow:hidden;margin-top:6px}
+.reachbar i{display:block;height:100%;background:var(--ok);transition:width .3s}
+.reachbar .mark{position:absolute;top:-2px;bottom:-2px;left:99%;width:3px;background:var(--ink)}
+.reachrow{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.reachrow:first-child{border-top:none}
+.reachrow .nm{font-weight:800;font-size:13.5px;line-height:1.2}
+.reachrow .why{font-size:11.5px;color:var(--ink2);font-weight:700;line-height:1.35;margin-top:2px}
+.reachrow .meta{font-size:11.5px;line-height:1.35;margin-top:1px}
 .loan{border:2.5px solid var(--ink);border-radius:14px;padding:10px 12px;margin-top:10px;display:flex;gap:10px;align-items:flex-start}
 .loan .grow{flex:1;min-width:0}
 .loan .terms{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
@@ -301,7 +313,7 @@ section h3{font-size:17px;margin-bottom:6px;display:flex;align-items:center;gap:
 .mix i{display:block;height:100%}
 .tscroll{overflow-x:auto}
 #modal{position:fixed;inset:0;background:rgba(30,38,64,.45);display:grid;place-items:center;z-index:20;padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
-#modal .card{width:min(560px,100%);max-height:calc(100% - 20px);overflow:auto;padding:20px 22px}
+#modal .card{width:min(560px,100%);max-height:calc(100% - 20px);overflow:auto;padding:20px 22px;box-sizing:border-box}
 .title-art{display:flex;align-items:center;gap:14px}
 .title-art h1{font-family:var(--display);font-weight:800;font-size:clamp(34px,7vw,52px);line-height:.95;margin:0;letter-spacing:-.01em}
 .title-art h1 span{color:var(--me)}
@@ -345,6 +357,11 @@ input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radi
   .speed{gap:3px;padding:4px 5px}
   .speed button{min-width:29px;font-size:12px}
 }
+/* With the inspector open on a narrow laptop or tablet, centred toasts would sit on top of it.
+   Park them over the map instead, where the player can still read them and click their buttons. */
+@media (min-width:761px) and (max-width:1200px){
+  #panel:not([hidden]) ~ #toasts{left:max(12px,env(safe-area-inset-left,0px));transform:none;width:min(420px,calc(100% - 380px))}
+}
 @media (min-width:761px) and (max-width:1180px){
   .hide-md{display:none !important}
   .brand .val{font-size:17px}
@@ -374,7 +391,11 @@ input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radi
   .brand .tube{width:22px;height:22px}
   .brand>div{display:none}
   .speed{padding:2px 4px;gap:3px}
-  .speed button{min-width:28px;height:26px;font-size:11.5px;border-width:2px;border-radius:7px}
+  .speed{padding:2px 3px;gap:2px}
+  .speed button{min-width:0;padding:0 4px;height:26px;font-size:10.5px;border-width:2px;border-radius:7px}
+  .speed button svg{width:13px;height:11px}
+  .speed button[data-act=dash],.speed button[data-act=help],.speed button[data-act=mute]{padding:0 5px}
+  .reachq{width:12px;height:12px;font-size:8px}
   .spacer{display:none}
   #left{top:auto}
   #left{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:8px;right:8px;width:auto;max-height:55%}
@@ -383,7 +404,7 @@ input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radi
   #panel{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:8px;right:8px;width:auto;max-height:58%;z-index:6}
   .ph h2{font-size:22px}
   #hint{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 70px)}
-  #toasts{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 112px);flex-direction:column;width:calc(100% - 24px)}
+  #toasts{bottom:auto;top:calc(var(--hudh) + 8px);flex-direction:column;width:calc(100% - 24px)}
   .toast{padding:6px 10px;border-width:2.5px;box-shadow:2px 2px 0 var(--ink)}
   .toast .tx{font-size:12px}
   .toast .tx b{font-size:13px}
@@ -413,7 +434,7 @@ input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radi
   </button>
   <button class="chip cashbtn" data-act="bank" aria-label="Cash and bank"><span class="lbl">Cash · Bank</span><span class="val num" id="hCash">$0</span><span class="sub num" id="hRate">—</span><span class="badge" id="hBank" hidden></span></button>
   <div class="chip hide-sm hide-md2"><div class="lbl">Traffic served</div><div class="val num" id="hTraffic">0</div><div class="minibar"><i id="hTrafBar" style="width:0"></i></div></div>
-  <div class="chip"><div class="lbl">Reach</div><div class="val num" id="hReach">0%</div></div>
+  <button class="chip reachbtn" data-act="reach" title="Reach report: see what is missing and how to fix it" aria-label="Reach report"><span class="lbl">Reach <span class="reachq" id="hReachQ" hidden>?</span></span><span class="val num" id="hReach">0%</span></button>
   <div class="chip hide-sm hide-md"><div class="lbl">Rank</div><div class="val" id="hTier">Tier 3</div></div>
   <button class="chip noc" id="hNoc" data-act="leftTab" data-args='{"t":"noc"}'><span class="lbl">NOC</span><span class="val num" id="hNocVal">All quiet</span></button>
   <div class="spacer"></div>
@@ -1148,6 +1169,22 @@ function renderCoach(){const el=$('coach');if(!el)return;document.querySelectorA
   while(S.tut<TUT.length){const st=TUT[S.tut];let ok=false;try{ok=st.ok()||(st.skip&&st.skip());}catch(e){}if(!ok)break;S.tut++;}
   if(S.tut>=TUT.length){S.tut=null;el.hidden=true;try{localStorage.setItem('sot-tut','1');}catch(e){}toast('<b>You know the basics.</b><br>The goals on the left take it from here. Things will break. That is the fun part.','goal');return;}
   const st=TUT[S.tut];el.innerHTML=`<div class="ct"><span class="cs">Step ${S.tut+1} of ${TUT.length}</span>${esc(st.t)}</div>${btn('Skip tutorial','tutSkip',{},'ghost sm')}`;el.hidden=false;
+  // The tutorial is an overlay on a live map. Centre it in whatever space the side panels leave
+  // free, so it never covers the panel it is telling you to use. On phones the panels are bottom
+  // sheets, so it spans the full width and drops below any visible toast instead.
+  {const pr=$('panel'),lr=$('left'),toasts=$('toasts');
+    if(innerWidth<=760){
+      el.style.left='50%';el.style.maxWidth='calc(100% - 24px)';
+      const tb=toasts&&toasts.children.length?toasts.getBoundingClientRect().bottom:0;
+      el.style.top=Math.round((tb||parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hudh'))||74)+8)+'px';
+    }else{
+      el.style.top='';
+      const pOpen=pr&&!pr.hidden,lOpen=lr&&!lr.hidden&&!lr.classList.contains('closed');
+      const freeL=lOpen?lr.getBoundingClientRect().right+10:0;
+      const freeR=pOpen?pr.getBoundingClientRect().left-10:innerWidth;
+      el.style.left=Math.round((freeL+freeR)/2)+'px';
+      el.style.maxWidth=Math.max(220,Math.round(freeR-freeL-24))+'px';}
+  }
   if(st.sel){const t=document.querySelector(st.sel);if(t)t.classList.add('coach-glow');}}
 /* ---------- traceroute and looking glass ---------- */
 const slug=t=>String(t).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'x';
@@ -1348,6 +1385,111 @@ function peerOk(id,via,city){
 }
 // Everything that can fill up at a POP: transit ports, IX ports, PNIs, caches and the routers themselves.
 const HOT=0.9,HOTL={t:'T',ix:'IX',p:'P',c:'C',r:'R'},HOTC={t:'#7B61FF',ix:'#FFD23F',p:'#2C7A7B',c:'#C8102E',r:'#FF4F9A'};
+/* ---------- Reach report ----------
+   Reach is the share of the world's traffic that can reach your network. When it is stuck below
+   100%, this works out, per missing network, which exit should have carried it and what is
+   actually in the way: an event, a peering policy, a missing port, or no exit at all. */
+function reachReport(){
+  const day=S.day,ev=S.ev||{},gaps=[];
+  const depeer=ev.depeer>day||scnRule('spat'),leak=ev.leak&&ev.leak.until>day?ev.leak.net:null;
+  const rpki=ev.rpki&&ev.rpki.until>day?new Set(ev.rpki.nets):null;
+  const mine=Object.keys(S.pops),rem=remoteCities();
+  const hasPop=c=>!!S.pops[c]&&!(S.pops[c].down>S.day);
+  for(const n of NETS){
+    if(R.reachable[n.id])continue;
+    const share=NSH[n.id]||0,g={id:n.id,name:n.name,share,col:n.col,asn:n.asn,type:n.type};
+    const until=d=>Math.max(0,d-day);
+    // 1. Something you already pay for would carry it, but the route is filtered or the port is down.
+    if(rpki&&rpki.has(n.id)){g.kind='wait';g.why='RPKI invalid: about half the internet is dropping your prefixes until the ROA is renewed.';g.eta=until(ev.rpki.until);g.fix='Wait it out, or fix the ROA now.';g.act='fixRpki';}
+    else if(leak===n.id){g.kind='wait';g.why=`A route leak is black-holing ${n.name} over transit. Direct peering still works.`;g.eta=until(ev.leak.until);g.fix='Wait, or peer with them directly.';}
+    else if(depeer&&n.id==='ggl'&&S.transit.some(t=>t.net==='cog')){g.kind='wait';g.why='Cogentle and Goggle are not speaking, so Cogentle transit cannot carry Goggle.';g.eta=until(ev.depeer);g.fix='Peer with Goggle directly, or buy a second upstream.';}
+    else{
+      // 2. A port you own that should carry it, but is down.
+      const deadT=S.transit.find(t=>t.down>day&&(NET[t.net].type==='t1'||NET[t.net].type==='t2'));
+      const deadIx=Object.keys(S.ixp).find(c=>ev.ixdown&&ev.ixdown[c]>day&&ixMembers(c).includes(n.id));
+      const deadP=S.pni.find(p=>p.net===n.id&&!hasPop(p.city));
+      if(deadT||deadIx||deadP){g.kind='down';g.why=deadT?`${NET[deadT.net].name} transit in ${CITY[deadT.city].name} is down.`:`${ixName(deadIx)} is down.`;g.fix='Rush the repair, or make sure a second exit can carry it.';}
+      else{
+        // 3. You are on an IX with them but have no session: policy, size or a snub.
+        let best=null;
+        for(const c of Object.keys(S.ixp)){const city=ixCity(c);if(!(hasPop(city)||rem.includes(city)))continue;if(!ixMembers(c).includes(n.id))continue;
+          const chk=peerOk(n.id,'ix',c);const score=(chk.ok?0:1)*100+(chk.snub?20:0);if(!best||score<best.score)best={c,city,chk,score};}
+        if(best){
+          if(best.chk.ok){g.kind='session';g.why=`You are both on ${ixName(best.c)}, but the session is not up yet.`;g.fix='Request the session.';g.act='peer';g.city=best.c;}
+          else if(best.chk.snub){g.kind='wait';g.why=best.chk.why;g.eta=Math.max(0,(snub(n.id,best.c)||{}).until-day||0);g.fix='They will reconsider; peer elsewhere meanwhile.';}
+          else{g.kind='policy';g.why=best.chk.why;g.fix='Grow traffic, or take a PNI instead.';g.act='ix';g.city=best.c;}
+        }else{
+          // 4. An IX where you have (or could rent) a port lists them as a member.
+          let ixPick=null;
+          for(const c of mine){for(const x of ixIdsIn(c)){if(!ixMembers(x).includes(n.id))continue;if(!ixPick||(S.ixp[x]!==undefined&&S.ixp[ixPick]===undefined))ixPick=x;}}
+          if(!ixPick&&n.ix==='ALL'){for(const c of mine){const x=ixIdsIn(c)[0];if(x&&(!ixPick||(S.ixp[x]!==undefined&&S.ixp[ixPick]===undefined)))ixPick=x;}}
+          if(ixPick){g.kind='ix';g.why=`They are a member of ${ixName(ixPick)} in ${CITY[ixCity(ixPick)].name}, where you have no port.`;g.fix=S.ixp[ixPick]!==undefined?'Peer with them at the IX.':`Buy a port at ${ixName(ixPick)}.`;g.act=S.ixp[ixPick]!==undefined?'ix':'ixBuy';g.city=ixPick;}
+          else{
+            // 5. A PNI in a city you both share.
+            const shared=n.pops.filter(c=>mine.includes(c));
+            const pniC=shared.find(c=>peerOk(n.id,'pni',c).ok);
+            // 6. Transit you could buy where you already have a POP.
+            const trCity=mine.find(c=>NETS.some(x=>x.price&&x.pops.includes(c)));
+            // 7. A cache you could host.
+            const cacheOk=n.cache&&mine.length;
+            if(pniC){g.kind='pni';g.why=`You both have a POP in ${CITY[pniC].name}, and they will take a PNI.`;g.fix='Order a private cross-connect.';g.act='pni';g.city=pniC;}
+            else if(cacheOk){g.kind='cache';g.why=`${n.cache.name} is free once you send ${n.cache.min} Gbps to ${n.name}.`;g.fix='Request a cache box in one of your POPs.';g.act='cache';g.city=mine[0];}
+            else if(trCity){g.kind='transit';g.why=`No exit reaches them from your network yet.`;g.fix=`Buy transit in ${CITY[trCity].name}.`;g.act='transit';g.city=trCity;}
+            else if(n.pops.length){const c=n.pops.find(x=>!CITY[x].cn||cnOk())||n.pops[0];g.kind='pop';g.why=`They are only present in ${CITY[c].name}, and you have no POP there.`;g.fix=`Open a POP in ${CITY[c].name} and peer there.`;g.act='pop';g.city=c;}
+            else{g.kind='none';g.why='No practical exit from your current footprint.';g.fix='Grow your footprint.';}
+          }
+        }
+      }
+    }
+    gaps.push(g);
+  }
+  gaps.sort((a,b)=>b.share-a.share);
+  return {reach:R.reach,gaps,missing:gaps.reduce((a,g)=>a+g.share,0)};
+}
+const REACH_KIND={wait:['Blocked right now','#FFAA1F'],down:['Port is down','#FF4D5E'],session:['Session not up','#2F8CFF'],policy:['They will not peer yet','#FF8A3D'],ix:['No IX port there','#7B61FF'],pni:['PNI available','#2C7A7B'],cache:['Cache available','#C8102E'],transit:['No transit to them','#9D4EDD'],pop:['No POP there','#55608A'],none:['Out of reach','#55608A']};
+function reachHTML(){
+  const rep=reachReport(),pctReach=clamp(rep.reach,0,1);
+  const groups={};for(const g of rep.gaps)(groups[g.kind]=groups[g.kind]||[]).push(g);
+  const order=Object.keys(groups).sort((a,b)=>groups[b].reduce((x,g)=>x+g.share,0)-groups[a].reduce((x,g)=>x+g.share,0));
+  let h=`<div style="display:flex;align-items:center"><div><div class="eyebrow">Reach report</div><h2 style="font-size:26px">Who can't you reach?</h2></div><button class="x" data-act="closeModal" aria-label="Close">×</button></div>
+  <p class="tagline" style="margin:8px 0 4px">Reach is the share of the world's traffic that has a working path to your network. Customers need <b>99%+</b> before they will sign, and Tier 1 needs all of it.</p>
+  <div class="reachbar" role="img" aria-label="Reach ${pct(pctReach)}"><i style="width:${pctReach*100}%"></i><span class="mark"></span></div>
+  <div class="kv"><span>Reachable now</span><b>${pct(pctReach)}</b></div>`;
+  if(!rep.gaps.length){
+    h+=`<p class="lead" style="margin-top:10px"><b>Everything is reachable.</b> Every network on the map has a working path from your POPs. Keep it that way: a cut cable or a de-peering can take a slice of the internet away in a single day.</p>`;
+  }else{
+    h+=`<p class="lead" style="margin-top:10px"><b>${rep.gaps.length} network${rep.gaps.length===1?'':'s'}</b> missing, worth ${pct(rep.missing)} of the world's traffic. Biggest first:</p>`;
+    // One row per cause, biggest first: the shortest path from "stuck at 40%" to "everyone is reachable".
+    h+=`<div class="panel2" style="margin:6px 0 4px"><h3 style="font-size:15px">Start here</h3>`;
+    for(const k of order.slice(0,3)){
+      const list=groups[k],[lab,col]=REACH_KIND[k]||['Missing','#55608A'];
+      const share=list.reduce((a,g)=>a+g.share,0),first=list[0];
+      const act=k==='transit'?btn('Buy transit','reachGo',{act:'transit',city:first.city},'pink sm')
+        :k==='ix'||k==='ixBuy'?btn('Open peering','reachGo',{act:'ixBuy',city:first.city},'pink sm')
+        :k==='session'?btn('Request','reachGo',{act:'peer',city:first.city,net:first.id},'pink sm')
+        :k==='wait'?`<span class="tag st">wait${first.eta?` ~${first.eta}d`:''}</span>`
+        :k==='pni'?btn('Order PNI','reachGo',{act:'pni',city:first.city},'pink sm')
+        :k==='cache'?btn('Request cache','reachGo',{act:'cache',city:first.city},'pink sm')
+        :k==='pop'?btn('Open POP','reachGo',{act:'pop',city:first.city},'pink sm')
+        :'';
+      h+=`<div class="reachrow"><span class="dot" style="background:${col};margin-top:4px"></span><div class="grow"><div class="nm">${lab} <span class="meta">${list.length} network${list.length===1?'':'s'} · ${pct(share)}</span></div><div class="meta">${esc(first.fix)}</div></div>${act}</div>`;
+    }
+    if(order.length>3)h+=`<p class="note">${order.length-3} smaller cause${order.length-3===1?'':'s'} below.</p>`;
+    h+=`</div>`;
+    for(const k of order){
+      const list=groups[k],[lab,col]=REACH_KIND[k]||['Missing','#55608A'];
+      h+=`<section><h3 style="font-size:16px"><span class="dot" style="background:${col}"></span>${lab} <span class="meta" style="font-weight:800">${list.length} · ${pct(list.reduce((a,g)=>a+g.share,0))}</span></h3>`;
+      for(const g of list.slice(0,6)){
+        h+=`<div class="reachrow">${logo(NET[g.id])}<div class="grow"><div class="nm">${esc(g.name)} <span class="meta">AS${g.asn} · ${pct(g.share)} of traffic</span></div><div class="why">${esc(g.why)}</div><div class="meta"><b>Do this:</b> ${esc(g.fix)}${g.eta?` · about ${g.eta} day${g.eta===1?'':'s'}`:''}</div></div>
+        ${g.act==='fixRpki'?btn('Fix now','reachGo',{act:'fixRpki'},'pink sm'):g.act==='peer'?btn('Request','reachGo',{act:'peer',city:g.city,net:g.id},'pink sm'):g.act?btn('Open','reachGo',{act:g.act,city:g.city,net:g.id},'sm'):''}</div>`;
+      }
+      if(list.length>6)h+=`<p class="note">and ${list.length-6} more, each a sliver of traffic.</p>`;
+      h+=`</section>`;
+    }
+  }
+  h+=`<div class="btns" style="margin-top:10px">${btn('NOC dashboard','dash',{},'ghost')}${btn('Traceroute','trace',{},'ghost')}${btn('Close','closeModal',{},'ghost')}</div>`;
+  return h;
+}
 function hotPorts(){const out=[];if(!R||!S)return out;
   for(const t of S.transit){if(t.down>S.day)continue;const cap=lagCap(PORT[t.tier].g,t.n),u=(R.useT[t.id]||0)/cap;if(u>=HOT)out.push({k:'t',city:t.city,lab:`${NET[t.net].name} transit · ${lagName(t.tier,t.n)}`,u,tip:'Add a LAG member, upgrade the port or buy a second upstream.'});}
   for(const c in S.ixp){const cap=ixCap(c);if(!cap)continue;const u=(R.useIx[c]||0)/cap;if(u>=HOT)out.push({k:'ix',city:ixCity(c),lab:`${ixName(c)} port`,u,tip:'Upgrade the IX port or add a LAG member.'});}
@@ -2049,6 +2191,16 @@ const ACT={
  speed:({v})=>{v=+v;if(![0,0.5,1,2,4,8].includes(v))return;UI.speed=v;renderHUD();},
  help:()=>showHelp(),
  dash:()=>{if(!S)return;const d=$('dash');d.hidden=!d.hidden;if(!d.hidden)renderDash();},
+ reach:()=>{if(!S)return;openModal(reachHTML());},
+ reachGo:({act,city,net})=>{
+   if(act==='fixRpki'){const i=S.inc.find(x=>x.type==='rpki'||x.type==='hijack');if(i&&i.cost>0){ACT.fixInc({id:i.id});if(S.inc.includes(i))return;}else{toast('<b>Nothing to fix right now.</b><br>Reach recovers when the incident clears.','goal');return;}closeModal();return;}
+   if(act==='peer'){ACT.peer({city,net});closeModal();selectCity(ixCity(city));UI.tab='peer';renderPanel();return;}
+   if(act==='transit'){ACT.focusCity({city});UI.tab='up';renderPanel();closeModal();return;}
+   if(act==='pop'){ACT.focusCity({city});closeModal();return;}
+   if(act==='ix'||act==='ixBuy'){ACT.focusCity({city:ixCity(city)});UI.tab='peer';renderPanel();closeModal();return;}
+   if(act==='pni'||act==='cache'){ACT.focusCity({city});UI.tab='peer';renderPanel();closeModal();return;}
+   closeModal();
+ },
  dashClose:()=>{$('dash').hidden=true;},
  dashSort:({k})=>{if(!['name','asn','type','traffic','cost','lost'].includes(k))return;if(UI.dashSort===k)UI.dashDir=-(UI.dashDir||-1);else{UI.dashSort=k;UI.dashDir=k==='name'||k==='type'||k==='asn'?1:-1;}renderDash();},
  bank:()=>{if(!S)return;UI.confirm=null;$('dash').hidden=true;const b=$('bankBox');b.hidden=false;UI._bh=null;renderBank();},
@@ -2283,11 +2435,12 @@ const $=id=>document.getElementById(id);
 const btn=(label,act,args={},cls='',dis=false,title='')=>`<button class="b ${cls}" data-act="${act}" data-args="${esc(JSON.stringify(args))}"${dis?' disabled':''}${title?` title="${esc(title)}"`:''}>${label}</button>`;
 const logo=n=>`<span class="logo" style="--c:${n.col}">${initials(n)}</span>`;
 const barCls=u=>u>=0.9?'bad':u>=0.65?'warn':'';
-function renderAll(){if(isTablet()&&!UI.sel)UI.leftOpen=false;renderHUD();renderLeft();renderPanel();renderHint();renderMega();renderCoach();}
+function renderAll(){if(isTablet()&&!UI.sel)UI.leftOpen=false;renderHUD();renderLeft();renderPanel();renderHint();renderMega();renderCoach();syncHud();}
 function renderMega(){const el=$('mega');if(!el)return;const on=!!(S&&S.ev&&S.ev.php>S.day);if(el.hidden===!on)return;el.hidden=!on;}
 function renderHUD(){
   for(const v of [0,0.5,1,2,4,8]){const b=$('sp'+v);if(b)b.classList.toggle('on',UI.speed===v);}
   $('muteBtn').style.opacity=UI.muted?.4:1;
+  syncHud();
   if(!S)return;
   $('hName').textContent=S.name;$('hAsn').textContent='AS'+S.asn+(S.mode==='sandbox'?' · Sandbox':S.scn?' · '+(S.scn.id==='weekly'?'Weekly '+S.scn.key:S.scn.name)+(S.scn.done||S.scn.failed?'':` · ${Math.max(0,S.scn.days-S.day)}d left`):'');
   $('hCash').textContent=fmt$(S.cash);$('hCash').style.color=S.cash<0?'var(--bad)':'';
@@ -2296,10 +2449,19 @@ function renderHUD(){
   $('hTrafBar').style.width=(R.demand?R.served/R.demand*100:0)+'%';
   $('hTrafBar').style.background=R.demand&&R.served/R.demand<0.9?'var(--bad)':'var(--ok)';
   $('hReach').textContent=pct(R.reach);$('hReach').style.color=R.reach<0.99?'var(--bad)':'var(--eye)';
+  {const q=$('hReachQ');if(q){const short=R.reach<0.99;q.hidden=!short;}}
   $('hTier').textContent=tierLabel();
   $('hDate').textContent=dateStr(S.day);
   {const bo=(S.loanOffers||[]).length,hb=$('hBank');hb.hidden=!bo;hb.textContent=bo;}
   const n=S.inc.length;$('hNoc').classList.toggle('hot',n>0);$('hNocVal').textContent=n?`${n} incident${n>1?'s':''}`:'All quiet';
+}
+/* The HUD wraps differently at every width (one row on a laptop, three on a phone), so the
+   floating panels, hints and toasts position themselves from its real height instead of a guess. */
+function syncHud(){
+  const hud=$('hud');if(!hud)return;
+  const r=hud.getBoundingClientRect();if(!r.height)return;
+  const h=Math.round(r.bottom+8);
+  if(h!==UI._hudh){UI._hudh=h;document.documentElement.style.setProperty('--hudh',h+'px');}
 }
 function renderLeft(){
   // Tablets in landscape: both side panels don't fit next to the map, so the left one tucks away
@@ -2322,7 +2484,7 @@ function renderLeft(){
       h+=`<div class="row"><div class="grow"><div class="nm">${esc(o.name)}</div><div class="meta">${esc(BIZ_T[o.type].l)} · ${CITY[o.city].name}${o.city2?' ⇄ '+CITY[o.city2].name:''} · <b>${bTerms(o)}</b> · ${o.exp-S.day}d left${(o.reqs||[]).length?` · ${o.reqs.length} special requirement${o.reqs.length>1?'s':''}`:''}</div>${reqList(o)}
       <div class="btns">${has?btn('Accept','accept',{id:o.id},'green sm'):btn('Go there','focusCity',{city:o.city},'ghost sm')}${btn('Decline','decline',{id:o.id},'ghost sm')}</div>${has?'':`<div class="why">Needs a POP in ${bCities(o).filter(x=>!S.pops[x]).map(x=>CITY[x].name).join(', ')}</div>`}</div></div>`;}
   }else if(UI.left==='noc'){
-    h+=`<div class="btns" style="margin-bottom:8px">${btn('Open NOC dashboard','dash',{},'pink')}${btn('Traceroute','trace',{},'')}</div>`;
+    h+=`<div class="btns" style="margin-bottom:8px">${btn('Open NOC dashboard','dash',{},'pink')}${btn('Traceroute','trace',{},'')}${btn(R.reach<0.99?`Reach ${pct(R.reach)} · what's missing`:'Reach report','reach',{},'')}</div>`;
     h+=`<p class="lead">Your Network Operations Center. Every notification also lands here. Things fail all the time on the internet. Redundant links and multiple upstreams let traffic reroute by itself.</p>`;
     h+=`<div class="kv"><span>DDoS scrubbing</span><b>${S.scrubAt?'On · '+CITY[S.scrubAt].name:'None (build one from a POP\'s Infra tab)'}</b></div>`;
     h+=S.te?`<div class="kv"><span>Auto-TE</span><b>${S.te.on?`On · moving ${fmtG(R.teMoved||0)} onto alternate paths`:'Off'}</b></div><div class="btns">${btn(S.te.on?'Turn Auto-TE off':'Turn Auto-TE on','teToggle',{},'ghost sm')}${btn(S.te.script?'Edit RouteScript':'Write a RouteScript','teEdit',{},'pink sm')}</div>${S.te.script?`<p class="meta" style="margin:2px 0 6px">RouteScript: ${teRules()?teRules().n+' rules live':S.te.on?'has errors, not running':'controller off'}${R.teBlack?` · blackholing ${fmtG(R.teBlack)}`:''}</p>`:''}`
@@ -2625,8 +2787,9 @@ function renderHint(){
   const hn=$('hint');if(!S||UI.hintOff||(S.tut!==undefined&&S.tut!==null)||(innerWidth<760&&(UI.sel||UI.leftOpen)&&!(UI.drag&&UI.drag.mode==='link'))){hn.hidden=true;return;}
   let t='';
   if(UI.drag&&UI.drag.mode==='link')t=UI.snap?'Release to plan a link':'Drag onto another city';
-  else if(!S.links.length&&S.done.tr)t='Tip: drag from your pink router to another city to lay fiber';
-  else if(!S.done.bb)t='Tap your city, then Launch broadband';
+  // Goals finished on day 0 are stored as 0, so test for presence, not truthiness.
+  else if(!S.links.length&&S.done.tr!==undefined)t='Tip: drag from your pink router to another city to lay fiber';
+  else if(S.done.bb===undefined)t='Tap your city, then Launch broadband';
   hn.textContent=t;hn.hidden=!t;
 }
 
@@ -2635,7 +2798,7 @@ function toast(html,kind='',actions=[]){
   if(S){S.log=S.log||[];const tmp=document.createElement('div');tmp.innerHTML=html.replace(/<br>/g,' ');S.log.unshift({d:S.day,t:tmp.textContent,k:kind});if(S.log.length>30)S.log.length=30;}
   const el=document.createElement('div');el.className='toast '+kind;
   el.innerHTML=`<div class="tx">${html}</div>${actions.map(a=>btn(a.l,a.act,a.args,'sm')).join('')}`;
-  const box=$('toasts');box.prepend(el);const max=innerWidth<760?2:3;while(box.children.length>max)box.lastChild.remove();
+  const box=$('toasts');box.prepend(el);const max=innerWidth<760?1:2;while(box.children.length>max)box.lastChild.remove();
   setTimeout(()=>{el.style.transition='opacity .4s';el.style.opacity=0;setTimeout(()=>el.remove(),400);},actions.length?8000:4500);
 }
 function openModal(html){$('modalCard').innerHTML=html;$('modal').hidden=false;}
@@ -2749,7 +2912,7 @@ const cv=$('map'),ctx=cv.getContext('2d');
 const cam={x:1050,y:330,z:0.8};
 let CW=0,CH=0,DPR=1;
 function resize(){DPR=Math.min(2,window.devicePixelRatio||1);CW=innerWidth;CH=innerHeight;cv.width=CW*DPR;cv.height=CH*DPR;}
-addEventListener('resize',()=>{resize();WL.key=null;renderLeft();});resize();
+addEventListener('resize',()=>{resize();WL.key=null;syncHud();renderLeft();});resize();
 function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function inPoly(x,y,pts){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const [xi,yi]=pts[i],[xj,yj]=pts[j];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins;}return ins;}
 function smoothPath(pts){const p=new Path2D();const n=pts.length;const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];let m=mid(pts[n-1],pts[0]);p.moveTo(m[0],m[1]);for(let i=0;i<n;i++){const nx=pts[(i+1)%n];m=mid(pts[i],nx);p.quadraticCurveTo(pts[i][0],pts[i][1],m[0],m[1]);}p.closePath();return p;}
@@ -2825,28 +2988,48 @@ function draw(now){
   // cable systems
   drawCables(ks);
   // links
+  // links: batched into one stroke per (color, width, dash) bucket. Stroking is the
+  // most expensive canvas op here, and per-link begin/stroke dominates draw time on
+  // big networks, so links sharing a style go through a single path+stroke.
+  const linkBuckets=new Map(),linkPaths=new Map(),linkVis=[];
+  const bucketStroke=(key,style,width,dash,sp)=>{
+    let b=linkBuckets.get(key);if(!b){b={style,width,dash};linkBuckets.set(key,b);linkPaths.set(key,[]);}
+    linkPaths.get(key).push(sp);
+  };
   for(const l of S.links){
     const gm=linkGeom(l),cap=capOf(l),load=R.load[l.id]||0,u=cap?load/cap:0,df=l.kind==='df',bld=df&&l.ready>day,cut=!bld&&linkDown(l)&&!(df&&!(l.ch||[]).length),dark=df&&!bld&&!(l.ch||[]).length,vx=l.kind==='vxc';
     const sel=UI.sel&&UI.sel.type==='link'&&UI.sel.id===l.id;
     const w=(vx?2.2:(2.5+tierW(l)*1.8))*sc;
+    const dash=cut?'8,8':vx?'2,7':bld?'10,8':'';
+    const col=bld?'#C9B27C':dark?'#5D6788':cut?'#FF4D5E':vx?FAB[l.prov].col:l.sub?(u>0.001?utilCol(u):'#7FD8EE'):utilCol(u);
     for(const k of ks){
       const sp=gm.pts.map(p=>toS(p[0],p[1],k));let mn=Infinity,mx=-Infinity;for(const q of sp){if(q[0]<mn)mn=q[0];if(q[0]>mx)mx=q[0];}
       if(mx<-40||mn>CW+40)continue;
-      const path=()=>{ctx.beginPath();ctx.moveTo(sp[0][0],sp[0][1]);for(let i=1;i<sp.length;i++)ctx.lineTo(sp[i][0],sp[i][1]);};
-      ctx.lineCap='round';ctx.lineJoin='round';
-      if(sel){ctx.strokeStyle='rgba(255,79,154,.35)';ctx.lineWidth=w+14;path();ctx.stroke();}
-      ctx.strokeStyle='#1E2640';ctx.lineWidth=w+4;ctx.setLineDash(cut?[8,8]:vx?[2,7]:bld?[10,8]:[]);path();ctx.stroke();
-      ctx.strokeStyle=bld?'#C9B27C':dark?'#5D6788':cut?'#FF4D5E':vx?FAB[l.prov].col:l.sub?(u>0.001?utilCol(u):'#7FD8EE'):utilCol(u);ctx.lineWidth=w;ctx.stroke();ctx.setLineDash([]);
-      if(df&&!bld&&!dark){ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=Math.max(1,w*0.25);ctx.setLineDash([1,6]);path();ctx.stroke();ctx.setLineDash([]);}
-      const at=t=>polyAt(sp,gm.cum,t);
-      if(!cut&&load>0.01){const n=clamp(Math.round(2+u*10),2,12),len=gm.len*z,spd=90;
-        ctx.fillStyle='#fff';ctx.strokeStyle='#1E2640';ctx.lineWidth=1.5;
-        const rr2=Math.max(2.2,w*.42),base=now/1000*spd/Math.max(len,40);ctx.beginPath();for(let i=0;i<n;i++){let t=(base+i/n)%1;if(i%2)t=1-t;const [px,py]=at(t);ctx.moveTo(px+rr2,py);ctx.arc(px,py,rr2,0,7);}ctx.fill();ctx.stroke();}
-      const [mx2,my]=at(.5);const mxx=mx2;
-      if(bld){drawCone(mxx,my,now);}
-      else if(cut&&!vx){drawBackhoe(mxx,my,now,l.sub);}
-      else if(z>0.9||sel){const t=capName(l);ctx.font='800 11px "Baloo 2", sans-serif';const tw=ctx.measureText(t).width+10;ctx.fillStyle='#fff';ctx.strokeStyle='#1E2640';ctx.lineWidth=2;rr(mxx-tw/2,my-9,tw,17,8);ctx.fill();ctx.stroke();ctx.fillStyle='#1E2640';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,mxx,my+1);}
+      linkVis.push({l,sp,sel,w,u,cut,bld,load,gm});
+      if(sel)bucketStroke('sel|'+w,'rgba(255,79,154,.35)',w+14,'',sp);
+      bucketStroke('o|'+w+'|'+dash,'#1E2640',w+4,dash,sp);
+      bucketStroke('c|'+w+'|'+col,col,w,'',sp);
+      if(df&&!bld&&!dark)bucketStroke('dfx|'+w,'rgba(255,255,255,.75)',Math.max(1,w*0.25),'1,6',sp);
     }
+  }
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(const [key,b] of linkBuckets){
+    const paths=linkPaths.get(key);
+    ctx.strokeStyle=b.style;ctx.lineWidth=b.width;ctx.setLineDash(b.dash?b.dash.split(',').map(Number):[]);
+    ctx.beginPath();for(const sp of paths){ctx.moveTo(sp[0][0],sp[0][1]);for(let i=1;i<sp.length;i++)ctx.lineTo(sp[i][0],sp[i][1]);}
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  for(const v of linkVis){
+    const {l,sp,sel,w,u,cut,bld,load,gm}=v;
+    const at=t=>polyAt(sp,gm.cum,t);
+    if(!cut&&load>0.01){const n=clamp(Math.round(2+u*10),2,12),len=gm.len*z,spd=90;
+      ctx.fillStyle='#fff';ctx.strokeStyle='#1E2640';ctx.lineWidth=1.5;
+      const rr2=Math.max(2.2,w*.42),base=now/1000*spd/Math.max(len,40);ctx.beginPath();for(let i=0;i<n;i++){let t=(base+i/n)%1;if(i%2)t=1-t;const [px,py]=at(t);ctx.moveTo(px+rr2,py);ctx.arc(px,py,rr2,0,7);}ctx.fill();ctx.stroke();}
+    const [mx2,my]=at(.5);const mxx=mx2;
+    if(bld){drawCone(mxx,my,now);}
+    else if(cut&&l.kind!=='vxc'){drawBackhoe(mxx,my,now,l.sub);}
+    else if(z>0.9||sel){const t=capName(l);ctx.font='800 11px "Baloo 2", sans-serif';const tw=(LBLW['l'+t]||(LBLW['l'+t]=ctx.measureText(t).width+10));ctx.fillStyle='#fff';ctx.strokeStyle='#1E2640';ctx.lineWidth=2;rr(mxx-tw/2,my-9,tw,17,8);ctx.fill();ctx.stroke();ctx.fillStyle='#1E2640';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,mxx,my+1);}
   }
   // drag preview
   if(UI.drag&&UI.drag.mode==='link'){
@@ -2868,12 +3051,16 @@ function draw(now){
   const prio=v=>(UI.sel&&UI.sel.type==='city'&&UI.sel.id===v.C.id?0:S.pops[v.C.id]?1:2);vis.sort((a,b)=>prio(a)-prio(b)||b.C.P-a.C.P);
   const rects=[],hit=(r)=>rects.some(q=>r.x<q.x+q.w&&q.x<r.x+r.w&&r.y<q.y+q.h&&q.y<r.y+r.h);
   for(const v of vis){const h=(12+Math.sqrt(v.C.P)*0.75)*sc;rects.push({x:v.sx-18*sc,y:v.sy-h-4*sc,w:40*sc,h:h+14*sc});}
+  // Non-POP cities whose labels lose both slots hide entirely; their icons would be
+  // nameless dots, so they do not reserve space either.
   for(const v of vis){const p=S.pops[v.C.id];ctx.font=`800 ${p?13:12}px "Baloo 2", sans-serif`;const tw=(LBLW[v.C.id+(p?1:0)]||(LBLW[v.C.id+(p?1:0)]=ctx.measureText(v.C.name).width+14));
     const h=12+Math.sqrt(v.C.P)*0.75;const below=v.sy+16*sc+8,above=v.sy-h*sc-17*sc;let ly=null;
-    for(const y of [below,above]){const r={x:v.sx-tw/2-2,y:y-10,w:tw+4,h:21};if(!hit(r)){ly=y;rects.push(r);break;}}
-    if(ly===null&&prio(v)<2){ly=below;rects.push({x:v.sx-tw/2,y:below-10,w:tw,h:21});}
+    if(prio(v)<2||cam.z>=0.62||v.C.id===UI.hover||(UI.snap&&UI.snap.id===v.C.id)){
+      for(const y of [below,above]){const r={x:v.sx-tw/2-2,y:y-10,w:tw+4,h:21};if(!hit(r)){ly=y;rects.push(r);break;}}
+      if(ly===null&&prio(v)<2){ly=below;rects.push({x:v.sx-tw/2,y:below-10,w:tw,h:21});}
+    }
     v.ly=ly;}
-  for(const v of vis.slice().reverse())drawCity(v.C,v.sx,v.sy,sc,now,v.ly);
+  for(const v of vis.slice().reverse())if(v.ly!==null||v.C.id===UI.hover||(UI.snap&&UI.snap.id===v.C.id))drawCity(v.C,v.sx,v.sy,sc,now,v.ly);
   // floaters
   for(let i=FLOATS.length-1;i>=0;i--){const f=FLOATS[i],a=(now-f.t)/1600;if(a>1){FLOATS.splice(i,1);continue;}
     for(const k of ks){const [sx,sy]=toS(f.x,f.y,k);ctx.globalAlpha=1-a*a;ctx.font='800 17px "Baloo 2", sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText(f.text,sx,sy-a*40);ctx.fillStyle=f.col;ctx.fillText(f.text,sx,sy-a*40);ctx.globalAlpha=1;}}
@@ -3005,13 +3192,37 @@ addEventListener('pointercancel',()=>{pressing=false;});addEventListener('blur',
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;audioInit();const fn=ACT[b.dataset.act];if(!fn)return;if(!S&&!['start','pickStart','cont','help','helpClose','newgame','mute','animSet','soundSet','closeModal','speed','bankClose','whatsNewShow','updateNow','updateLater','importPick','importGo','modeSet','scenarios','startScn','startWeekly'].includes(b.dataset.act))return;let a={};try{a=JSON.parse(b.dataset.args||'{}');}catch(_){}fn(a);});
 
 /* ================= LOOP ================= */
-let last=performance.now(),acc=0,hudT=0,animT=0;
+let last=performance.now(),acc=0,hudT=0,animT=0,tickErr=0;
+/* One simulated day, isolated. A bug in a single day (a save from an older version, a weird
+   event combination) must never take the animation loop down with it, so failures are logged,
+   counted and skipped instead of killing the frame that would have scheduled the next one. */
+function safeTick(){
+  try{dayTick();return true;}
+  catch(e){
+    tickErr++;
+    if(tickErr===1||tickErr%100===0){
+      try{console.error('dayTick failed',e);}catch(_){}
+      try{toast(`<b>The simulation hit a snag.</b><br>It skipped one day and kept going.${tickErr>1?` (${tickErr} times)`:''}`,'bad');}catch(_){}
+    }
+    return false;
+  }
+}
 function frame(now){
   const dt=Math.min(250,now-last);last=now;
   if(ANALYTICS.host&&S&&!S.lost&&UI.speed&&document.visibilityState==='visible'){UI.playMs=(UI.playMs||0)+dt;const m=UI.playMs/60000;for(const k of PLAY_MARKS)if(m>=k)track('play_'+k+'m',true);}
   if(S&&UI.started&&!S.lost&&now-(UI.lastSave||0)>5000)save();
-  if(S&&!S.lost&&$('modal').hidden&&UI.speed){acc+=dt*UI.speed;let n=0;while(acc>=DAY_MS&&n<4){acc-=DAY_MS;dayTick();n++;}
-    if(n){renderHUD();if(!pressing){renderPanel();renderLeft();if(!$('dash').hidden)renderDash();renderBank();}renderHint();}}
+  if(S&&!S.lost&&$('modal').hidden&&UI.speed&&document.visibilityState!=='hidden'){
+    acc+=dt*UI.speed;
+    // Catch-up is capped: after a long stall (a hidden tab, a slow frame) we do not want to
+    // simulate hundreds of days in one go. Drop the backlog instead.
+    if(acc>DAY_MS*2)acc=DAY_MS*2;
+    let n=0;const t0=performance.now();
+    // At 8x on a big network a day costs several ms. Stop after a frame's worth of work and let
+    // the rest of the backlog run next frame, so the map keeps drawing and the page stays alive.
+    while(acc>=DAY_MS&&n<4&&performance.now()-t0<12){acc-=DAY_MS;safeTick();n++;}
+    // Render once per frame, however many days went by, instead of rebuilding the panels per day.
+    if(n){renderHUD();if(!pressing){renderPanel();renderLeft();if(!$('dash').hidden)renderDash();renderBank();}renderHint();}
+  }
   if(UI.speed&&!(S&&S.lost))animT+=dt; /* paused = frozen dots, waves and clouds */
   draw(animOn()?animT:0);
   if(!window.__TUBES_TEST__)requestAnimationFrame(frame);
