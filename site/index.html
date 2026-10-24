@@ -1196,7 +1196,7 @@ function confSection(){const up=upcomingConfs(75).slice(0,3),cb=S.conf&&S.conf.u
 
 /* ---------- guided first game ---------- */
 const TUT=[
- {t:'Your router is live. Press “Launch broadband” to sell internet to the people of your city.',sel:'[data-act="launchBB"]',ok:()=>S.pops[S.home]&&S.pops[S.home].bb},
+ {t:'Your router is live. Press “Launch broadband” to sell internet to the people of your city.',sel:'[data-act="launchBB"]',ok:()=>S.pops[S.home]&&S.pops[S.home].bb,skip:()=>!roleDef().bb},
  {t:'Your customers want the whole internet. Open the Transit tab and buy a port from a carrier.',sel:'[data-act="tab"][data-args*=\'"up"\'],[data-act="buyTransit"]',ok:()=>S.transit.length>0,skip:()=>!NETS.some(n=>n.price&&n.pops.includes(S.home))},
  {t:'Transit costs money per gigabit. Peering is free: open the Peering tab, buy an IX port, then join the route server.',sel:'[data-act="tab"][data-args*=\'"peer"\'],[data-act="buyIx"],[data-act="rs"]',ok:()=>Object.keys(S.rs).length>0,skip:()=>!ixName(S.home)},
  {t:'Start the clock with 1× and watch traffic and money flow. You can pause any time.',sel:'#sp1',ok:()=>S.day>=5},
