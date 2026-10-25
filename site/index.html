@@ -1285,8 +1285,36 @@ function beginGame(nm,city,o={}){
   toast(S.scn?`<b>${esc(S.scn.name)}</b><br>${esc(o.scn.goal||'Serve as much traffic as you can in one year.')} You have ${S.scn.days} days.`:S.mode==='sandbox'?`<b>Sandbox mode</b><br>A billion dollars, every unlock, and nothing ever breaks. Build the internet you always wanted.`:`<b>Welcome, ${esc(nm)}!</b><br>The RIPE-ish NCC assigned you AS${S.asn}. Your first router is humming in ${CITY[city].name}.`,'goal');
   renderAll();save();if(!S.scn&&S.mode!=='sandbox')tutorialStart();}
 /* ---------- conference season ---------- */
-const CONFS=[{n:'NANOG-ish',c:'chi',m:1},{n:'APRICOT-ish',c:'sin',m:1},{n:'Peering Days-ish',c:'waw',m:2},{n:'UKNOF-ish',c:'lon',m:3},{n:'MENOG-ish',c:'dxb',m:3},{n:'NZNOG-ish',c:'akl',m:3},{n:'RIPE-ish',c:'ams',m:4},{n:'NANOG-ish',c:'sea',m:5},{n:'IX Forum-ish',c:'tok',m:6},{n:'AfPIF-ish',c:'nbo',m:7},{n:'AusNOG-ish',c:'syd',m:8},{n:'LACNOG-ish',c:'sao',m:9},{n:'NANOG-ish',c:'ash',m:9},{n:'DENOG-ish',c:'fra',m:10},{n:'RIPE-ish',c:'ber',m:10},{n:'PTT Forum-ish',c:'sao',m:11}];
+const CONFS_GLOBAL=[{n:'NANOG-ish',c:'chi',m:1},{n:'APRICOT-ish',c:'sin',m:1},{n:'Peering Days-ish',c:'waw',m:2},{n:'UKNOF-ish',c:'lon',m:3},{n:'MENOG-ish',c:'dxb',m:3},{n:'NZNOG-ish',c:'akl',m:3},{n:'RIPE-ish',c:'ams',m:4},{n:'NANOG-ish',c:'sea',m:5},{n:'IX Forum-ish',c:'tok',m:6},{n:'AfPIF-ish',c:'nbo',m:7},{n:'AusNOG-ish',c:'syd',m:8},{n:'LACNOG-ish',c:'sao',m:9},{n:'NANOG-ish',c:'ash',m:9},{n:'DENOG-ish',c:'fra',m:10},{n:'RIPE-ish',c:'ber',m:10},{n:'PTT Forum-ish',c:'sao',m:11}];
+/* Brief 10 §2.1: each region gets its own event calendar. Global's 16 entries are an
+   invariant (CONFS_GLOBAL) and are never mutated; applyRegion() rebinds CONFS. All names
+   are parodies — no real NOG, APRICOT or APJII spelling appears anywhere. */
+const CONFS_SEA=[
+ {n:'APRICOT-ish',  c:'sin', m:1},
+ {n:'SANOG-ish',    c:'kul', m:3},
+ {n:'PHNOGG',       c:'mnl', m:5},
+ {n:'ThaiNOGG',     c:'bkk', m:6},
+ {n:'VNNIC-ish',    c:'sgn', m:8},
+ {n:'MyNOGG',       c:'kul', m:9},
+ {n:'TWNOGG',       c:'tpe', m:10},
+];
+const CONFS_IDN=[
+ {n:'Telko Nusantara', c:'mdn', m:2},
+ {n:'APJII Conneck',   c:'jkt', m:3},
+ {n:'Netsafe Roadshow',c:'smg', m:4},
+ {n:'Kopidarat',       c:'bdg', m:5},
+ {n:'Rack Party',      c:'btm', m:6},
+ {n:'IDNOGG',          c:'jkt', m:7},
+ {n:'Cyber Sekuriti',  c:'jog', m:8},
+ {n:'IIX-Change',      c:'sby', m:9},
+ {n:'Startup Bangsa',  c:'dps', m:10},
+ {n:'Peering Nusantara',c:'jkt', m:11},
+];
+let CONFS=CONFS_GLOBAL;
 const CONF_COST=8000,CONF_DAYS=45;
+/* Brief 10 §2.4: CONF_COST itself is the Global invariant; NAP and hosting send more
+   people (and a booth), so they pay a multiple at the point of registration. */
+const confCost=()=>CONF_COST*(S.role==='nap'?4:S.role==='hosting'?2:1);
 const confDay=(cf,y)=>y*360+cf.m*30+9;
 function confKey(cf,y){return cf.n+'@'+cf.c+'@'+y;}
 function upcomingConfs(within){const y0=Math.floor(S.day/360),out=[];for(const y of [y0,y0+1])for(const cf of CONFS){if(!CITY[cf.c])continue;const d=confDay(cf,y);if(d>=S.day&&d-S.day<=within)out.push({...cf,day:d,key:confKey(cf,y)});}return out.sort((a,b)=>a.day-b.day);}
@@ -1295,9 +1323,44 @@ function confTick(d){S.confReg=S.confReg||{};
   for(const cf of upcomingConfs(30)){if(cf.day-d===30&&!S.confReg[cf.key])toast(`<b>${esc(cf.n)} comes to ${esc(CITY[cf.c].name)} in 30 days.</b><br>Peering coordinators, hallway track, free stickers. Register in the Deals tab.`,'goal',[{l:'Show me',act:'leftTab',args:{t:'deals'}}]);}
   for(const cf of upcomingConfs(0)){if(cf.day!==d||!S.confReg[cf.key])continue;const reg=CITY[cf.c].reg;S.conf={until:d+CONF_DAYS,reg,name:cf.n};S.stats.confs=(S.stats.confs||0)+1;
     const r=Math.random();let extra='';if(r<0.3){const cash=5000+Math.floor(Math.random()*4)*5000;S.cash+=cash;extra=` You also won the raffle: ${fmt$(cash)} worth of optics, sold on eBuy the same evening.`;}else if(r<0.5)extra=' Someone from Goggle bought you a beer. You did not get their name, only a sticker.';
-    toast(`<b>${esc(cf.n)} in ${esc(CITY[cf.c].name)}</b><br>You shook a lot of hands. For ${CONF_DAYS} days, selective networks with a presence in ${esc(REG[reg])} want half the usual traffic before they peer.${extra}`,'goal');sfx('coin');}}
+    toast(`<b>${esc(cf.n)} in ${esc(CITY[cf.c].name)}</b><br>You shook a lot of hands. For ${CONF_DAYS} days, selective networks with a presence in ${esc(REG[reg])} want half the usual traffic before they peer.${extra}`,'goal');sfx('coin');
+    /* Brief 10 §2.2-2.3: a conference is also a sales trip. Only a POP in the host
+       city can turn the badge into a deal. */
+    if(S.pops[cf.c])eventDeals(cf);}}
+/* A NAP does not go to a conference to peer. It goes to sell racks. Every event in a
+   city where you run a POP produces one wholesale offer: a carrier, a content network
+   or a cloud on-ramp that needs space, cross-connects and a meet-me room. */
+function eventBizName(){
+  return pick(['Hallway Track Ltd','Badge Scanner Co','Lanyard Logistics','Booth Babe Broadband',
+    'Keynote Cloud','Coffee Break Carrier','Swag Bag Networks','Panel Session Systems',
+    'Afterparty Fibre','Name Tag Telecom']);
+}
+function eventDealOffer(cf,t,premLo,premSpan){
+  const T=BIZ_T[t];if(!T)return;
+  const bw=pick(T.opts.slice(0,3));             // small-to-mid: event deals are pilots
+  const rate=Math.round(T.rate*(premLo+Math.random()*premSpan)); // in town premium
+  S.offers.push({id:uid(),city:cf.c,city2:null,name:eventBizName(),type:t,bw,rate,
+    reqs:['metro'],exp:S.day+14,fromEvent:cf.n});
+  toast(`<b>${esc(cf.n)}: someone wants a rack.</b><br>${esc(S.offers[S.offers.length-1].name)} is in ${esc(CITY[cf.c].name)} for the week and needs ${bw}G of ${esc(BIZ_T[t].l||t)}. They fly home in 14 days.`,'goal',[{l:'See the deal',act:'leftTab',args:{t:'deals'}}]);
+}
+function napEventDeals(cf){
+  const city=cf.c;
+  if(!S.pops[city])return;                      // no POP, no deal
+  const t=pick(['isp','hyper','ai'].filter(x=>roleAllowsType(x)));
+  if(!t)return;
+  eventDealOffer(cf,t,1.4,0.6);                 // 40–100% premium: they are in town
+}
+function eventDeals(cf){
+  if(!S.pops[cf.c])return;
+  if(S.role==='nap')return napEventDeals(cf);
+  if(S.role==='hosting'){
+    const t=pick(['host','gpu'].filter(x=>roleAllowsType(x)));
+    if(!t)return;
+    eventDealOffer(cf,t,1.3,0);                 // hosting: a flat 30% premium
+  }
+}
 function confSection(){const up=upcomingConfs(75).slice(0,3),cb=S.conf&&S.conf.until>S.day?S.conf:null;if(!up.length&&!cb)return '';
-  return `<h3 style="font-size:15px;margin:10px 0 4px">Conferences</h3>${cb?`<div class="inc" style="background:#EAF7EE"><div class="nm">${esc(cb.name)} glow: ${cb.until-S.day} days left</div><div class="meta">Selective networks in ${esc(REG[cb.reg])} need half the usual traffic to peer. Now is the time to ask for that PNI.</div></div>`:''}${up.map(cf=>{const reg=S.confReg&&S.confReg[cf.key];return `<div class="row"><div class="grow"><div class="nm">${esc(cf.n)} · ${esc(CITY[cf.c].name)}</div><div class="meta">${cf.day===S.day?'Today':`in ${cf.day-S.day} days`} · ${esc(REG[CITY[cf.c].reg])}</div></div>${reg?'<span class="tag st on">Registered</span>':cf.day<=S.day?'<span class="tag st">Registration closed</span>':btn(`Attend <small>${fmt$(CONF_COST)}</small>`,'confGo',{key:cf.key},'sm',S.cash<CONF_COST)}</div>`;}).join('')}`;}
+  const cost=confCost();return `<h3 style="font-size:15px;margin:10px 0 4px">Conferences</h3>${cb?`<div class="inc" style="background:#EAF7EE"><div class="nm">${esc(cb.name)} glow: ${cb.until-S.day} days left</div><div class="meta">Selective networks in ${esc(REG[cb.reg])} need half the usual traffic to peer. Now is the time to ask for that PNI.</div></div>`:''}${up.map(cf=>{const reg=S.confReg&&S.confReg[cf.key];return `<div class="row"><div class="grow"><div class="nm">${esc(cf.n)} · ${esc(CITY[cf.c].name)}</div><div class="meta">${cf.day===S.day?'Today':`in ${cf.day-S.day} days`} · ${esc(REG[CITY[cf.c].reg])}</div></div>${reg?'<span class="tag st on">Registered</span>':cf.day<=S.day?'<span class="tag st">Registration closed</span>':btn(`Attend <small>${fmt$(cost)}</small>`,'confGo',{key:cf.key},'sm',S.cash<cost)}</div>`;}).join('')}`;}
 
 /* ---------- guided first game ---------- */
 const TUT=[
@@ -2464,7 +2527,7 @@ const ACT={
  share:()=>shareModal(),
  shareDl:()=>shareFile(f=>{if(!f)return;const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);track('share_download');}),
  shareGo:()=>shareFile(f=>{const d={title:'Series of Tubes',text:`${S.name} (AS${S.asn}): ${tierLabel()}, ${fmtG(S.stats.peak||0)} peak. Build your own internet at`,url:'https://seriesoftub.es/'};try{if(f&&navigator.canShare&&navigator.canShare({files:[f]}))d.files=[f];navigator.share(d).then(()=>track('share_done')).catch(()=>{});}catch(e){}}),
- confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day)return;if(!spend(CONF_COST))return;S.confReg[key]=true;toast('<b>Registered.</b><br>Flights booked, badge printed, business cards ordered in the wrong font.','good');after();},
+ confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day)return;if(!spend(confCost()))return;S.confReg[key]=true;toast('<b>Registered.</b><br>Flights booked, badge printed, business cards ordered in the wrong font.','good');after();},
  tutSkip:()=>{S.tut=null;try{localStorage.setItem('sot-tut','1');}catch(e){}renderCoach();},
  addSite:({city})=>{const p=S.pops[city];if(!p||p.site2)return;if(!spend(SITE2_COST))return;p.site2=true;p.site2Day=S.day;toast(`<b>Second site live in ${CITY[city].name}.</b><br>${esc(siteName(city,'b'))} is joined to ${esc(siteName(city,'a'))} by your own metro ring. Move some uplinks there from the Transit and Peering tabs.`,'good');sfx('build');after();},
  rmSite:({city})=>{const p=S.pops[city];if(!p||!p.site2)return;if(UI.confirm!=='site'+city){UI.confirm='site'+city;renderPanel();return;}UI.confirm=null;p.site2=0;p.sdown=null;p.ringcut=0;for(const t of S.transit)if(t.city===city)t.site='a';for(const x of S.pni)if(x.city===city)x.site='a';if(S.ixSite)for(const x of ixIdsIn(city))delete S.ixSite[x];after();},
@@ -3371,6 +3434,7 @@ const REGION={
   regionMult:{AS:2.5,AF:2,OC:1.8,SA:1.6,EU:1},
   rules:{},
   roles:null,
+  confs:CONFS_GLOBAL,
   project:(lon,lat)=>[(lon+180)/360*W,(84-lat)*6.4],
   lenses:LENSES,lands:LANDS_LL,decor:DECOR_LL,cityLL:CITY_LL,cities:CITIES,cityNudge:CITY_NUDGE,
   cables:CABLES,nets:NETS,xix:XIX,tail:TAIL,
@@ -3390,6 +3454,7 @@ function seaRegion(){
     isp:{cash:300000},
     rtnet:{cash:60000,maxPops:3,bwMax:5},
   },
+  confs:CONFS_SEA,
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:SEA_CITY_LL,cities:SEA_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES,nets:NETS,xix:SEA_XIX,tail:TAIL,
@@ -3409,6 +3474,7 @@ function idnRegion(){
     isp:{cash:250000},
     rtnet:{cash:75000,maxPops:4,bwMax:10},
   },
+  confs:CONFS_IDN,
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))),
@@ -3452,6 +3518,8 @@ function rebuildDerived(){
 function applyRegion(id){
  const r=ensureRegion(id);if(!r)throw new Error('unknown region: '+id);
  W=r.W;H=r.H;KM=r.KM;
+ /* Brief 10 §2.1: rebind the calendar, never mutate CONFS_GLOBAL. */
+ CONFS=r.confs||CONFS_GLOBAL;
  WRAPX=r.wrapX!==false;
  proj0=r.project;
  LENSES=r.lenses;
