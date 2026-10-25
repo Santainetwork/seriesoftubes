@@ -136,7 +136,7 @@ test('dfpair: a dark-fiber-pair lease pays while the pair is up and stops when i
   assert.equal(ev(`bizSf(${b})`), 1);
   assert.ok(ev("R.rev.business") >= 1200 * 0.99);
 
-  // The city panel flags a down fiber, and the link panel counts sold pairs.
+  // The city panel lists the lease as a business.
   ev("selectCity('fra');ACT.tab({t:'cust'})");
   assert.match(ev("document.getElementById('panelBody').textContent"), /Dark fiber pair lease/);
   assert.deepEqual(errors, []);
