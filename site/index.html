@@ -2329,8 +2329,9 @@ function _spawnOffer(){
   if(S.links.some(l=>l.kind==='df'&&l.ready<=S.day))types.push('wwave','wwave');if(S.links.some(l=>l.kind==='df'&&l.own&&l.ready<=S.day))types.push('dfpair');if(lv>=3)types.push('gpu','gpu','onramp','onramp');if(lv>=4)types.push('ai','ai','hyper','hyper');
   if(lv>=3&&MEGA.some(m=>mine.includes(m.c)))types.push('ingest');if(lv>=4&&MEGA.some(m=>mine.includes(m.c)))types.push('aiwan','aiwan','mtrain');if(lv>=4&&S.links.some(l=>l.kind==='df'&&l.own&&l.ready<=S.day))types.push('pairs');
   const br=mine.filter(c=>CITY[c].br);if(br.length)types.push('provedor','provedor','provedor');
-  /* PRD F7: a role only ever sees the customer types it may serve, and a NAP gets no offers at
-     all until it runs 5 POPs. An RT/RW net also has to buy transit before anyone signs. */
+  /* PRD F7: a role only ever sees the customer types it may serve. A NAP below its POP
+     threshold still gets small ISP jobs (brief 7 §4.1c); every other gated role is blocked
+     outright by roleBlockOffers(). An RT/RW net also has to buy transit before anyone signs. */
   if(roleBlockOffers())return;
   if(S.role==='rtnet'&&!S.transit.length)return;
   const RD=roleDef();
@@ -2650,7 +2651,7 @@ const ACT={
  startScn:({id,sure})=>{const sc=SCN.find(x=>x.id===id);if(!sc)return;if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start ${esc(sc.n)}?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the scenario','startScn',{id,sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}beginGame(UI.nm||(S&&S.name)||'Packet Pals',sc.city,{scn:sc,role:'isp',region:'global'});},
  startWeekly:({sure}={})=>{if(!sure&&S&&UI.started&&!S.lost&&!(S.scn&&(S.scn.done||S.scn.failed))){openModal(`<h2 style="font-size:26px">Start the weekly challenge?</h2><p class="tagline">${esc(S.name)} will be replaced. Export it from the menu first if you want to keep it.</p><div class="btns">${btn('Start the challenge','startWeekly',{sure:1},'pink big')}${btn('Keep playing','closeModal',{},'ghost big')}</div>`);return;}const wk=weekly();beginGame(UI.nm||(S&&S.name)||'Packet Pals',wk.city,{scn:wk,seed:wk.seed,role:'isp',region:'global'});},
  pickStart:({city})=>{const reg=REGION[UI.region]||REGION.global;if(!(reg.startCities||[]).includes(city))return;UI.startCity=city;document.querySelectorAll('.start').forEach(b=>b.classList.toggle('on',b.dataset.city===city));},
- cont:()=>{migrate(S);track('game_continue',true);UI.started=true;closeModal();renderAll();},
+ cont:()=>{if(S&&S.region&&ensureRegion(S.region)&&S.region!==curRegion)applyRegion(S.region);if(S)UI.region=S.region||UI.region;migrate(S);track('game_continue',true);UI.started=true;closeModal();renderAll();},
  newgame:()=>{clearSave((S&&S.region)||UI.region);S=null;UI.started=false;UI.sel=null;$('dash').hidden=true;$('bankBox').hidden=true;renderAll();showTitle();},
  keepPlaying:()=>{closeModal();},
  exportSave:()=>exportSave(),
@@ -2698,6 +2699,9 @@ function clearSave(region){
     if(r==='global')localStorage.removeItem('sot-save-v1');}catch(e){}
 }
 function save(){if(!S||S.lost)return;if(UI.saveMode==='none')return;S.uiSpeed=UI.speed;S.cam={x:cam.x,y:cam.y,z:cam.z};
+  /* Brief 11 §1.3: stamp every save so loadSave() can tell which region was played last.
+     Older saves without the field still load; day is the fallback. */
+  S.savedAt=Date.now();
   const region=S.region||curRegion,key=saveKey(UI.saveMode,region);
   try{localStorage.setItem(key,JSON.stringify(S));}catch(e){}
   /* Builds up to 1.10.x read the unsuffixed key. Keep a global device save mirrored there so an
@@ -2746,10 +2750,37 @@ function importFile(file){if(!file)return;if(file.size>8e6){toast('<b>That file 
    older tab still loads (PRD §12: a Global player must never lose progress). */
 function loadSave(){
   if(UI.saveMode==='none')return null; // no save mode: nothing to continue
-  const keys=[saveKey('device',UI.region)];
-  if(UI.region==='global')keys.push('sot-save-v1');
-  for(const k of keys){try{const t=localStorage.getItem(k);if(t){const s=JSON.parse(t);if(s&&s.v===1&&!s.lost)return s;}}catch(e){}}
-  return null;
+  /* A save belongs to the region it was played in. When the player has explicitly chosen a
+     region (boot restores that choice, the picker sets it), its save wins. On a fresh boot we
+     do not know the region yet, so fall back to scanning every shipped region — including
+     SEA/IDN, which are materialised lazily and so are not in Object.keys(REGION) yet — and
+     take the most recent. Picking by key order alone would silently prefer Global and bury a
+     SEA or IDN run (brief 11 §1.1). */
+  const mine=readSave(saveKey('device',UI.region));
+  if(mine)return mine;
+  const all=scanSaves();
+  return all.length?all[0].save:null;
+}
+function readSave(k){
+  try{
+    const t=localStorage.getItem(k);
+    if(!t)return null;
+    const s=JSON.parse(t);
+    if(!s||s.v!==1||s.lost)return null;
+    return s;
+  }catch(e){return null;}
+}
+/* Every device save on this origin, newest first (brief 11 §1.1/§2.1). savedAt is preferred;
+   saves written before brief 11 fall back to day so they still order sensibly. */
+function scanSaves(){
+  const regions=new Set(Object.keys(REGION));
+  for(const [id] of PICK_REGIONS)regions.add(id);
+  const out=[];
+  for(const r of regions){const s=readSave(saveKey('device',r));if(s)out.push({region:r,save:s});}
+  const legacy=readSave('sot-save-v1');
+  if(legacy&&!out.some(o=>o.region==='global'))out.push({region:'global',save:legacy});
+  const stamp=o=>o.save.savedAt||(o.save.day|0)*86400000;
+  return out.sort((a,b)=>stamp(b)-stamp(a));
 }
 
 /* ================= AUDIO ================= */
@@ -3182,7 +3213,9 @@ function showTitle(){
   <label class="f">Pick your home city</label><div class="starts">${starts.map(([c,d])=>`<button class="start ${UI.startCity===c?'on':''}" data-city="${c}" data-act="pickStart" data-args='{"city":"${c}"}'><b>${CITY[c].name}</b><span>${d}</span></button>`).join('')}</div>
   <label class="f">Mode</label><div class="btns">${[['normal','Normal'],['sandbox','Sandbox']].map(([m,l])=>`<button class="b sm modeb ${(UI.mode||'normal')===m?'pink':'ghost'}" data-m="${m}" data-act="modeSet" data-args='{"m":"${m}"}'>${l}</button>`).join('')}${btn('Scenarios &amp; weekly challenge →','scenarios',{},'sm')}</div>
   <div class="btns" style="margin-top:16px;justify-content:space-between;align-items:center">${btn(sv?'Start a new network':'Start building','start',{},'big')}${btn('How to play','help',{},'ghost')}${btn('Import a save','importPick',{},'ghost sm')}</div><p class="ver">v${APP_VERSION} · <a href="https://github.com/fjaeckel/seriesoftubes" target="_blank" rel="noopener">Source on GitHub</a> · Cookieless stats, no tracking</p>`);
-  if(sv){S=migrate(sv);compute();}else if(!UI.started)S=null;
+  /* The Continue save may belong to another region. Materialise it before migrate() so
+     sanitize() does not downgrade an IDN/SEA run to Global; ACT.cont rebinds the map. */
+  if(sv){if(sv.region)ensureRegion(sv.region);S=migrate(sv);compute();}else if(!UI.started)S=null;
 }
 // "What's new": shown once to returning players after an update, or on demand.
 function whatsNew(returning,force){
@@ -3848,18 +3881,34 @@ function frame(now){
 }
 function boot(data){
   migrateLegacySave();
-  /* Boot only honours a region whose data is already registered. SEA/IDN are materialised on
-     demand by the picker and by applyRegion(), so a stored preference from a build that has no
-     map for it still falls back to Global rather than booting a half-built world (PRD §12). */
+  /* The save itself says which region was played, and that always beats the last region picked
+     on the title screen. loadSave() looks at every region key (brief 11 §1.1), so an IDN or SEA
+     run is found even though UI.region defaults to Global. ensureRegion() must run before
+     applyRegion(): SEA/IDN maps are built lazily (brief 11 §1.2).
+     A stored preference is only trusted once its map is registered: a region card from a build
+     without that map must still fall back to Global (PRD §12 / M2 gate). Otherwise a Global
+     save wins, and only if there is none do we pick the newest save from any region. */
   let wantRegion='global';
-  try{const r=localStorage.getItem('sot-region');if(r&&REGION[r])wantRegion=r;}catch(e){}
+  {
+    let stored=null;try{stored=localStorage.getItem('sot-region');}catch(e){}
+    /* A stored SEA/IDN preference is honoured when that region actually has a save: the save is
+       proof the player was there, so ensureRegion() can safely build the map. With no save, a
+       map this build has not registered still falls back to Global (PRD §12 / M2 gate). */
+    if(stored&&(REGION[stored]||readSave(saveKey('device',stored))))wantRegion=stored;
+    else{
+      const saves=scanSaves();
+      if(!saves.some(o=>o.region==='global')&&saves.length)wantRegion=saves[0].region;
+    }
+  }
+  ensureRegion(wantRegion);
   applyRegion(wantRegion);
   UI.region=wantRegion;
+  const sv=(data&&data.S)?null:loadSave();
   {const r=REGION[UI.region];if(r&&!(r.startCities||[]).includes(UI.startCity))UI.startCity=r.startCities[0];}
   try{UI.muted=localStorage.getItem('sot-mute')==='1';UI.anim=localStorage.getItem('sot-anim')||'auto';}catch(e){}
   applyAnim();
   if(data&&data.S){S=migrate(data.S);UI.started=true;if(data.cam)Object.assign(cam,data.cam);compute();renderAll();}
-  else{const sv=loadSave();
+  else{
     let okSave=false;if(sv){try{S=migrate(sv);compute();okSave=true;}catch(e){S=null;UI.started=false;try{localStorage.setItem('sot-save-broken',JSON.stringify(sv));clearSave(sv.region||UI.region);}catch(e2){}}}
     if(okSave){UI.started=true;UI.speed=[0,0.5,1,2,4,8].includes(S.uiSpeed)?S.uiSpeed:1;
       if(S.cam&&isFinite(S.cam.x))Object.assign(cam,S.cam);else{const h=CITY[S.home];if(h){cam.x=h.x;cam.y=h.y;cam.z=innerWidth<760?1.1:1.4;}}
