@@ -59,11 +59,20 @@ test('the three formerly isolated IDN cities now have a wet path', () => {
   }
 });
 
-test('IDN cable set is the SEA set restricted to Indonesian cities', () => {
+test('IDN cable set stays inside Indonesian cities', () => {
   const ev = region('idn');
-  assert.equal(ev('CABLE_PAIRS.length'), 8);
+  // Brief 12 stage A: IDN now carries its own SubmarineCableMap pair list, so the count is
+  // no longer derived from SEA. What must hold is that every pair lands in Indonesia and that
+  // the headline Jawa-Sulawesi route exists (Noctis reported it missing).
+  // 32 unique routes; three of them are served by both the legacy pair list and the
+  // SubmarineCableMap table, so CABLE_PAIRS legitimately carries 35 entries (parallel cables).
+  assert.ok(ev('CABLE_PAIRS.length') >= 35, `only ${ev('CABLE_PAIRS.length')} pairs`);
+  assert.ok(ev('new Set(CABLE_PAIRS.map(p=>[p.a,p.b].sort().join("-"))).size') >= 32, 'unique routes');
   assert.equal(ev(`CABLE_PAIRS.filter(p=>!IDN_IDS.has(p.a)||!IDN_IDS.has(p.b)).length`), 0);
-  // IDN has no cable table of its own: it is derived from the SEA pair list.
+  assert.equal(ev(`CABLE_PAIRS.some(p=>(p.a==='sby'&&p.b==='upg')||(p.a==='upg'&&p.b==='sby'))`), true,
+    'Surabaya to Makassar must have a wet path');
+  // No pair may name a city that is not on the IDN map.
+  assert.equal(ev(`CABLE_PAIRS.filter(p=>!CITY[p.a]||!CITY[p.b]).length`), 0, 'no dangling city ids');
   assert.equal(ev("REGION.idn.cables.every(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b)))"), true);
 });
 
