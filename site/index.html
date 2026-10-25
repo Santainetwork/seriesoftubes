@@ -2220,6 +2220,10 @@ const IDN_NAMES={
  ingest:['Pengumpul Data Nusantara','Sensor Kota','Kamera Cerdas','Jaringan IoT Rakyat'],
  mtrain:['Latih Model Bersama','Konsorsium AI Nusantara','Riset Bahasa Daerah'],
  pairs:['Pasangan Fiber Nusantara','Duplet Kabel','Jalur Ganda'],
+ /* An Indonesian ISP always has "Net" in its name — that is the convention, and a NAP selling
+    downstream ports is talking to ISPs. Every entry ends in Net. */
+ isp:['Jaringan Rakyat Net','Fiber Kita Net','Netindo Nusantara Net','Cepat Net Indonesia','Awan Nusantara Net','Kabel Net Rakyat','Sinar Net','Bintang Net','Maju Net','Sentosa Net','Prima Net Nusantara','Andalan Net','Nusa Net','Mitra Net','Harmoni Net','Cahaya Net','Bumi Net','Samudra Net','Cakrawala Net','Lintas Net','Tunas Net','Mekar Net','Surya Net','Gading Net'],
+ remote:['JKT-IKS Remote Peering','IXI Remote Peering','SisiX Remote Peering','BIKS Remote Peering','CitraIKS Remote Peering','UNI-IKS Remote Peering','Konten Nusantara Remote Peering','Awan Nusantara Remote Peering','Nontonin Yuk Remote Peering','Gumpalan Cloud Remote Peering'],
 };
 
 function spawnSpecial(t){const T=BIZ_T[t],mine=Object.keys(S.pops),lv=S.lvl||1;
@@ -2744,6 +2748,14 @@ function checkGoals(){checkBadges();
 function spend(c){if(S.cash<c){toast('<b>Not enough cash.</b><br>Wait for revenue, or speed up time.','bad');sfx('err');return false;}S.cash-=c;sfx('build');return true;}
 const ACT={
  installApp:()=>{installApp();},
+ savePick:()=>savePickModal(),
+ saveLoad:({i})=>{const list=savesAvailable(),o=list[+i];if(!o)return;
+   try{if(o.region)ensureRegion(o.region);applyRegion(o.region||'global');UI.region=o.region||'global';
+     S=migrate(JSON.parse(JSON.stringify(o.save)));UI.started=true;UI.speed=[0,0.5,1,2,4,8].includes(S.uiSpeed)?S.uiSpeed:1;
+     if(S.cam&&isFinite(S.cam.x))Object.assign(cam,S.cam);else{const h=CITY[S.home];if(h){cam.x=h.x;cam.y=h.y;cam.z=innerWidth<760?1.1:1.4;}}
+     closeModal();compute();renderAll();renderHUD();renderLeft();save();
+     toast(`<b>${esc(S.name)} restored.</b><br>${dateStr(S.day)} · ${Object.keys(S.pops).length} POPs.`,'good');
+   }catch(e){toast('<b>That save could not be loaded.</b><br>It may be damaged.','bad');}},
  speed:({v})=>{v=+v;if(![0,0.5,1,2,4,8].includes(v))return;UI.speed=v;renderHUD();},
  help:()=>showHelp(),
  dash:()=>{if(!S)return;const d=$('dash');d.hidden=!d.hidden;if(!d.hidden)renderDash();},
@@ -3045,6 +3057,11 @@ function save(){if(!S||S.lost)return;if(UI.saveMode==='none')return;S.uiSpeed=UI
   /* Builds up to 1.10.x read the unsuffixed key. Keep a global device save mirrored there so an
      older tab (or a rolled-back release) still finds the network; PRD §12 forbids losing it. */
   if(UI.saveMode==='device'&&region==='global'){try{localStorage.setItem('sot-save-v1',JSON.stringify(S));}catch(e){}}
+  /* A rolling backup, written every time the game saves. If the primary key is ever lost — a
+     corrupted write, a quota error, a build that crashed mid-save — the backup still has the
+     network. A bankrupt run is not backed up: a dead network must stay dead (PRD §5.1). */
+  /* Device saves only: a session run must leave nothing behind, backup included (PRD §5.1). */
+  if(!S.lost&&UI.saveMode==='device'){try{localStorage.setItem('sot-save-backup',JSON.stringify({region,at:Date.now(),S}));}catch(e){}}
   UI.lastSave=performance.now();}
 // One-time move of a pre-region save. The old key is only removed once the new one is written.
 function migrateLegacySave(){
@@ -3086,6 +3103,30 @@ function importFile(file){if(!file)return;if(file.size>8e6){toast('<b>That file 
    deleted on pagehide, so resuming one from the title screen would resurrect a finished session.
    Global device saves also read the pre-region key, so a save written by an older build or by an
    older tab still loads (PRD §12: a Global player must never lose progress). */
+/* A save can vanish for reasons that have nothing to do with the save code: the game opened on a
+   different hostname (LAN vs tunnel are two separate localStorage buckets), a service worker
+   served a stale build, or a build crashed before the first autosave. Whatever the cause, the
+   player's network is still on this device and must be findable. This scans every storage key
+   that looks like a save, including the pre-region one and any region this build does not ship,
+   and returns them newest first. */
+function scanAllSaves(){
+  const out=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(!k||k.indexOf('sot-save')!==0)continue;
+      if(k==='sot-save-broken'||k==='sot-save-backup')continue;
+      /* A session save belongs to the tab that made it and dies with it; offering one as
+         Continue would resurrect a finished run (PRD §5.1). */
+      if(k.indexOf('sot-save-session')===0)continue;
+      const s=readSave(k);
+      if(!s)continue;
+      out.push({region:s.region||(k.indexOf(':')>0?k.split(':').pop():'global'),key:k,save:s});
+    }
+  }catch(e){}
+  const stamp=o=>o.save.savedAt||(o.save.day|0)*86400000;
+  return out.sort((a,b)=>stamp(b)-stamp(a));
+}
 function loadSave(){
   if(UI.saveMode==='none')return null; // no save mode: nothing to continue
   /* A save belongs to the region it was played in. When the player has explicitly chosen a
@@ -3096,8 +3137,29 @@ function loadSave(){
      SEA or IDN run (brief 11 §1.1). */
   const mine=readSave(saveKey('device',UI.region));
   if(mine)return mine;
+  /* Nothing under the region the title screen is showing. Before concluding there is no save at
+     all, look at every key on the origin — a run from another region, another save mode or an
+     older build is still the player's network and must not be silently abandoned. */
+  const any=scanAllSaves();
+  if(any.length){
+    const best=any[0];
+    if(best.region&&best.region!==UI.region)ensureRegion(best.region);
+    UI.region=best.region||UI.region;
+    return best.save;
+  }
   const all=scanSaves();
-  return all.length?all[0].save:null;
+  if(all.length)return all[0].save;
+  /* Last resort: the rolling backup. Reaching this means every primary key is gone, which is
+     exactly the situation the backup exists for. */
+  try{
+    const b=JSON.parse(localStorage.getItem('sot-save-backup')||'null');
+    if(b&&b.S&&b.S.v===1&&!b.S.lost){
+      if(b.region)ensureRegion(b.region);
+      UI.region=b.region||UI.region;
+      return b.S;
+    }
+  }catch(e){}
+  return null;
 }
 function readSave(k){
   try{
@@ -3383,7 +3445,7 @@ function ixBlock(c,multi){const city=ixCity(c),C=CITY[city],ix=ixName(c),X=XIXM[
     h+=`<section><h3>${multi?esc(ix)+(X?' <span class="tag st">challenger</span>':' <span class="tag st">incumbent</span>'):'Internet Exchange'}</h3>`;
     if(!ix&&C.cn){h+=`<p class="lead">Running an exchange in mainland China takes a different license entirely. Peer with Chinese networks over PNIs, or meet them in Hong Kong.</p>`;}
     else if(!ix){h+=`<p class="lead">There's no IX in ${C.name} yet. Found one: networks join over time, pay you for ports, and peer with you for free.</p>${S.pops[city]?btn(`Found your own IX <small>${fmt$(MYIX_COST)} + ${fmt$(MYIX_MO)}/mo</small>`,'foundIx',{city:c},'pink',S.cash<MYIX_COST):'<p class="note">Build a POP here first.</p>'}`;}
-    else if(S.ixp[c]===undefined){h+=`<p class="lead">${esc(ix)} is a shared switch. One port lets you peer with every member for free. Members: ${(()=>{const m=ixMembers(c),big=m.filter(id=>!NET[id].tail),t=m.length-big.length;return (big.map(id=>esc(NET[id].name)).join(', ')||'nobody yet')+(t?`, plus ${t} small network${t===1?'':'s'}`:'');})()}.</p>${S.pops[city]?'':REMOTE_WARN}${X?`<p class="note">${esc(X.blurb)} Ports at ${Math.round(ixMul(c)*100)}% of the usual price.</p>`:''}${CITY[city].ixCheap?`<p class="note"><b>Run by a nonprofit.</b> Public prices at a fraction of what other exchanges charge, and almost everyone is here.</p>`:''}${isDk(c)?`<p class="note"><b>Run by DE-KICKS Group.</b> No public price list. Ask sales for a personalised quote and bring your haggling face.</p>`:''}<div class="btns">${PORT.map((P2,i)=>btn(`${P2.n} port <small>${isDk(c)?'Price on request ☎':fmt$(ixPortMo(c,i))+'/mo'}</small>`,'buyIx',{city:c,tier:i},'',(!isDk(c)&&S.cash<ixPortMo(c,i))||(!!S.pops[city]&&!portOk(city,i))||(!S.pops[city]&&i>1))).join('')}</div>`;}
+    else if(S.ixp[c]===undefined){h+=`<p class="lead">${esc(ix)} is a shared switch. One port lets you peer with every member for free. Members: ${(()=>{const m=ixMembers(c),lookup=id=>NET[id]||NETS.find(n=>n.id===id),big=m.filter(id=>{const n=lookup(id);return n&&!n.tail;}),t=m.length-big.length;return (big.map(id=>esc(lookup(id).name)).join(', ')||'nobody yet')+(t?`, plus ${t} small network${t===1?'':'s'}`:'');})()}.</p>${S.pops[city]?'':REMOTE_WARN}${X?`<p class="note">${esc(X.blurb)} Ports at ${Math.round(ixMul(c)*100)}% of the usual price.</p>`:''}${CITY[city].ixCheap?`<p class="note"><b>Run by a nonprofit.</b> Public prices at a fraction of what other exchanges charge, and almost everyone is here.</p>`:''}${isDk(c)?`<p class="note"><b>Run by DE-KICKS Group.</b> No public price list. Ask sales for a personalised quote and bring your haggling face.</p>`:''}<div class="btns">${PORT.map((P2,i)=>btn(`${P2.n} port <small>${isDk(c)?'Price on request ☎':fmt$(ixPortMo(c,i))+'/mo'}</small>`,'buyIx',{city:c,tier:i},'',(!isDk(c)&&S.cash<ixPortMo(c,i))||(!!S.pops[city]&&!portOk(city,i))||(!S.pops[city]&&i>1))).join('')}</div>`;}
     else{const mine=!!S.myIx[c],u=R.useIx[c]||0,cap=ixCap(c),set=ixSessions(c),xdown=S.ev.ixdown&&S.ev.ixdown[c]>S.day;
       h+=`<div class="kv"><span>${mine?`Your own fabric · ${myFab(c).n}`:lagName(S.ixp[c],(S.ixn||{})[c])}${xdown?' · <b style="color:var(--bad)">FABRIC DOWN</b>':''}</span><b>${fmtG(u)}</b></div><div class="bar ${barCls(u/cap)}"><i style="width:${u/cap*100}%"></i></div>${prefCtl('ix',c,S.ixPref&&S.ixPref[c])}${S.pops[city]?siteCtl('ix',c,city,(S.ixSite||{})[c]):''}`;
       if(isDk(c)&&S.dk){const ad=S.dk.add[c]||[],rt=S.dk.ret[c];h+=`<p class="note">DE-KICKS personalised pricing: ${Math.round(dkMult(c)*100)}% of what a normal IX would charge${rt&&rt>S.day?` (promo, ${rt-S.day} days left)`:''}.</p>`;
@@ -3568,6 +3630,21 @@ function closeModal(){$('modal').hidden=true;UI.pending=null;}
 const PICK_REGIONS=[['global','Global'],['sea','SEA'],['idn','Indonesia']];
 const SAVE_MODES=[['device','On device'],['session','This only'],['none','No save']];
 const START_DESC={fra:'Crossroads of Europe. DE-KICKS IX, cheap transit.',nyc:'Huge eyeball market. Pricey neighbours.',sin:'Asia hub. Great peering, far from home.',sao:'Big hungry market, few providers.',jkt:'The biggest market in the region. Bring permits.',mnl:'600 of eyeballs and a typhoon season. GetaFIX is finally here.',bkk:'Big, busy and cheap to reach. Floods occasionally.',sby:'Second city. Cheap transit, patient customers.',upg:'Eastern hub, one cable from everywhere.'};
+/* Everything on this origin that could be resumed, newest first. Shown on the title screen so a
+   player whose network did not come back automatically can still find it by hand. */
+function savesAvailable(){return scanAllSaves();}
+function savePickModal(){
+  const list=savesAvailable();
+  if(!list.length){toast('<b>No saved networks on this device.</b><br>If you played on a different address (LAN vs tunnel), open the game there — each address keeps its own saves.','bad');return;}
+  const rows=list.map((o,i)=>{
+    const n=Object.keys(o.save.pops||{}).length;
+    return `<div class="row"><div class="grow"><div class="nm">${esc(o.save.name||'Unnamed')} <span class="meta">${esc(o.region)}</span></div>
+      <div class="meta">${dateStr(o.save.day)} · ${fmt$(o.save.cash)} · ${n} POP${n===1?'':'s'} · ${o.key.indexOf('backup')>=0?'backup':o.key.indexOf('session')>=0?'this tab':'device'}</div></div>
+      ${btn('Load','saveLoad',{i},'pink sm')}</div>`;
+  }).join('');
+  openModal(`<div class="eyebrow">Saved networks</div><h2 style="font-size:26px">Pick one to resume</h2>
+    <p class="tagline">Every save on this address, newest first. A backup copy is kept automatically in case the main one is lost.</p>${rows}`);
+}
 function showTitle(){
   const sv=loadSave();
   const reg=REGION[UI.region]||REGION.global;
@@ -3580,7 +3657,8 @@ function showTitle(){
   openModal(`<div class="title-art"><svg width="74" height="74" viewBox="0 0 74 74" aria-hidden="true"><path d="M10 60V40c0-14 10-24 24-24h18" fill="none" stroke="#1E2640" stroke-width="16" stroke-linecap="round"/><path d="M10 60V40c0-14 10-24 24-24h18" fill="none" stroke="#FFD23F" stroke-width="9" stroke-linecap="round"/><circle cx="58" cy="16" r="11" fill="#FF4F9A" stroke="#1E2640" stroke-width="4"/><circle cx="21" cy="44" r="3" fill="#fff"/><circle cx="30" cy="27" r="3" fill="#fff"/></svg>
   <h1>Series<br>of <span>Tubes</span></h1></div>
   <p class="tagline">Build an internet. Lay fiber between cities, buy transit, peer at exchanges, sign up businesses, and keep the eyeballs happy while backhoes, sharks and route leaks do their best to stop you.</p>
-  ${sv?`<div class="btns" style="margin-bottom:6px">${btn(`Continue ${esc(sv.name)} · ${dateStr(sv.day)}`,'cont',{},'pink big')}</div>`:''}
+  ${sv?`<div class="btns" style="margin-bottom:6px">${btn(`Continue ${esc(sv.name)} · ${dateStr(sv.day)}`,'cont',{},'pink big')}${savesAvailable().length>1?btn(`Other saves (${savesAvailable().length})`,'savePick',{},'ghost sm'):''}</div>`:''}
+  ${!sv&&savesAvailable().length?`<div class="btns" style="margin-bottom:6px">${btn(`Recover a saved network (${savesAvailable().length})`,'savePick',{},'pink')}</div>`:''}
   <label class="f">Play in</label><div class="pick3">${regionBtns}</div><p class="pickdesc">${reg.cities.length} cities · ${reg.cables.length} cables · ${reg.id==='global'?'full rules':'local rules'}</p>
   <label class="f">Saving</label><div class="pick3">${modeBtns}</div><p class="pickdesc">${modeNote}</p>
   <label class="f">Your role</label><div class="pick4">${roleBtns}</div><p class="pickdesc">${esc(roleNote)}</p>
@@ -3640,7 +3718,8 @@ function showWin(){
   setTimeout(()=>{const m=$('modalCard');if(m&&!m.querySelector('[data-act=share]'))m.insertAdjacentHTML('beforeend',`<div class="btns" style="margin-top:8px">${btn('Share my network','share',{},'pink')}</div>`);},0);
   openModal(`<h1 style="font-family:var(--display);font-size:44px;margin:0">You're a <span style="color:var(--me)">${esc(R.l)}</span>!</h1><p class="tagline">${story[S.role]||story.isp} ${tail}</p>${btn('Keep building','keepPlaying',{},'pink big')}`);sfx('coin');
 }
-function showLose(){openModal(`<h1 style="font-family:var(--display);font-size:40px;margin:0">Bankrupt</h1><p class="tagline">The bank repossessed your routers and sold them on eBuy. ${esc(S.name)} lasted ${S.day} days and peaked at ${fmtG(S.stats.peak)}.</p>${btn('Try again','newgame',{},'pink big')}`);clearSave(S.region||UI.region);}
+/* A bankrupt run must not come back from the backup slot either (PRD §5.1). */
+function showLose(){try{localStorage.removeItem('sot-save-backup');}catch(e){}openModal(`<h1 style="font-family:var(--display);font-size:40px;margin:0">Bankrupt</h1><p class="tagline">The bank repossessed your routers and sold them on eBuy. ${esc(S.name)} lasted ${S.day} days and peaked at ${fmtG(S.stats.peak)}.</p>${btn('Try again','newgame',{},'pink big')}`);clearSave(S.region||UI.region);}
 function openLinkModal(a,b){
   if([a,b].includes('kyv')&&[a,b].includes('mos')){openModal(`<div style="display:flex;align-items:center"><h2 style="font-size:24px">Not happening</h2><button class="x" data-act="closeModal" aria-label="Close">×</button></div><p class="lead" style="margin-top:8px">Nobody sells capacity between Kyiv and Moscow, and nobody is going to. Route through Warsaw, Bucharest or Helsinki instead.</p>`);return;}
   if((cnCity(a)||cnCity(b))&&!cnOk()){openModal(`<div style="display:flex;align-items:center"><h2 style="font-size:24px">Not without a license</h2><button class="x" data-act="closeModal" aria-label="Close">×</button></div><p class="lead" style="margin-top:8px">Building into mainland China needs a joint venture and an operating license. Open ${CITY[cnCity(a)?a:b].name} to apply.</p>`);return;}
