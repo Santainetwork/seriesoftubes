@@ -3083,8 +3083,8 @@ function toast(html,kind='',actions=[]){
 }
 function openModal(html){$('modalCard').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;UI.pending=null;}
-/* PRD §4.2: region cards are data-driven. Regions whose data has not landed yet (SEA, Indonesia
-   arrive with the M3 map) render disabled instead of pretending to work. */
+/* PRD §4.2: region cards are data-driven. Every shipped map is selectable; ensureRegion()
+   builds SEA and Indonesia on demand when a card is picked. */
 const PICK_REGIONS=[['global','Global'],['sea','SEA'],['idn','Indonesia']];
 const SAVE_MODES=[['device','On device'],['session','This only'],['none','No save']];
 const START_DESC={fra:'Crossroads of Europe. DE-KICKS IX, cheap transit.',nyc:'Huge eyeball market. Pricey neighbours.',sin:'Asia hub. Great peering, far from home.',sao:'Big hungry market, few providers.',jkt:'The biggest market in the region. Bring permits.',mnl:'600 of eyeballs and a typhoon season. GetaFIX is finally here.',bkk:'Big, busy and cheap to reach. Floods occasionally.',sby:'Second city. Cheap transit, patient customers.',upg:'Eastern hub, one cable from everywhere.'};
@@ -3092,7 +3092,7 @@ function showTitle(){
   const sv=loadSave();
   const reg=REGION[UI.region]||REGION.global;
   const starts=(reg.startCities||[]).filter(c=>CITY[c]).map(c=>[c,START_DESC[c]||'A quiet market with room to grow.']);
-  const regionBtns=PICK_REGIONS.map(([id,l])=>`<button class="pick ${UI.region===id?'on':''}" data-act="pickRegion" data-args='{"id":"${id}"}'${REGION[id]?'':' disabled title="Arrives with the region map"'}>${l}</button>`).join('');
+  const regionBtns=PICK_REGIONS.map(([id,l])=>`<button class="pick ${UI.region===id?'on':''}" data-act="pickRegion" data-args='{"id":"${id}"}'>${l}</button>`).join('');
   const modeBtns=SAVE_MODES.map(([m,l])=>`<button class="pick ${UI.saveMode===m?'on':''}" data-act="pickSaveMode" data-args='{"m":"${m}"}'>${l}</button>`).join('');
   const modeNote=UI.saveMode==='none'?'Nothing is written. Close the tab and this run is gone.':UI.saveMode==='session'?'Kept in this tab only. Closing it deletes the run.':'Autosaves on this device and shows up in Continue.';
   const roleBtns=ROLE_IDS.map(id=>`<button class="pick ${UI.role===id?'on':''}" data-act="pickRole" data-args='{"id":"${id}"}' title="${esc(ROLES[id].blurb)}">${ROLES[id].l}</button>`).join('');
@@ -3329,7 +3329,32 @@ const SEA_XIX=[
  {id:'kul~2',c:'kul',name:'DE-CIX KL',cheap:0.45,take:0.4,blurb:'The German import. Same fabric, tropical humidity.'},
  {id:'tpe~2',c:'tpe',name:'STUIX',cheap:0.45,take:0.45,blurb:'Taipei’s university-run exchange. Fast ports, student prices.'},
 ];
-const SEA_CABLES=CABLES.filter(c=>c.pairs.every(([a,b])=>SEA_IDS.has(a)&&SEA_IDS.has(b)));
+/* The twelve regional cables from brief 2 §2.1, plus the spurs that keep the six
+   remaining SEA capitals off the isolated list. They are region-only: Global's 73
+   cables / 134 pairs stay exactly as they were (brief 4 §0, §11). */
+const SEA_NEW_CABLES=[
+ {id:'jksg',name:'Selat-Max',price:0.55,age:'new',blurb:'Jakarta to Singapore across the Java Sea. The busiest stretch of water in the region.',pairs:[['jkt','sin',[[106.2,-5.2],[105.2,-3.2],[104.5,-1.5],[104.0,0.4]]]]},
+ {id:'jksb',name:'Java–Sumatra Link',price:0.50,age:'new',blurb:'Jakarta to Palembang, hopping the Sunda Strait.',pairs:[['jkt','plm',[[106.3,-5.6],[105.4,-4.4],[104.9,-3.6]]]]},
+ {id:'jvsb',name:'Java-East',price:0.45,age:'new',blurb:'The north-coast workhorse between Jakarta and Surabaya.',pairs:[['jkt','sby',[[107.5,-6.0],[109.5,-6.3],[111.4,-6.8]]]]},
+ {id:'sbbl',name:'Bali Strait',price:0.50,age:'new',blurb:'Surabaya to Denpasar, one short wet hop.',pairs:[['sby','dps',[[113.6,-7.6],[114.6,-8.1]]]]},
+ {id:'mkst',name:'Makassar Strait',price:0.55,age:'new',blurb:'Banjarmasin to Makassar across a strait full of islands and fishing boats.',pairs:[['bjm','upg',[[115.6,-3.6],[117.0,-4.2],[118.4,-4.8]]]]},
+ {id:'suln',name:'Sulawesi North',price:0.60,age:'new',blurb:'Makassar up to Manado, around the top of Sulawesi.',pairs:[['upg','mdc',[[119.9,-3.5],[121.5,-1.5],[123.5,0.2],[124.4,1.1]]]]},
+ {id:'summ',name:'Malacca North',price:0.50,age:'new',blurb:'Medan to Kuala Lumpur, under the busiest shipping lane on earth.',pairs:[['mdn','kul',[[98.0,4.2],[99.5,3.4],[100.8,2.8]]]]},
+ {id:'btmx',name:'Batam Cross',price:0.35,age:'new',blurb:'Singapore to Batam. Four milliseconds and a customs form.',pairs:[['sin','btm',[[103.9,1.25]]]]},
+ {id:'indo1',name:'Nusantara Backbone',price:0.60,age:'new',blurb:'Surabaya to Banjarmasin, the backbone of the eastern islands.',pairs:[['sby','bjm',[[113.0,-6.5],[114.0,-5.0],[114.5,-3.8]]]]},
+ {id:'papx',name:'Papua Link',price:0.75,age:'new',blurb:'Makassar all the way to Jayapura. Long, deep and expensive.',pairs:[['upg','jay',[[120.5,-4.5],[124.0,-4.2],[130.0,-3.8],[136.0,-3.2],[139.5,-2.8]]]]},
+ {id:'mnp',name:'Manila North',price:0.70,age:'mid',blurb:'Manila to Taipei, threading the Luzon Strait.',pairs:[['mnl','tpe',[[121.5,17.5],[120.5,20.5],[120.8,23.0],[121.4,24.4]]]]},
+ {id:'cebx',name:'Visayas',price:0.50,age:'new',blurb:'Manila to Cebu through the middle of the Philippines.',pairs:[['mnl','ceb',[[122.0,13.5],[123.2,11.8]]]]},
+ /* Regional spurs: without these six capitals have no wet path at all. */
+ {id:'thai',name:'Gulf of Thailand Spur',price:0.50,age:'new',blurb:'Singapore to Bangkok up the Gulf. The only wet way into Thailand.',pairs:[['sin','bkk',[[103.9,2.6],[102.5,6.0],[101.2,9.5],[100.7,12.2]]]]},
+ {id:'myan',name:'Andaman Landing',price:0.55,age:'new',blurb:'Bangkok to Yangon along the Andaman coast.',pairs:[['bkk','rgn',[[99.5,13.0],[98.2,14.5],[97.0,15.8]]]]},
+ {id:'mekg',name:'Mekong Crossing',price:0.45,age:'new',blurb:'Ho Chi Minh City to Phnom Penh, over the delta.',pairs:[['sgn','pnh',[[105.6,10.9],[105.2,11.3]]]]},
+ {id:'laos',name:'Lao Link',price:0.45,age:'new',blurb:'Bangkok to Vientiane. Landlocked Laos still needs a landing station.',pairs:[['bkk','vte',[[101.0,14.5],[101.8,16.0],[102.4,17.3]]]]},
+ {id:'brun',name:'Borneo North',price:0.60,age:'new',blurb:'Bandar Seri Begawan to Kuala Lumpur around the South China Sea.',pairs:[['bwn','kul',[[113.8,4.9],[111.5,5.2],[108.0,4.6],[104.8,4.2],[102.8,3.8]]]]},
+ {id:'tlsx',name:'Timor Spur',price:0.70,age:'new',blurb:'Dili to Denpasar. Timor-Leste’s only fibre out.',pairs:[['dil','dps',[[124.5,-8.7],[122.0,-8.8],[118.5,-8.8],[116.0,-8.7]]]]},
+ {id:'batj',name:'Batam–Jakarta Backbone',price:0.50,age:'new',blurb:'Batam down to Jakarta, so the island is not stuck behind Singapore.',pairs:[['jkt','btm',[[106.0,-5.0],[105.0,-2.5],[104.3,0.0]]]]},
+];
+const SEA_CABLES=CABLES.filter(c=>c.pairs.every(([a,b])=>SEA_IDS.has(a)&&SEA_IDS.has(b))).concat(SEA_NEW_CABLES);
 const IDN_CITIES=SEA_CITIES.filter(c=>SEA_IDN_LANDS.has(c.land));
 const IDN_IDS=new Set(IDN_CITIES.map(c=>c.id));
 const IDN_CITY_LL=Object.fromEntries(IDN_CITIES.map(c=>[c.id,SEA_CITY_LL[c.id]]));
@@ -3407,9 +3432,14 @@ function rebuildDerived(){
   const ll=[[A.lon,A.lat]].concat(mid,[[B.lon,B.lat]]);let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);
   return {cid:c.id,a,b,pts,km:Math.round(L)};}));
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
- NET=Object.fromEntries(NETS.map(n=>[n.id,n]));
- {const t=NETS.reduce((a,n)=>a+n.share,0);for(const k in NSH)delete NSH[k];NETS.forEach(n=>NSH[n.id]=n.share/t);}
- for(const X of XIX){X.members=NETS.filter(n=>Array.isArray(n.ix)&&n.ix.includes(X.id)||!n.tail&&(n.ix==='ALL'||Array.isArray(n.ix)&&n.ix.includes(X.c))&&hstr(n.id+'|'+X.id)%100<(n.ix==='ALL'?72:X.take*100)).map(n=>n.id);}
+ /* Filter the networks that actually have a POP in this region before deriving NET,
+    NSH and the exchange member lists. `NETS` itself is never resized: REGION.global.nets
+    aliases that very array, so splicing it here would corrupt Global (brief 4 §1). */
+ const regionCityIds=new Set(CITIES.map(c=>c.id));
+ const liveNets=NETS.filter(n=>n.pops.some(c=>regionCityIds.has(c)));
+ NET=Object.fromEntries(liveNets.map(n=>[n.id,n]));
+ {const t=liveNets.reduce((a,n)=>a+n.share,0);for(const k in NSH)delete NSH[k];liveNets.forEach(n=>NSH[n.id]=n.share/t);}
+ for(const X of XIX){X.members=liveNets.filter(n=>Array.isArray(n.ix)&&n.ix.includes(X.id)||!n.tail&&(n.ix==='ALL'||Array.isArray(n.ix)&&n.ix.includes(X.c))&&hstr(n.id+'|'+X.id)%100<(n.ix==='ALL'?72:X.take*100)).map(n=>n.id);}
  XIXM=Object.fromEntries(XIX.map(x=>[x.id,x]));
  LANDP=LANDS.filter(l=>!l.hide).map(l=>smoothPath(l.pts)).concat(DECOR.map(smoothPath));
  ALLPOLY=LANDS.filter(l=>!l.hide).map(l=>l.pts).concat(DECOR);

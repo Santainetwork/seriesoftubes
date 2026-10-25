@@ -34,12 +34,12 @@ test('M2: defaults are global + device (§4.3, §5.1)', () => {
 
 test('M2: picking a region persists it and refills the home-city list (§4.3)', () => {
   const { ev, errors } = load();
-  // M2 ships the selector; SEA/Indonesia maps arrive with M3. Until their REGION entry exists the
-  // cards render disabled rather than offering a region the game cannot build.
-  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), true,
-    'SEA is disabled until its map ships');
-  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"idn\"]').disabled"), true,
-    'Indonesia is disabled until its map ships');
+  // M2 ships the selector; the SEA and Indonesia maps now ship with the build, so every
+  // region card is live rather than disabled.
+  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), false,
+    'SEA map ships, so the card is enabled');
+  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"idn\"]').disabled"), false,
+    'Indonesia map ships, so the card is enabled');
 
   // Prove the selector is data-driven, exactly the shape M3 will plug into: give REGION a sea entry
   // and the card must become live, the start list must swap to its startCities, and the choice

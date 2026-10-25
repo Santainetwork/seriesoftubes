@@ -37,8 +37,8 @@ test('M3: REGION materialises SEA and Indonesia on demand', () => {
 test('M3: picking SEA or Indonesia rebinds the map and enables the card', () => {
   const { ev, errors } = load();
   ev('showTitle()');
-  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), true,
-    'SEA starts disabled: committed M2 gate');
+  assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), false,
+    'SEA is selectable now that its map ships');
   ev("ACT.pickRegion({id:'sea'})");
   assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), false);
   assert.equal(ev('curRegion'), 'sea');
