@@ -1838,7 +1838,18 @@ function compute(){
   for(const p of S.pni){if(!popUp(p.city)||!liveN(p.city,p.site,p.n))continue;R2.sessions++;E.push({k:'p',pnc:!!NET[p.net].cn,pref:p.pref||'normal',lab:'PNI with '+NET[p.net].name,id:p.id,city:p.city,cap:liveCap(PORT[p.tier].g,p.city,p.site,p.n),used:0,rank:1,ok:n=>n===p.net});}
   for(const c of S.caches){if(!popUp(c.city)||siteDown(c.city,'a'))continue;E.push({k:'c',pref:'normal',lab:NET[c.net].cache.name+' cache',id:c.id,city:c.city,cap:CACHE_CAP,used:0,rank:0,ok:n=>n===c.net});}
   {const rp=ev.rpki&&ev.rpki.until>day?new Set(ev.rpki.nets):null;if(rp)for(const e of E){if(e.k==='c')continue;const o=e.ok;e.ok=n=>!rp.has(n)&&o(n);}}
-  for(const n of NETS){R2.reachable[n.id]=E.some(e=>e.rank>0&&e.ok(n.id));if(R2.reachable[n.id])R2.reach+=NSH[n.id];}
+  /* Reach is a property of the internet, not of one POP. When every POP in a city is down
+     there are no exits left to evaluate, and scoring that as "nothing is reachable" turned a
+     two-day power cut into a total loss of the internet — which then collapsed customer
+     happiness in three days. Hold the previous reach instead, so an outage costs service in
+     that city (via citySrv) rather than the whole map. */
+  const anyExit=E.some(e=>e.rank>0);
+  if(anyExit){
+    for(const n of NETS){R2.reachable[n.id]=E.some(e=>e.rank>0&&e.ok(n.id));if(R2.reachable[n.id])R2.reach+=NSH[n.id];}
+  }else{
+    R2.reach=typeof R.reach==='number'?R.reach:1;
+    for(const n of NETS)R2.reachable[n.id]=R2.reach>0.999;
+  }
   const cacheNets=new Set(S.caches.filter(c=>popUp(c.city)).map(c=>c.net));
   const viral=(ev.viral>day?1.25:1)*(ev.php&&ev.php>day?0.7:1);
   const flows=[];
@@ -2328,7 +2339,11 @@ function dayTick(){
   for(const b of S.biz.slice()){if(eventTick(b,d))continue;const sf=bizSf(b),reachOk=BIZ_T[b.type].l2||BIZ_T[b.type].fiber||R.reach>0.99,scrubOk=b.type!=='scrub'||!!S.scrubAt,divOk=reqOk(b);
     if(sf>=0.95&&reachOk&&scrubOk&&divOk)b.mood=Math.min(100,b.mood+2);
     else if(S.day-(b.since||0)<15){}
-    else{b.mood-=(Math.max(0,0.95-sf)*45+(!reachOk?3:0)+(!scrubOk?4:0)+(!divOk?3:0));
+    /* A single bad week should sting, not execute the contract. Cap the daily bleed so a
+       three-day outage costs roughly a third of the bar, not all of it, and give the player
+       time to fix the cause before the customer walks. */
+    else{const bleed=Math.min(15,Math.max(0,0.95-sf)*45+(!reachOk?3:0)+(!scrubOk?4:0)+(!divOk?3:0));
+      b.mood-=bleed;
       if(b.mood<=0){S.biz=S.biz.filter(x=>x!==b);toast(`<b>${esc(b.name)} cancelled.</b><br>Too many outages and too little bandwidth in ${CITY[b.city].name}.`,'bad');sfx('err');}
       else if(b.mood<30&&!b.warned){b.warned=true;toast(`<b>${esc(b.name)} is furious.</b><br>Fix service in ${CITY[b.city].name} or they leave.`,'bad',[{l:'Show me',act:'focusCity',args:{city:b.city}}]);}}
     if(b.mood>60)b.warned=false;}
