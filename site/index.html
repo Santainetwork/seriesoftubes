@@ -1744,8 +1744,14 @@ function dkTick(d){if(!S.dk)return;const dk=S.dk;
 function elephant(){S.phpDone=true;S.ev.php=S.day+4;
   toast(`<b>🐘 BREAKING: CVE-2026-31337 just took down half the internet.</b><br>A bug in PHP turned every WordPress-ish site on Earth into a crypto miner. Eyeball traffic is down 30% for a few days while the world patches. Your hosting customers are doing it at 3 a.m.`,'bad');sfx('alert');renderMega();}
 function snubWhy(sn){const d=Math.max(1,sn.until-S.day);return `${sn.why} They will reconsider in ${d} day${d===1?'':'s'}.`;}
+/* Brief 18 §G: on the Indonesia map the exchange member list carries global Tier 1s and Tier 2s
+   that have no POP in the country, so they are absent from the region's NET subset. Resolve them
+   from NETS instead of letting the lookup return undefined — reading .pol on undefined is what
+   froze the Peering tab. */
+function netOf(id){return NET[id]||NETS.find(n=>n.id===id)||null;}
 function peerOk(id,via,city){
-  const n=NET[id],dem=R.demTo[id]||0;
+  const n=netOf(id),dem=R.demTo[id]||0;
+  if(!n)return {ok:false,why:'This network is not present in this region.'};
   const sn=snub(id,city);if(sn&&(via==='ix'||sn.all))return {ok:false,snub:true,why:snubWhy(sn)};
   if(via==='ix'&&city&&isRemote(city)&&noRemote(id))return {ok:false,remote:true,why:REMOTE_WHY[hstr(id)%REMOTE_WHY.length]};
   if(n.pol==='open')return {ok:true};
@@ -3455,8 +3461,9 @@ function ixBlock(c,multi){const city=ixCity(c),C=CITY[city],ix=ixName(c),X=XIXM[
       else h+=`<div class="btns">${PORT.map((P2,i)=>i>S.ixp[c]?btn(`Upgrade ${P2.n} <small>${fmt$(ixPortMo(c,i)*((S.ixn||{})[c]||1))}/mo</small>`,'buyIx',{city:c,tier:i},'sm',(!!S.pops[city]&&!portOk(city,i))||(!S.pops[city]&&i>1)):'').join('')}${S.pops[city]&&((S.ixn||{})[c]||1)<LAG_MAX?btn(`+ LAG member <small>${fmt$(ixPortMo(c,S.ixp[c]))}/mo</small>`,'lagIx',{city:c,d:1},'sm',S.cash<ixPortMo(c,S.ixp[c])):''}${((S.ixn||{})[c]||1)>1?btn('− member','lagIx',{city:c,d:-1},'ghost sm'):''}${btn(S.rs[c]?'Leave route server':'Join route server','rs',{city:c},S.rs[c]?'ghost sm':'pink sm')}${btn(UI.confirm==='ix'+c?'Really leave?':'Leave IX','cancelIx',{city:c},'ghost sm')}</div>`;
       h+=`<div style="margin-top:8px">`;
       {const elig=mine?[]:ixMembers(c).filter(id=>!set.has(id)&&peerOk(id,'ix',c).ok);if(elig.length>1)h+=`<div class="btns">${btn(`Request all ${elig.length} willing peers`,'peerAll',{city:c},'pink sm')}</div>`;}
-      for(const id of ixMembers(c).sort((a,b)=>NSH[b]-NSH[a])){const n=NET[id],on=set.has(id),viaRs=on&&!S.peers[id+'@'+c]&&!mine,chk=peerOk(id,'ix',c);
-        h+=`<div class="row">${logo(n)}<div class="grow"><div class="nm">${esc(n.name)}</div><div class="meta"><span class="tag ${n.type}">${TYPE_L[n.type]}</span> <span class="tag ${n.pol}">${n.pol}</span> · ${(NSH[id]*100).toFixed(NSH[id]<0.01?1:0)}%${n.tail?' <span class="tag st">tiny</span>':''}</div>${!on&&!chk.ok?`<div class="why">${esc(chk.why)}</div>`:''}</div>
+      /* Brief 18 §G: members can be global carriers with no POP here, so they live in NETS only. */
+      for(const id of ixMembers(c).sort((a,b)=>(NSH[b]||0)-(NSH[a]||0))){const n=netOf(id);if(!n)continue;const on=set.has(id),viaRs=on&&!S.peers[id+'@'+c]&&!mine,chk=peerOk(id,'ix',c);
+        h+=`<div class="row">${logo(n)}<div class="grow"><div class="nm">${esc(n.name)}</div><div class="meta"><span class="tag ${n.type}">${TYPE_L[n.type]}</span> <span class="tag ${n.pol}">${n.pol}</span> · ${((NSH[id]||0)*100).toFixed((NSH[id]||0)<0.01?1:0)}%${n.tail?' <span class="tag st">tiny</span>':''}</div>${!on&&!chk.ok?`<div class="why">${esc(chk.why)}</div>`:''}</div>
         ${on?(viaRs||mine?`<span class="tag st on">${mine?'Member':'via RS'}</span>`:btn('Peered ✓','unpeer',{city:c,net:id},'green sm',false,'Click to tear down')):btn('Request','peer',{city:c,net:id},'sm',!chk.ok)}</div>`;}
       h+=`</div>`;}
   h+=`</section>`;return h;
