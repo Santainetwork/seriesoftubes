@@ -442,7 +442,7 @@ input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radi
     <div><div class="val" id="hName">Series of Tubes</div><div class="lbl" id="hAsn">AS —</div></div><span class="caret" aria-hidden="true">▾</span>
   </button>
   <button class="chip savechip" id="hSave" data-act="menu" hidden><span class="lbl">Saving</span><span class="val" id="hSaveVal">·</span></button>
-  <button class="chip cashbtn" data-act="bank" aria-label="Cash and bank"><span class="lbl">Cash · Bank</span><span class="val num" id="hCash">$0</span><span class="sub num" id="hRate">—</span><span class="badge" id="hBank" hidden></span></button>
+  <button class="chip cashbtn" data-act="bank" aria-label="Cash and bank"><span class="lbl">Cash · Bank</span><span class="val num" id="hCash">—</span><span class="sub num" id="hRate">—</span><span class="badge" id="hBank" hidden></span></button>
   <div class="chip hide-sm hide-md2"><div class="lbl">Traffic served</div><div class="val num" id="hTraffic">0</div><div class="minibar"><i id="hTrafBar" style="width:0"></i></div></div>
   <button class="chip reachbtn" data-act="reach" title="Reach report: see what is missing and how to fix it" aria-label="Reach report"><span class="lbl">Reach <span class="reachq" id="hReachQ" hidden>?</span></span><span class="val num" id="hReach">0%</span></button>
   <div class="chip hide-sm hide-md"><div class="lbl">Rank</div><div class="val" id="hTier">Tier 3</div></div>
@@ -1050,7 +1050,7 @@ const ROLE_UP=[
  { from:'rtnet', to:'isp',
    req:{ served:50, pops:2, transit:1, days:120, cash:100000, lic:['oss'] },
    cost:60000,
-   why:'50 Gbps of paying traffic, two POPs, a transit port, four months of books and $60k for the licence.' },
+   why:'50 Gbps of paying traffic, two POPs, a transit port, four months of books and the licence fee.' },
  { from:'isp', to:'nap',
    req:{ served:1000, pops:6, myIx:1, bizIsp:10, days:540, cash:500000 },
    cost:400000,
@@ -1058,7 +1058,7 @@ const ROLE_UP=[
  { from:'hosting', to:'nap',
    req:{ served:300, pops:3, site2:2, days:365, cash:400000 },
    cost:400000,
-   why:'Every rack full, two metros with redundancy, and $400k to buy the building instead of renting racks.' },
+   why:'Every rack full, two metros with redundancy, and enough cash to buy the building instead of renting racks.' },
  { from:'nap', to:'isp',
    req:{ served:2000, pops:8, bb:1, days:730, cash:1000000 },
    cost:0,
@@ -1204,7 +1204,7 @@ const COVS={
  fax:{l:'Send us your monthly report by fax.',ok:()=>true},
  uptime:{l:'Deliver at least 95% of what your customers want.',ok:()=>!R.demand||R.served/R.demand>=0.95},
  logo:{l:'Our logo goes on every router you own.',ok:()=>true},
- cash50:{l:'Never let cash drop below $50k. It makes us sweat.',ok:()=>S.cash>=50000},
+ cash50:{l:'Never let cash run low. It makes us sweat.',ok:()=>S.cash>=50000},
  nochina:{l:'Stay out of mainland China. Compliance said so.',ok:()=>!Object.keys(S.pops).some(cnCity)},
  nosub:{l:'No new subsea links while this loan runs. We are afraid of sharks.',ok:l=>S.links.filter(x=>x.sub).length<=(l.base&&l.base.sub||0)},
  spaetzle:{l:'Peer at the Spätzle-IX in Stuttgart. Local money for local packets.',ok:()=>S.ixp.stg!==undefined},
@@ -1268,7 +1268,7 @@ const SCN=[
  {id:'baltic',n:'Anchors Away',city:'tll',cash:500000,days:540,rules:{anchors:3},d:'Tallinn. Ships drag their anchors over Baltic cables three times as often as usual.',goal:'90 days in a row with 99.5% of demand served',ok:()=>(S.stats.clean||0)>=90},
 ];
 const WEEK_CITIES=['fra','ams','lon','nyc','ash','sjc','sin','tok','syd','sao','jnb','bom','waw','ist','scl','hkg'];
-const WEEK_MODS=[{id:'pricey',n:'Transit costs 30% more'},{id:'chaos',n:'Twice the failures'},{id:'poor',n:'Start with only $100k'},{id:'boom',n:'Eyeballs grow 50% faster'},{id:'dk',n:'Every IX is run by DE-KICKS'},{id:'sharks',n:'Shark season: subsea cuts twice as likely'}];
+const WEEK_MODS=[{id:'pricey',n:'Transit costs 30% more'},{id:'chaos',n:'Twice the failures'},{id:'poor',n:'Start with a shoestring budget'},{id:'boom',n:'Eyeballs grow 50% faster'},{id:'dk',n:'Every IX is run by DE-KICKS'},{id:'sharks',n:'Shark season: subsea cuts twice as likely'}];
 function weekly(){const {y,w}=isoWeek(new Date());let r=(y*100+w)*2654435761>>>0;const nx=()=>{r=(r*1103515245+12345)>>>0;return r/4294967296;};const city=WEEK_CITIES[Math.floor(nx()*WEEK_CITIES.length)];const mods=[];while(mods.length<2){const m=WEEK_MODS[Math.floor(nx()*WEEK_MODS.length)];if(!mods.includes(m))mods.push(m);}return {id:'weekly',key:`${y}-W${String(w).padStart(2,'0')}`,seed:y*100+w,city,mods,days:365};}
 const scnRule=k=>!!(S&&S.scn&&S.scn.rules&&S.scn.rules[k]);
 function scnHof(){try{return JSON.parse(localStorage.getItem('sot-scn')||'{}')||{};}catch(e){return {};}}
@@ -1330,9 +1330,9 @@ function confTick(d){S.confReg=S.confReg||{};
   for(const cf of upcomingConfs(0)){if(cf.day!==d||!S.confReg[cf.key])continue;const reg=CITY[cf.c].reg;S.conf={until:d+CONF_DAYS,reg,name:cf.n};S.stats.confs=(S.stats.confs||0)+1;
     const r=Math.random();let extra='';if(r<0.3){const cash=5000+Math.floor(Math.random()*4)*5000;S.cash+=cash;extra=` You also won the raffle: ${fmt$(cash)} worth of optics, sold on eBuy the same evening.`;}else if(r<0.5)extra=' Someone from Goggle bought you a beer. You did not get their name, only a sticker.';
     toast(`<b>${esc(cf.n)} in ${esc(CITY[cf.c].name)}</b><br>You shook a lot of hands. For ${CONF_DAYS} days, selective networks with a presence in ${esc(REG[reg])} want half the usual traffic before they peer.${extra}`,'goal');sfx('coin');
-    /* Brief 10 §2.2-2.3: a conference is also a sales trip. Only a POP in the host
-       city can turn the badge into a deal. */
-    if(S.pops[cf.c])eventDeals(cf);}}
+    /* Brief 16 (koreksi): attending always produces one lead in the host city, whether
+       or not you already run a POP there. */
+    eventDeals(cf);}}
 /* A NAP does not go to a conference to peer. It goes to sell racks. Every event in a
    city where you run a POP produces one wholesale offer: a carrier, a content network
    or a cloud on-ramp that needs space, cross-connects and a meet-me room. */
@@ -1347,7 +1347,7 @@ function eventDealOffer(cf,t,premLo,premSpan){
   const rate=Math.round(T.rate*(premLo+Math.random()*premSpan)); // in town premium
   S.offers.push({id:uid(),city:cf.c,city2:null,name:eventBizName(),type:t,bw,rate,
     reqs:['metro'],exp:S.day+14,fromEvent:cf.n});
-  toast(`<b>${esc(cf.n)}: someone wants a rack.</b><br>${esc(S.offers[S.offers.length-1].name)} is in ${esc(CITY[cf.c].name)} for the week and needs ${bw}G of ${esc(BIZ_T[t].l||t)}. They fly home in 14 days.`,'goal',[{l:'See the deal',act:'leftTab',args:{t:'deals'}}]);
+  toast(`<b>${esc(cf.n)}: a lead.</b><br>${esc(S.offers[S.offers.length-1].name)} needs ${bw}G of ${esc(BIZ_T[t].l||t)} in ${esc(CITY[cf.c].name)}. They fly home in 14 days.`,'goal',[{l:'See the deal',act:'leftTab',args:{t:'deals'}}]);
 }
 function napEventDeals(cf){
   const city=cf.c;
@@ -1356,14 +1356,19 @@ function napEventDeals(cf){
   if(!t)return;
   eventDealOffer(cf,t,1.4,0.6);                 // 40–100% premium: they are in town
 }
+/* Attending a conference always produces a lead in the host city. Whether you can sign it
+   today depends on having a POP there — but the lead exists either way. That is the point
+   of going: you come home with a name, not a brochure. */
 function eventDeals(cf){
-  if(!S.pops[cf.c])return;
-  if(S.role==='nap')return napEventDeals(cf);
-  if(S.role==='hosting'){
-    const t=pick(['host','gpu'].filter(x=>roleAllowsType(x)));
-    if(!t)return;
-    eventDealOffer(cf,t,1.3,0);                 // hosting: a flat 30% premium
-  }
+  let t;
+  if(S.role==='nap')          t=pick(['isp','hyper','ai'].filter(x=>roleAllowsType(x)));
+  else if(S.role==='hosting') t=pick(['host','gpu'].filter(x=>roleAllowsType(x)));
+  else if(S.role==='isp')     t=pick(['dia','stream','edu'].filter(x=>roleAllowsType(x)));
+  else return;                   // RT/RW nets are too small for a conference lead (brief 10)
+  if(!t)return;
+  const prem=S.role==='nap'?1.4:S.role==='hosting'?1.3:1.2;
+  const span=S.role==='nap'?0.6:S.role==='hosting'?0:0.2;
+  eventDealOffer(cf,t,prem,span);
 }
 function confSection(){const up=upcomingConfs(75).slice(0,3),cb=S.conf&&S.conf.until>S.day?S.conf:null;if(!up.length&&!cb)return '';
   const cost=confCost();return `<h3 style="font-size:15px;margin:10px 0 4px">Conferences</h3>${cb?`<div class="inc" style="background:#EAF7EE"><div class="nm">${esc(cb.name)} glow: ${cb.until-S.day} days left</div><div class="meta">Selective networks in ${esc(REG[cb.reg])} need half the usual traffic to peer. Now is the time to ask for that PNI.</div></div>`:''}${up.map(cf=>{const reg=S.confReg&&S.confReg[cf.key];return `<div class="row"><div class="grow"><div class="nm">${esc(cf.n)} · ${esc(CITY[cf.c].name)}</div><div class="meta">${cf.day===S.day?'Today':`in ${cf.day-S.day} days`} · ${esc(REG[CITY[cf.c].reg])}</div></div>${reg?'<span class="tag st on">Registered</span>':cf.day<=S.day?'<span class="tag st">Registration closed</span>':btn(`Attend <small>${fmt$(cost)}</small>`,'confGo',{key:cf.key},'sm',S.cash<cost)}</div>`;}).join('')}`;}
@@ -1480,7 +1485,7 @@ function scenarioModal(){const wk=weekly(),h=scnHof();let best=null;try{best=JSO
   ${SCN.map(x=>`<div class="scn"><div class="grow"><div class="nm">${esc(x.n)} ${h[x.id]?`<span class="tag open">done in ${h[x.id].days} days</span>`:''}</div><div class="meta">${esc(x.d)}</div><div class="meta"><b>Goal:</b> ${esc(x.goal)} · <b>Time:</b> ${x.days} days · start in ${esc(CITY[x.city].name)}</div></div>${btn('Play','startScn',{id:x.id},'')}</div>`).join('')}`);}
 function newGame(name,home,region,role){
   role=ROLES[role]?role:'isp';
-  /* Brief 3 §4: SEA starts with $300k (1.5× Global) and IDN with $250k. Brief 6 §3.1 moves
+  /* Brief 3 §4: SEA starts with 300k USD (1.5× Global) and IDN with 250k USD. Brief 6 §3.1 moves
      those numbers into REGION.*.roles so every role has a region-aware starting cash; Global
      keeps the brief-5 table (roles:null). */
   const rr=REGION[region||curRegion],rov=rr&&rr.roles&&rr.roles[role];
@@ -1492,7 +1497,31 @@ function newGame(name,home,region,role){
 }
 
 /* ================= HELPERS ================= */
-const fmt$=v=>{const a=Math.abs(v),s=v<0?'-':'';if(a>=1e6)return s+'$'+(a/1e6).toFixed(a>=1e7?1:2)+'M';if(a>=1e3)return s+'$'+(a/1e3).toFixed(a>=1e5?0:1)+'k';return s+'$'+Math.round(a);};
+function curInfo(){
+  const r=REGION[curRegion]&&REGION[curRegion].rules;
+  return (r&&r.currency)||{code:'USD',symbol:'$',rate:1,dec:0};
+}
+/* Indonesian grouping: dot every three digits, comma for decimals. 324000 -> "324.000" */
+function fmtNum(n){
+  const r=Math.round(n*100)/100;
+  const [ip,fp]=r.toFixed(r%1===0?0:2).split('.');
+  const g=ip.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  return fp?g+','+fp:g;
+}
+/* Money is displayed in the region's own currency. Internally every number stays in dollars,
+   so the economy, the balance sheet and the save format do not change — only the label and
+   the scale the player reads. */
+function fmt$(v){
+  const c=curInfo(),s=v<0?'-':'';
+  if(c.code==='IDR'){
+    const n=Math.abs(v)*c.rate/1000;        // rupiah -> thousands
+    return s+'Rp '+fmtNum(n)+'k';
+  }
+  const a=Math.abs(v);
+  if(a>=1e6){const m=a/1e6;return s+'$'+(m>=10?m.toFixed(1):m.toFixed(2).replace(/0$/,''))+'M';}
+  if(a>=1e3)return s+'$'+(a/1e3).toFixed(a>=1e5?0:1).replace(/\.0$/,'')+'k';
+  return s+'$'+Math.round(a);
+}
 const fmtG=g=>g>=1000?(g/1000).toFixed(g>=10000?1:2)+' Tbps':(g>=100?g.toFixed(0):g.toFixed(1))+' Gbps';
 const pct=x=>Math.round(x*100)+'%';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -2047,7 +2076,7 @@ function landWhy(a,b){if(isSub(a,b))return '';if(uaePair(a,b))return 'Inside the
   const r=[];if(CITY[a].reg!==CITY[b].reg)r.push('Overland between continents crosses a dozen borders: 2.5× the price.');if(andesPair(a,b))r.push('This route crosses the Andes: 2× the price, and landslides and snow cut it far more often than flat fiber.');return r.join(' ');}
 function linkLat(l){const f=l.kind==='df'?(l.own?1.1:1.25):l.kind==='vxc'?1.4:l.cable?(CAB[l.cable].lat||1):1.3;return l.km*f/200;}
 /* Wave prices differ a lot by market (TeleGeography): Europe's dense, competitive metro and
-   long-haul routes are cheap (Frankfurt–London 100G ≈ $1,150/mo), the US costs more, and
+   long-haul routes are cheap (Frankfurt–London 100G ≈ 1,150 USD/mo), the US costs more, and
    routes into Africa are several times dearer (Africa–Europe ≈ 5.9× London–New York).
    Each route also gets its own market mood, and new leases get cheaper every year (~8%). */
 const WAVE_LAND={EU:0.65,AM:1,SA:1.6,AS:1.4,OC:1.2,AF:2.2},WAVE_SUB={EU:0.8,AM:1,SA:2,AS:1.5,OC:1.5,AF:4.5};
@@ -2258,9 +2287,9 @@ function fireEvent(){
   if(e==='gfw'){S.ev.gfw=S.day+10;toast('<b>The border got stricter.</b><br>Cross-border packet loss rises to 35% for 10 days. Premium routes are barely affected.','bad');sfx('alert');return;}
   if(e==='viral'){S.ev.viral=S.day+8;toast('<b>New season of “Stranger Pings” just dropped!</b><br>Eyeball demand is up 25% for a week. Got headroom?','goal');}
   else if(e==='price'){S.priceMul*=0.92;toast('<b>Transit prices fell 8%.</b><br>They do this every year. Nobody knows where the bottom is.','good');}
-  else if(e==='grant'){S.cash+=30000;toast('<b>Rural broadband grant: +$30k</b><br>The Ministry of Tubes likes what you are doing.','good');sfx('coin');}
+  else if(e==='grant'){S.cash+=30000;toast(`<b>Rural broadband grant: +${fmt$(30000)}</b><br>The Ministry of Tubes likes what you are doing.`,'good');sfx('coin');}
   else if(e==='depeer'){S.ev.depeer=S.day+20;addInc({type:'depeer',ref:'cog',until:S.day+20,msg:'Cogentle and Goggle are in a peering spat. Goggle is unreachable through Cogentle transit.',cost:0});toast('<b>Peering spat!</b><br>Cogentle de-peered Goggle for 20 days. Goggle traffic over Cogentle transit is gone. Peer with Goggle directly or use another upstream.','bad');sfx('alert');}
-  else if(e==='cake'){S.cash+=8000;toast('<b>Drizzle Electric sent you an IPv6 cake.</b><br>You sold it for $8k.','good');sfx('coin');}
+  else if(e==='cake'){S.cash+=8000;toast(`<b>Drizzle Electric sent you an IPv6 cake.</b><br>You sold it for ${fmt$(8000)}.`,'good');sfx('coin');}
 }
 
 /* ---------- daily tick ---------- */
@@ -2327,7 +2356,7 @@ function dayTick(){
   scnTick(d);
   confTick(d);
   // money trouble
-  if(S.cash<0){S.neg++;if(S.neg===1)toast('<b>You are in the red.</b><br>Cancel something expensive, wait for revenue, or check the bank for a loan. At −$100k the bank takes your routers.','bad');}
+  if(S.cash<0){S.neg++;if(S.neg===1)toast(`<b>You are in the red.</b><br>Cancel something expensive, wait for revenue, or check the bank for a loan. At −${fmt$(-100000)} the bank takes your routers.`,'bad');}
   else S.neg=0;
   if(S.cash<-100000){S.lost=true;track('bankrupt');showLose();return;}
   if(d%360===0&&[1,2,4].includes(d/360))track('game_year_'+(d/360+1),true);
@@ -2909,8 +2938,8 @@ function renderLeft(){
     const roleOffers=S.offers.filter(roleOfferOk);
     if(!roleOffers.length)h+=`<p class="empty">No open offers right now. Businesses look for networks with POPs in their city. New ones pop up every few weeks.</p>`;
     for(const o of roleOffers.sort((a,b)=>a.exp-b.exp)){const has=bHas(o);
-      h+=`<div class="row"><div class="grow"><div class="nm">${esc(o.name)}</div><div class="meta">${esc(BIZ_T[o.type].l)} · ${CITY[o.city].name}${o.city2?' ⇄ '+CITY[o.city2].name:''} · <b>${bTerms(o)}</b> · ${o.exp-S.day}d left${(o.reqs||[]).length?` · ${o.reqs.length} special requirement${o.reqs.length>1?'s':''}`:''}</div>${reqList(o)}
-      <div class="btns">${has?btn('Accept','accept',{id:o.id},'green sm'):btn('Go there','focusCity',{city:o.city},'ghost sm')}${btn('Decline','decline',{id:o.id},'ghost sm')}</div>${has?'':`<div class="why">Needs a POP in ${bCities(o).filter(x=>!S.pops[x]).map(x=>CITY[x].name).join(', ')}</div>`}</div></div>`;}
+      h+=`<div class="row"><div class="grow"><div class="nm">${esc(o.name)}</div><div class="meta">${esc(BIZ_T[o.type].l)} · ${CITY[o.city].name}${o.city2?' ⇄ '+CITY[o.city2].name:''} · <b>${bTerms(o)}</b> · ${o.exp-S.day}d left${(o.reqs||[]).length?` · ${o.reqs.length} special requirement${o.reqs.length>1?'s':''}`:''}</div>${reqList(o)}${!S.pops[o.city]?`<div class="meta" style="color:var(--bad)">⚠ Needs a POP in ${esc(CITY[o.city].name)}</div>`:''}
+      <div class="btns">${has?btn('Accept','accept',{id:o.id},'green sm'):btn(!S.pops[o.city]?'Open a POP':'Go there','focusCity',{city:o.city},!S.pops[o.city]?'pink sm':'ghost sm')}${btn('Decline','decline',{id:o.id},'ghost sm')}</div>${has?'':`<div class="why">Needs a POP in ${bCities(o).filter(x=>!S.pops[x]).map(x=>CITY[x].name).join(', ')}</div>`}</div></div>`;}
   }else if(UI.left==='noc'){
     h+=`<div class="btns" style="margin-bottom:8px">${btn('Open NOC dashboard','dash',{},'pink')}${btn('Traceroute','trace',{},'')}${btn(R.reach<0.99?`Reach ${pct(R.reach)} · what's missing`:'Reach report','reach',{},'')}</div>`;
     h+=`<p class="lead">Your Network Operations Center. Every notification also lands here. Things fail all the time on the internet. Redundant links and multiple upstreams let traffic reroute by itself.</p>`;
@@ -2975,7 +3004,7 @@ function cityPanel(c){
       <div class="kv"><span>Revenue</span><b>${fmt$(eye*sf*EYE_RATE)}/mo</b></div>
       <div class="kv"><span>Network-wide peering ratio</span><b>${pct(R.peerShare||0)}</b></div><p class="note">More traffic over peering, PNIs and caches means lower latency, and happier users grow faster.</p>
       ${sf<0.9?`<p class="why">Customers are unhappy and leaving. Add upstream capacity, peering, or a bigger link.</p>`:''}
-      <div class="btns">${p.boost>S.day?`<span class="tag st on">Ad campaign: ${p.boost-S.day}d left</span>`:btn('Run ad campaign <small>$8k · 2× growth 30d</small>','ad',{city:c},'',S.cash<8000)}</div>`;}
+      <div class="btns">${p.boost>S.day?`<span class="tag st on">Ad campaign: ${p.boost-S.day}d left</span>`:btn(`Run ad campaign <small>${fmt$(8000)} · 2× growth 30d</small>`,'ad',{city:c},'',S.cash<8000)}</div>`;}
     h+=`</section>`;}
     /* Brief 13 §1.4: NAP and hosting sell to tenants, not homes, so their city panel gets a
        B2B marketing box instead of the broadband ad campaign. */
@@ -3208,7 +3237,7 @@ function renderBank(){
   const terms=(o)=>{const B=BANKS[o.bank];return B.equity?`<span class="tag st on">No repayments</span><span class="tag st">${pct(o.share)} of revenue, forever</span><span class="tag st">Buy-out ${fmt$(o.amount*3)}</span>`:`<span class="tag st on">${(o.apr*100).toFixed(1)}% APR</span><span class="tag st">${o.term} months</span><span class="tag st">${fmt$(o.pay)}/mo</span>${B.crypto?'<span class="tag selective">Paid in TubeCoin</span>':''}`;};
   const covList=(l)=>l.covs.length?l.covs.map(c=>{const ok=COVS[c].ok(l);return `<div class="meta"><b style="color:${ok?'var(--eye)':'var(--bad)'}">${ok?'✓':'✗'}</b> ${esc(COVS[c].l)}</div>`;}).join(''):'<div class="meta">No conditions. That is the scary part.</div>';
   let h=`<div style="display:flex;align-items:center;gap:12px"><div><div class="eyebrow">AS${S.asn} · ${esc(S.name)}</div><h2 style="font-size:28px">Bank</h2></div><button class="x" data-act="bankClose" aria-label="Close">×</button></div>
-  <div class="dgrid"><div class="tile"><div class="lbl">Cash</div><div class="val" style="color:${S.cash<0?'var(--bad)':'inherit'}">${fmt$(S.cash)}</div><div class="sub">${S.cash<0?'Bankrupt at −$100k':'in the vault'}</div></div>
+  <div class="dgrid"><div class="tile"><div class="lbl">Cash</div><div class="val" style="color:${S.cash<0?'var(--bad)':'inherit'}">${fmt$(S.cash)}</div><div class="sub">${S.cash<0?`Bankrupt at −${fmt$(-100000)}`:'in the vault'}</div></div>
   <div class="tile"><div class="lbl">Monthly P&L</div><div class="val" style="color:${net>=0?'var(--eye)':'var(--bad)'}">${net>=0?'+':''}${fmt$(net)}</div><div class="sub">after loan payments</div></div>
   <div class="tile"><div class="lbl">Credit rating</div><div class="val">${rt}</div><div class="sub">${rIdx(rt)>=5?'Bankers return your calls':rIdx(rt)>=3?'Bankers return your emails':'Bankers pretend to be out'}</div></div>
   <div class="tile"><div class="lbl">Debt</div><div class="val">${fmt$(S.loans.reduce((a,l)=>a+(BANKS[l.bank].equity?0:l.bal),0))}</div><div class="sub">${S.loans.length} loan${S.loans.length===1?'':'s'}</div></div></div>`;
@@ -3306,7 +3335,7 @@ function showHelp(){
   <dt>Embedded cache</dt><dd>A CDN's server in your rack. Serves most of that CDN's traffic locally, for the price of power.</dd>
   <dt>DE-KICKS</dt><dd>The group behind several big exchanges (Frankfurt, Madrid, Marseille, Dubai, Mumbai, New York) treats price lists as a state secret. Ports are quoted per customer and go up the bigger you look. Haggling can work, backfire or stall for a week. Prices get "harmonised" upwards once a year, add-ons appear on your invoice until you opt out, and trying to leave earns you a retention discount that ends with a fee.</dd><dt>Remote peering</dt><dd>Reach an IX over a fabric circuit without a POP there. It works, and the route server still gets you every open network, but it is discouraged: the reseller charges 1.5× for the port and oversubscribes it to 80%, latency rides the fabric, one fabric outage drops every session, and many selective networks refuse remote members outright.</dd><dt>Peering policy</dt><dd>Open peers with anyone. Selective wants to see traffic first. Restrictive (Tier 1s) only peers with giants, over PNIs. Paid means exactly that. Big selective networks also have moods: in some cities they refuse new peers for a few months, or only take PNIs, and now and then they tear down a session you already had. Try another city or a PNI, and ask again later.</dd>
   <dt>Waves</dt><dd>Your fiber links are leased waves at a flat monthly rate. Longer and bigger costs more (10G → 6.4T), and subsea is 1.8× the price.</dd><dt>95th percentile</dt><dd>Transit bills sample your usage every day and charge the 95th percentile of the last 30 days, so short spikes are forgiven but long ones are not.</dd><dt>Routers</dt><dd>Each POP's router model caps its fastest port (100G, 400G, 800G, 1.6T) and how much it can forward. Bigger waves and ports need better routers at both ends. Better models unlock with your customer level. With one router, upgrades mean a day of downtime.</dd><dt>Dark fiber</dt><dd>Lease an IRU or build your own (slow, with delays), then buy a line system with amplifiers and light channels with 400ZR+, 800ZR+ or 1.6T transponders. Much cheaper than waves at scale, but the gear can fail. A spares kit speeds up repairs.</dd><dt>Subsea cables</dt><dd>Subsea waves can only follow real-ish cable systems, drawn faintly on the map (tap a city to highlight its cables). Teal ones are new and cheap, purple ones pricey, dashed ones old and cut-prone. All your waves on one cable die together when it is cut. Between continents on land, you can often choose overland (2.5×, many borders) or a cable.</dd><dt>Latency</dt><dd>Every link has latency. High-frequency traders pay a fortune for a circuit within their latency budget; route them “Lowest latency”. Bulk backup customers do not care, so route them “Scenic” over your quiet links to keep busy ones free.</dd><dt>NOC dashboard</dt><dd>The chart button at the top opens traffic graphs by exit (caches, PNIs, IX, transit), money over time, per-ASN traffic with how it reaches you and what its transit costs, plus your busiest links and routers.</dd><dt>Asia</dt><dd>A weird, underserved market. Transit costs 2.5× what it does in Europe (Africa 2×, Oceania 1.8×), local incumbents mostly peer only for pay, and IXs are fragmented. But demand is enormous and users sign up 60% faster than anywhere else. Peering and caches pay off most here.</dd><dt>Russia</dt><dd>Moscow needs a mandatory government box in every POP, Western CDNs are mostly gone, Goggle video is throttled to half speed, and the sovereign internet drills now and then cut Moscow off for a day.</dd><dt>Events, chains and wholesale</dt><dd>Event networks (a final, a festival, a keynote) need a burst of capacity in one city for a few days and pay once at the end, prorated by how much of the crowd you served; below 70% you pay a penalty. SD-WAN chains connect 3–6 of your POPs hub-and-spoke, so one broken spoke upsets the whole contract. Once you run your own dark fiber, carriers want to rent spare channels as alien waves, and on fiber you built yourself, a spare pair.</dd><dt>Bank</dt><dd>Tap your cash to open the bank. Lenders make offers now and then, and much more often when you are in the red. Each loan has a monthly payment and some odd conditions; break one and you pay a penalty. Your credit rating decides which banks talk to you. The loan shark is always there. Do not be late.</dd><dt>LAGs</dt><dd>Out of port speed? Bundle up to 8 identical ports to the same transit provider, IX or PNI into a LAG. Each member costs a full port; flow hashing is never perfectly even, so a bundle carries about 95% of the sum.</dd><dt>Traffic engineering</dt><dd>Tap a link to see which networks, which entry points and which customer cities fill it. Raise a link's metric to steer traffic around it, or set an egress (transit, IX, PNI) to Prefer or Backup only.</dd><dt>China</dt><dd>Mainland China needs a license and a local joint venture. Many foreign services are blocked there, and traffic crossing the border loses packets unless you pay for premium routes.</dd><dt>Weird requirements</dt><dd>Some customers come with conditions: no Cogentle anywhere, no subsea cables because of sharks, two routers, a generator, NetChill on-net, low-loss China reach and more. Each pays a bonus. Unmet ones make them grumpy until you fix it or they leave.</dd><dt>Customer levels</dt><dd>As your peak traffic and footprint grow, bigger customers show up: streaming startups and universities, then AI GPU data centers and cloud on-ramps, then AI training interconnects and hyperscaler DCI deals measured in terabits. Pink $$ bubbles mark the big ones.</dd><dt>L2VPN & DDoS protection</dt><dd>Businesses may want a private circuit between two of your POPs (it rides your backbone), or DDoS protection (needs your own scrubbing center).</dd><dt>NNI fabrics</dt><dd>Megapork, PocketFabric and Consolation Connect sell a port plus virtual circuits between cities. Great for small links and remote peering at an IX where you have no POP.</dd>
-  <dt>Conferences</dt><dd>NANOG-ish, RIPE-ish, DENOG-ish and friends come round every year. Register in the Deals tab for $8k. For 45 days after, selective networks with a presence in that region need only half the usual traffic before they peer with you. Sometimes you also win the raffle.</dd><dt>Modes</dt><dd>Sandbox gives you a billion dollars, every unlock and no failures, but no badges. Scenarios are hand-built challenges with a goal and a deadline, and the weekly challenge gives everyone the same world for a week. Share your result with the card in the menu.</dd><dt>Traceroute</dt><dd>Tap 🔍 Traceroute on any of your cities, or open it from the NOC tab, to see the exact path to a network or POP, hop by hop, with latency, the exit and the AS path.</dd><dt>Badges</dt><dd>Below your goals sits a wall of badges, from common to legendary. Some take luck, some take years, and a couple are secret. Badges you earned in earlier games stay on this device with a dashed outline.</dd><dt>The giants</dt><dd>At customer level 3 and 4, hyperscalers and AI clouds show up with deals only they would ask for: terabit AI WANs between gigawatt campuses, training runs spread over several sites, week-long dataset ingests, and hundreds of fiber pairs in a trench you dug yourself. They pay like nobody else, and they want diverse paths, two sites per metro and zero excuses. Cities near their campuses list them under “Who’s here”.</dd><dt>RouteScript</dt><dd>Once Auto-TE is installed, you can program it from the NOC tab. Rules include <code>spill at 80%</code>, <code>prefer pni for goggle</code>, <code>avoid transit for netchill</code>, <code>cap transit cogentle at 20 gbps</code>, <code>drain paris</code>, <code>avoid link fra-ams</code> and <code>blackhole ddos</code>. Check runs a dry run against live traffic; Deploy makes it real, mistakes included.</dd><dt>Auto-TE</dt><dd>Traffic follows the shortest path by distance and link metric, and reroutes by itself when links fail. When a path is merely full, the overflow is dropped, just like a real IGP. From customer level 3 you can install Auto-TE in the NOC tab: it spills overflow onto up to two alternate paths with free capacity, as long as they are no more than twice as long.</dd><dt>Metro diversity</dt><dd>A POP is one building until you add a second site in the Infra tab. Then a power cut, cleaner or A/C failure only takes out half the city, and you choose which site each transit, PNI and IX port plugs into, or pick Both to split a LAG across the two buildings. Spread them out, or both halves of your redundancy will sit in the same dark room. Watch out for metro ring cuts, which cut site B off.</dd><dt>Wave markets</dt><dd>What a wave costs depends on where it runs. Europe is cheap (lots of competing fiber), North America is average, Asia and South America are pricier, and anything into Africa is several times the price. Every route has its own going rate, and new leases get about 8% cheaper each year, so waiting can pay. The link planner tells you how a route compares.</dd><dt>Regional quirks</dt><dd>In the Gulf, Saudi POPs need a local telecom licence and data on Saudi users stays in the Kingdom; gigaprojects ask for huge demo networks; and now and then the neighbours fall out and every link between Qatar and Saudi Arabia or the UAE goes dark for months, so keep a sea route. South America hangs off Miami: transit is pricier, nothing crosses the Darién Gap by land, and fiber over the Andes costs double and breaks often. IX.brrr in Brazil is run by a nonprofit with cheap public prices, and small Brazilian provedores buy transit in bulk. Inside the UAE only the duopoly may run fiber, so no dark fiber and 3× waves. Taiwan’s cables meet a lot of anchors, Indian fiber meets road widening and the monsoon, and South Africa has load shedding: bring a generator.</dd><dt>Boot times</dt><dd>Some routers take forever to boot. The Infra tab shows how long yours takes. Slow booters make crashes last longer and turn a one-router swap into a three-day outage. Bigger chassis, especially anything with a PacketOinker™ inside, are slow more often. Twin routers make it someone else’s problem.</dd><dt>Failures</dt><dd>Things break all the time: fiber cuts, router crashes, power cuts, IX loops, fabric outages, route leaks, DDoS, fat fingers, cooling failures, and geopolitics: sanctions, tariffs, BGP hijacks, landing permit disputes, exam-day shutdowns and Red Sea cable cuts. Traffic reroutes automatically over other paths and upstreams. Parallel links on diverse routes, a second router and a backup generator all help. Or pay to rush repairs.</dd>
+  <dt>Conferences</dt><dd>NANOG-ish, RIPE-ish, DENOG-ish and friends come round every year. Register in the Deals tab for ${fmt$(CONF_COST)}. For 45 days after, selective networks with a presence in that region need only half the usual traffic before they peer with you. Sometimes you also win the raffle.</dd><dt>Modes</dt><dd>Sandbox gives you a billion dollars, every unlock and no failures, but no badges. Scenarios are hand-built challenges with a goal and a deadline, and the weekly challenge gives everyone the same world for a week. Share your result with the card in the menu.</dd><dt>Traceroute</dt><dd>Tap 🔍 Traceroute on any of your cities, or open it from the NOC tab, to see the exact path to a network or POP, hop by hop, with latency, the exit and the AS path.</dd><dt>Badges</dt><dd>Below your goals sits a wall of badges, from common to legendary. Some take luck, some take years, and a couple are secret. Badges you earned in earlier games stay on this device with a dashed outline.</dd><dt>The giants</dt><dd>At customer level 3 and 4, hyperscalers and AI clouds show up with deals only they would ask for: terabit AI WANs between gigawatt campuses, training runs spread over several sites, week-long dataset ingests, and hundreds of fiber pairs in a trench you dug yourself. They pay like nobody else, and they want diverse paths, two sites per metro and zero excuses. Cities near their campuses list them under “Who’s here”.</dd><dt>RouteScript</dt><dd>Once Auto-TE is installed, you can program it from the NOC tab. Rules include <code>spill at 80%</code>, <code>prefer pni for goggle</code>, <code>avoid transit for netchill</code>, <code>cap transit cogentle at 20 gbps</code>, <code>drain paris</code>, <code>avoid link fra-ams</code> and <code>blackhole ddos</code>. Check runs a dry run against live traffic; Deploy makes it real, mistakes included.</dd><dt>Auto-TE</dt><dd>Traffic follows the shortest path by distance and link metric, and reroutes by itself when links fail. When a path is merely full, the overflow is dropped, just like a real IGP. From customer level 3 you can install Auto-TE in the NOC tab: it spills overflow onto up to two alternate paths with free capacity, as long as they are no more than twice as long.</dd><dt>Metro diversity</dt><dd>A POP is one building until you add a second site in the Infra tab. Then a power cut, cleaner or A/C failure only takes out half the city, and you choose which site each transit, PNI and IX port plugs into, or pick Both to split a LAG across the two buildings. Spread them out, or both halves of your redundancy will sit in the same dark room. Watch out for metro ring cuts, which cut site B off.</dd><dt>Wave markets</dt><dd>What a wave costs depends on where it runs. Europe is cheap (lots of competing fiber), North America is average, Asia and South America are pricier, and anything into Africa is several times the price. Every route has its own going rate, and new leases get about 8% cheaper each year, so waiting can pay. The link planner tells you how a route compares.</dd><dt>Regional quirks</dt><dd>In the Gulf, Saudi POPs need a local telecom licence and data on Saudi users stays in the Kingdom; gigaprojects ask for huge demo networks; and now and then the neighbours fall out and every link between Qatar and Saudi Arabia or the UAE goes dark for months, so keep a sea route. South America hangs off Miami: transit is pricier, nothing crosses the Darién Gap by land, and fiber over the Andes costs double and breaks often. IX.brrr in Brazil is run by a nonprofit with cheap public prices, and small Brazilian provedores buy transit in bulk. Inside the UAE only the duopoly may run fiber, so no dark fiber and 3× waves. Taiwan’s cables meet a lot of anchors, Indian fiber meets road widening and the monsoon, and South Africa has load shedding: bring a generator.</dd><dt>Boot times</dt><dd>Some routers take forever to boot. The Infra tab shows how long yours takes. Slow booters make crashes last longer and turn a one-router swap into a three-day outage. Bigger chassis, especially anything with a PacketOinker™ inside, are slow more often. Twin routers make it someone else’s problem.</dd><dt>Failures</dt><dd>Things break all the time: fiber cuts, router crashes, power cuts, IX loops, fabric outages, route leaks, DDoS, fat fingers, cooling failures, and geopolitics: sanctions, tariffs, BGP hijacks, landing permit disputes, exam-day shutdowns and Red Sea cable cuts. Traffic reroutes automatically over other paths and upstreams. Parallel links on diverse routes, a second router and a backup generator all help. Or pay to rush repairs.</dd>
   </dl><div class="btns" style="margin-top:14px">${btn(UI.started?'Back to the map':'Got it','helpClose',{},'big')}${RELEASE_NOTES.length?btn(`What’s new in ${esc(APP_VERSION)}`,'whatsNewShow',{},'ghost'):''}${UI.started&&S&&!S.lost?btn('Start a new network','resetAsk',{},'ghost sm'):''}</div><div class="btns" style="margin-top:6px">${UI.started&&S&&!S.lost?btn('Export save','exportSave',{},'ghost sm'):''}${btn('Import a save','importPick',{},'ghost sm')}</div>${settingsRow()}`);
 }
 function showWin(){
@@ -3499,7 +3528,7 @@ const SEA_XIX=[
 const XIX_IDN=[
  // ── Jakarta (6) ──
  {id:'jkt',   c:'jkt', name:'JKT-IKS',        cheap:0.55, take:0.60, blurb:'The big one. Nearly nine hundred members and a queue at the switch.'},
- {id:'jkt~2', c:'jkt', name:'IIIX',           cheap:0.45, take:0.55, blurb:'The other Jakarta giant. Slightly cheaper, equally crowded.'},
+ {id:'jkt~2', c:'jkt', name:'IXI',           cheap:0.45, take:0.55, blurb:'The other Jakarta giant. Slightly cheaper, equally crowded.'},
  {id:'jkt~3', c:'jkt', name:'AIKS',           cheap:0.50, take:0.45, blurb:'A neutral fabric with a very serious-looking route server.'},
  {id:'jkt~4', c:'jkt', name:'SisiX',          cheap:0.50, take:0.40, blurb:'Runs out of a converted office block. The lifts are the bottleneck.'},
  {id:'jkt~5', c:'jkt', name:'BIKS',           cheap:0.45, take:0.35, blurb:'Smaller, friendlier and permanently out of 100G ports.'},
@@ -3507,7 +3536,7 @@ const XIX_IDN=[
 
  // ── Surabaya (4) ──
  {id:'sby',   c:'sby', name:'ODIKS',          cheap:0.45, take:0.45, blurb:'East Java’s busiest switch, run by the local data centre crowd.'},
- {id:'sby~2', c:'sby', name:'IIIX Jatim',     cheap:0.40, take:0.40, blurb:'The Jakarta fabric’s East Java outpost. One rack and a lot of fans.'},
+ {id:'sby~2', c:'sby', name:'IXI Jatim',     cheap:0.40, take:0.40, blurb:'The Jakarta fabric’s East Java outpost. One rack and a lot of fans.'},
  {id:'sby~3', c:'sby', name:'JKT-IKS Sby',    cheap:0.45, take:0.30, blurb:'A satellite of the Jakarta exchange. Same logo, warmer air.'},
  {id:'sby~4', c:'sby', name:'BIKS Sby',       cheap:0.35, take:0.20, blurb:'The smallest port in Surabaya. Bring your own optics.'},
 
@@ -3515,23 +3544,23 @@ const XIX_IDN=[
  {id:'jog',   c:'jog', name:'CitraIKS Jogja', cheap:0.35, take:0.40, blurb:'A campus-adjacent switch with strong opinions about IPv6.'},
  {id:'jog~2', c:'jog', name:'UNI-IKS',        cheap:0.30, take:0.30, blurb:'Run by the university. Cheap ports, student operators, long lunches.'},
  {id:'dps',   c:'dps', name:'SisiX Dps',      cheap:0.40, take:0.35, blurb:'Denpasar’s challenger fabric. Surfboards by the door, packets inside.'},
- {id:'dps~2', c:'dps', name:'IIIX Bali',      cheap:0.35, take:0.30, blurb:'The Bali branch of the big Jakarta fabric. Tourist-season latency.'},
- {id:'bdg',   c:'bdg', name:'IIIX Jabar',     cheap:0.35, take:0.35, blurb:'Bandung’s main switch, cooled by highland air and cheap electricity.'},
+ {id:'dps~2', c:'dps', name:'IXI Bali',      cheap:0.35, take:0.30, blurb:'The Bali branch of the big Jakarta fabric. Tourist-season latency.'},
+ {id:'bdg',   c:'bdg', name:'IXI Jabar',     cheap:0.35, take:0.35, blurb:'Bandung’s main switch, cooled by highland air and cheap electricity.'},
  {id:'smg',   c:'smg', name:'PANDA-IKS',      cheap:0.30, take:0.30, blurb:'A small cooperative exchange. The name is the only panda in sight.'},
  {id:'smg~2', c:'smg', name:'CitraIKS Smg',   cheap:0.25, take:0.25, blurb:'Semarang’s second fabric, mostly local ISPs and one very large café.'},
 
  // ── Sumatra, Java, Batam, Makassar ──
- {id:'mdn',   c:'mdn', name:'IIIX Sumut',     cheap:0.25, take:0.25, blurb:'Medan’s only serious switch, a short walk from the landing station.'},
- {id:'plm',   c:'plm', name:'IIIX Sumsel',    cheap:0.25, take:0.25, blurb:'Palembang’s fabric. River barges outside, fibre inside.'},
- {id:'pku',   c:'pku', name:'IIIX Rimbo',     cheap:0.30, take:0.30, blurb:'Pekanbaru’s main exchange. Everything arrives by road, slowly.'},
+ {id:'mdn',   c:'mdn', name:'IXI Sumut',     cheap:0.25, take:0.25, blurb:'Medan’s only serious switch, a short walk from the landing station.'},
+ {id:'plm',   c:'plm', name:'IXI Sumsel',    cheap:0.25, take:0.25, blurb:'Palembang’s fabric. River barges outside, fibre inside.'},
+ {id:'pku',   c:'pku', name:'IXI Rimbo',     cheap:0.30, take:0.30, blurb:'Pekanbaru’s main exchange. Everything arrives by road, slowly.'},
  {id:'pku~2', c:'pku', name:'sumIKS',         cheap:0.25, take:0.20, blurb:'A tiny Sumatra-wide fabric with a very optimistic logo.'},
  {id:'btm',   c:'btm', name:'BatamIKS',       cheap:0.35, take:0.30, blurb:'Four milliseconds from Singapore, one customs form away.'},
- {id:'upg',   c:'upg', name:'IIIX Sulampua',  cheap:0.20, take:0.10, blurb:'Makassar’s single tiny switch. Two members and a long way to anywhere.'},
+ {id:'upg',   c:'upg', name:'IXI Sulampua',  cheap:0.20, take:0.10, blurb:'Makassar’s single tiny switch. Two members and a long way to anywhere.'},
 ];
 /* Future entries — cities from brief 7 §3 that are not on this 16-city map yet.
    Data only: do not wire these until those cities exist.
 const XIX_IDN_FUTURE=[
- {id:'tkg',   c:'tkg', name:'IIIX Lampung',  cheap:0.30, take:0.30},
+ {id:'tkg',   c:'tkg', name:'IXI Lampung',  cheap:0.30, take:0.30},
  {id:'tkg~2', c:'tkg', name:'GPMIKS',        cheap:0.25, take:0.25},
  {id:'djb',   c:'djb', name:'BJN-IKS',       cheap:0.25, take:0.25},
  {id:'soc',   c:'soc', name:'CitraIKS Solo', cheap:0.30, take:0.30},
@@ -3620,13 +3649,17 @@ function seaRegion(){
  };
 }
 function idnRegion(){
+ const rules={indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','btm'],cacheMinMul:1.6};
+ /* Brief 15 §1.1: the region's currency lives on its rules. Non-enumerable so the pinned
+    JSON shape of the rules object (tests/prd-m3) stays byte-for-byte identical. */
+ Object.defineProperty(rules,'currency',{value:{code:'IDR',symbol:'Rp',rate:16200,dec:0},enumerable:false});
  return {
   id:'idn',name:'Indonesia',blurb:'17,000 islands, three layers of permits, and a monsoon.',
   W:2000,H:1200,KM:14,wrapX:false,
   startCities:['jkt','sby','upg'],
   startCash:250000,
   regionMult:{AS:2.5,AF:2,OC:1.4,SA:1.6,EU:1},
-  rules:{indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','btm'],cacheMinMul:1.6},
+  rules,
   roles:{
     hosting:{cash:150000,maxPops:5},
     nap:{cash:600000,minPops:2},

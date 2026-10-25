@@ -57,7 +57,7 @@ test('idn: bjm, bpn, mdc, pnk and jay keep zero exchanges', () => {
 test('idn: every exchange name is a parody, not a real one', () => {
   const ev = idn();
   const names = JSON.parse(ev('JSON.stringify(XIX.map(x=>x.name))'));
-  // Word-boundary bans: IIIX is the sanctioned parody of IIX and must pass.
+  // Word-boundary bans: IXI is the sanctioned parody of IIX and must pass.
   const banned = ['JKT-IX', 'IIX', 'CXC', 'DE-CIX', 'BIX', 'OpenIXP', 'APJII'];
   for (const n of names) {
     for (const b of banned) {
@@ -66,7 +66,7 @@ test('idn: every exchange name is a parody, not a real one', () => {
     }
   }
   // And the parodies the brief names are actually present.
-  for (const n of ['JKT-IKS', 'IIIX', 'AIKS', 'SisiX', 'BIKS', 'DU-CIKS', 'ODIKS', 'PANDA-IKS', 'BatamIKS']) {
+  for (const n of ['JKT-IKS', 'IXI', 'AIKS', 'SisiX', 'BIKS', 'DU-CIKS', 'ODIKS', 'PANDA-IKS', 'BatamIKS']) {
     assert.ok(names.includes(n), `missing parody ${n}`);
   }
 });
