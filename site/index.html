@@ -593,7 +593,9 @@ const MET={prefer:{l:'Prefer',f:0.5},normal:{l:'Normal',f:1},avoid:{l:'Avoid',f:
 const PREF={high:'Prefer',normal:'Normal',low:'Backup only'};
 const edgeKey=l=>l.a<l.b?l.a+'|'+l.b:l.b+'|'+l.a;
 const dfCap=l=>{if(l.ready>S.day||l.eqDown>S.day)return 0;const ch=l.ch||[];let g=0;for(const c of ch)g+=OPT[c].g;const f=l.chFail&&l.chFail.until>S.day?l.chFail:null;if(f){const fo=f.o&&ch.includes(f.o)?f.o:ch.slice().sort((a,b)=>OPT[a].g-OPT[b].g)[0];if(fo)g-=OPT[fo].g;}return Math.max(0,g);};
-const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1);
+/* Brief 17 §2.1: a rail lease carries poor cores, so its usable capacity is coreQ of the
+   wave it was bought on. Everything else keeps the full nominal rate. */
+const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.cable&&CAB[l.cable].coreQ?CAB[l.cable].coreQ:1);
 const tierW=l=>{if(l.kind==='wave')return l.tier;if(l.kind==='vxc')return 0;const g=dfCap(l);return g>=6400?4:g>=1600?3:g>=400?2:g>=100?1:0;};
 const capName=l=>l.kind==='vxc'?VXC[l.vt].n:l.kind==='df'?(l.ready>S.day?'building':(l.ch||[]).length?fmtCap(dfCap(l)||(l.ch||[]).reduce((a,c)=>a+OPT[c].g,0))+' DF':'dark'):LT[l.tier].n;
 
@@ -2246,8 +2248,8 @@ function fireFailure(){
   else toast(`<b>${incTitle(type)}</b><br>${esc(last.msg)}`,'bad',last.cost?[{l:`${last.fix||'Rush repair'} ${fmt$(last.cost)}`,act:'fixInc',args:{id:last.id}}]:[]);
   sfx('alert');
 }
-function incTitle(t){return {ring:'Metro ring cut',site:'Site outage',cut:'Fiber cut',crash:'Router crash',power:'Power outage',transit:'Upstream outage',ixloop:'IX meltdown',leak:'Route leak',ddos:'DDoS attack',fabric:'Fabric outage',depeer:'Peering spat',fatwave:'Fat-fingered wave',label:'Patch panel mishap',mtu:'MTU mismatch',oops:'Oops',cleaner:'Vacuum incident',maxpfx:'Max-prefix meltdown',prepend:'Prepend-ageddon',rpki:'RPKI invalid',amp:'Amplifier failure',roadmff:'Fat-fingered ROADM',optic:'Dead optic',maint:'Maintenance window',ac:'Cooling failure',hijack:'BGP hijack',shutdown:'Government shutdown',redsea:'Geopolitical cable cut'}[t]||'Incident';}
-const LINKCUT_TR=['cut','redsea'],LINKCUT_ID=['fatwave','label'],POPDOWN=['crash','power','oops','cleaner','maint','shutdown'],IXDOWN=['ixloop','maxpfx'],TDOWN=['transit','prepend'],LINKEQ=['mtu','amp','roadmff','optic'];
+function incTitle(t){return {ring:'Metro ring cut',site:'Site outage',cut:'Fiber cut',railcut:'Rail cut',crash:'Router crash',power:'Power outage',transit:'Upstream outage',ixloop:'IX meltdown',leak:'Route leak',ddos:'DDoS attack',fabric:'Fabric outage',depeer:'Peering spat',fatwave:'Fat-fingered wave',label:'Patch panel mishap',mtu:'MTU mismatch',oops:'Oops',cleaner:'Vacuum incident',maxpfx:'Max-prefix meltdown',prepend:'Prepend-ageddon',rpki:'RPKI invalid',amp:'Amplifier failure',roadmff:'Fat-fingered ROADM',optic:'Dead optic',maint:'Maintenance window',ac:'Cooling failure',hijack:'BGP hijack',shutdown:'Government shutdown',redsea:'Geopolitical cable cut'}[t]||'Incident';}
+const LINKCUT_TR=['cut','redsea'],LINKCUT_ID=['fatwave','label','railcut'],POPDOWN=['crash','power','oops','cleaner','maint','shutdown'],IXDOWN=['ixloop','maxpfx'],TDOWN=['transit','prepend'],LINKEQ=['mtu','amp','roadmff','optic'];
 function remainUntil(pred){let u=0;for(const x of S.inc)if(pred(x))u=Math.max(u,x.until);return u;}
 // Remove an incident, then restore each affected thing to whatever other incidents still hold it down.
 function clearInc(i){
@@ -2322,6 +2324,23 @@ function dayTick(){
   if(S.cnLic&&S.cnLic.state==='pending'&&d>=S.cnLic.ready){S.cnLic.state='ok';toast('<b>License granted!</b><br>Your joint venture can now build POPs in mainland China.','goal');sfx('coin');}
   // resolve incidents
   for(const i of S.inc.slice())if(i.until<=d){clearInc(i);toast(`<b>Resolved:</b> ${incTitle(i.type).toLowerCase()} is fixed.`,'good');}
+  /* Brief 17 §2.1: rail corridors get cut by track maintenance more often than subsea cables
+     get cut by anchors. The risk is per-link per-day, not a global incident, so a player
+     running five corridors feels it five times as often. Short outages: crews are already
+     on site. This deliberately does not go through fireFailure(). */
+  for(const l of S.links){
+    if(!l.cable||!CAB[l.cable].rail||linkDown(l))continue;
+    if(Math.random()<CAB[l.cable].cutRisk){
+      const dur=1+Math.floor(Math.random()*2);
+      l.cut=Math.max(l.cut||0,S.day+dur);
+      addInc({type:'railcut',ref:l.id,until:l.cut,
+        msg:pick([`Night track works near ${CITY[l.b].name}: the railway cut your core to run a tamper. Back in ${dur} days.`,
+                  `A ballast cleaner passed ${CITY[l.a].name}–${CITY[l.b].name} and took your lease core with it.`,
+                  `Electrification work on the ${CITY[l.a].name}–${CITY[l.b].name} line. Your fibre is in the duct they opened.`]),
+        cost:0});
+      toast(`<b>Rail cut on ${esc(CITY[l.a].name)}–${esc(CITY[l.b].name)}</b><br>Track maintenance. Your lease core is dark for ${dur} day${dur>1?'s':''}.`,'bad');
+    }
+  }
   // eyeball growth / churn uses last computed service
   for(const c in S.pops){const p=S.pops[c];if(!p.bb)continue;const sf=sfOf(R,c),P=CITY[c].P;
     if(sf>=0.9){const g=0.025*(scnRule('boom')?1.5:1)*(p.boost>d?2:1)*sf*(0.7+0.6*(R.peerShare||0))*(CITY[c].reg==='AS'&&!CITY[c].cn?1.6:1);p.bb.d+=g*p.bb.d*(1-p.bb.d/P);}
@@ -3624,6 +3643,16 @@ const IDN_NEW_CABLES=[
  {id:'igg',name:'Indonesia Global Gateway',price:0.60,age:'new',blurb:'Balikpapan to Jakarta, Batam and Makassar.',pairs:[['bpn','jkt'],['bpn','btm'],['upg','btm']]},
  {id:'acc1',name:'Asia-America Gateway-ish',price:0.60,age:'new',blurb:'Makassar and Manado to Jakarta.',pairs:[['upg','jkt'],['mdc','jkt']]},
 ];
+/* Brief 17 §1–2: Waeve Rail Fibre — leased cores in the railway duct. Cheap to light,
+   limited to the Java rail corridor, and cut whenever the track crew opens the duct.
+   `rail:true` carries two extra effects: coreQ (poor cores, less usable capacity) and
+   cutRisk (per-link daily chance of a rail cut). Not a subsea cable; never add `rail`
+   to anything in CABLES. */
+const WEAVE_CABLES=[
+ {id:'waeve',name:'Waeve Rail Fibre',price:0.20,age:'new',rail:true,coreQ:0.6,cutRisk:0.04,
+  blurb:'Leased cores in the railway duct. You did not dig anything: the track was already there, and so was the duct. The track crew knows where your fibre is.',
+  pairs:[['jkt','bdg'],['jkt','smg'],['smg','jog'],['jog','sby'],['sby','dps']]},
+];
 const IDN_CITIES=SEA_CITIES.filter(c=>SEA_IDN_LANDS.has(c.land));
 const IDN_IDS=new Set(IDN_CITIES.map(c=>c.id));
 const IDN_CITY_LL=Object.fromEntries(IDN_CITIES.map(c=>[c.id,SEA_CITY_LL[c.id]]));
@@ -3687,7 +3716,7 @@ function idnRegion(){
   confs:CONFS_IDN,
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
-  cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))).concat(IDN_NEW_CABLES),
+  cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))).concat(IDN_NEW_CABLES,WEAVE_CABLES),
   nets:NETS,xix:XIX_IDN,tail:TAIL,
  };
 }
