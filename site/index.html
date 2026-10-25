@@ -568,7 +568,10 @@ function xcMo(tier,kind){const P=PORT[tier];if(!P||!P.xmo)return 0;return Math.r
    The hook stays so a future reindex has somewhere to land. */
 function migratePorts(s){if(!s)return s;s.pv=2;return s;}
 const RG=[
- {n:'Rusty Router 9000',pn:'100G',cap:400,cost:0,mo:0,maxLT:1,maxP:1,ports:8,cls:0,lvl:1,boot:6,slowP:10,fs:0,chip:'a mystery ASIC',blurb:'Bought used on eBuy. The fans sound like a jet engine.'},
+/* 8 ports was not enough: Jakarta alone has six exchanges, and a NAP that buys transit, a PNI
+   and a few IX ports ran out before it had done anything wrong. 16 ports gives a starting
+   player room to actually build. */
+ {n:'Rusty Router 9000',pn:'100G',cap:400,cost:0,mo:0,maxLT:1,maxP:1,ports:16,cls:0,lvl:1,boot:6,slowP:10,fs:0,chip:'a mystery ASIC',blurb:'Bought used on eBuy. The fans sound like a jet engine.'},
  {n:'Edge Lord 400',pn:'400G',cap:3200,cost:30000,mo:1000,maxLT:2,maxP:2,ports:24,cls:1,lvl:2,boot:11,slowP:20,fs:1,chip:'merchant silicon',blurb:'Sharp, edgy, and finally speaks 400G and 400ZR+.'},
  {n:'Chonk 800',pn:'800G',cap:12800,cost:90000,mo:3000,maxLT:3,maxP:3,ports:36,cls:2,lvl:3,boot:25,slowP:45,fs:2,chip:'Junipurr PacketOinker™',blurb:'An absolute unit with 800G ports, built around the Junipurr PacketOinker™ forwarding chip. Oinks at line rate. Takes 800ZR+ optics.'},
  {n:'Absolute Unit 1.6T',pn:'1.6T',cap:51200,cost:250000,mo:8000,maxLT:5,maxP:4,ports:40,cls:3,lvl:4,boot:40,slowP:60,fs:2,chip:'PacketOinker² (two pigs, one chassis)',blurb:'1.6T ports, its own weather system and two PacketOinker² chips per line card. Takes 6.4T waves as 4×1.6T. Needs a forklift.'},
@@ -1527,14 +1530,19 @@ const IDN_LOCAL_CONTENT=new Set(['fbk']);
 function idnHub(city,net){
   if(curRegion!=='idn')return null;
   if(!CITY[city])return null;
+  /* You are already in Singapore: every network that lives there answers locally, so there is
+     no crossing left to pay for. */
+  if(city==='sin')return null;
   if(net&&IDN_LOCAL_CONTENT.has(net.id))return null;
   return 'sin';
 }
-/* Local content answers in single digits; anything that lives in Singapore answers in the
-   twenties on a good day. Used by the traceroute so the number matches the path. */
-function contentRtt(net,localMs,remoteMs){
-  if(curRegion!=='idn')return localMs;
-  return IDN_LOCAL_CONTENT.has(net.id)?localMs:remoteMs;
+/* Meta runs anycast nodes in Jakarta, so a Jakarta POP reaches it without leaving the metro.
+   Every other content network lives in Singapore — which is 10-13 ms from Jakarta and 0.x ms
+   from a POP that is itself in Singapore. */
+function contentInMetro(src,net){
+  if(curRegion!=='idn')return false;
+  if(src==='sin')return true;
+  return IDN_LOCAL_CONTENT.has(net.id);
 }
 function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[],ip=(a,b)=>`100.64.${a%250}.${b%250}`;let rtt=0.3,n=1;
   const hop=(host,addr,extra,note)=>{rtt+=extra;lines.push(`${String(n++).padStart(2)}  ${host} (${addr})  ${rtt.toFixed(1)} ms${note?'   ← '+note:''}`);};
@@ -1557,7 +1565,7 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
          else is judged by whether it has Indonesian infrastructure of its own. */
       /* The carrier is local, but where the *target* lives decides the path: Meta is in Jakarta,
          so it is handed over locally; everything else rides the carrier's link to Singapore. */
-      const hub=(N&&IDN_LOCAL_CONTENT.has(N.id))?null:(T.transitOnly?'sin':idnHub(e.city,N));
+      const hub=contentInMetro(src,N)?null:(T.transitOnly?'sin':idnHub(e.city,N));
       /* N.pops lists the network's POPs worldwide; most are not on the map the player is looking
          at, so only cities this region actually has can be measured. */
       const known=(N.pops||[]).filter(c=>CITY[c]);
@@ -1572,11 +1580,11 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
         const km=CITY[far]?kmBetween(e.city,far):0;
         /* Meta's anycast node sits in the same metro, so the carrier does not carry it anywhere:
            the last internal hop is 0 ms too. */
-        const intra=(N&&IDN_LOCAL_CONTENT.has(N.id)&&curRegion==='idn')?0:km*1.3/100+0.3;
+        const intra=contentInMetro(src,N)?0:km*1.3/100+0.3;
         hop(`ae-2.core.${far}.${slug(T.name)}.net`,`203.0.113.${(hstr(far)+7)%250}`,intra,CITY[far]?`${T.name} carries it to ${CITY[far].name}`:'');
       }
       /* Anycast: Meta's node is already in this metro, so the peer hop is local too. */
-      const peerMs=(IDN_LOCAL_CONTENT.has(N.id)&&curRegion==='idn')?0:0.4;
+      const peerMs=contentInMetro(src,N)?0:0.4;
       hop(`${slug(N.name)}-peer.${far}.${slug(T.name)}.net`,`198.51.100.${hstr(N.id)%250}`,peerMs,`${T.name} hands it to ${N.name}`);}}
   else if(e.k==='ix'){hop(`${slug(ixName(e.city))}.peering.${e.city}`,`185.0.${hstr(e.city)%250}.${hstr(N.id)%250}`,0.3,`across the ${ixName(e.city)} switch`);}
   else if(e.k==='p'){
@@ -1610,8 +1618,8 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
   /* Meta runs anycast nodes in Jakarta, so its answer comes from the same metro: 0.x ms, not
      the 1-2 ms a normal hand-off costs. Every other network answers from wherever it lives. */
   if(e.k!=='c'){
-    const anycast=IDN_LOCAL_CONTENT.has(N.id)&&curRegion==='idn';
-    hop(`www.${slug(N.name)}.example`,`198.51.100.${(hstr(N.id)+1)%250}`,anycast?0.2+Math.random()*0.4:(0.5+(e.k==='t'?1:0.2)),`${N.name}${anycast?' — anycast node in Jakarta':''}`);
+    const anycast=contentInMetro(src,N);
+    hop(`www.${slug(N.name)}.example`,`198.51.100.${(hstr(N.id)+1)%250}`,anycast?0.2+Math.random()*0.4:(0.5+(e.k==='t'?1:0.2)),`${N.name}${anycast?(src==='sin'?' — they are in Singapore too, so it never leaves the building':' — anycast node in Jakarta'):''}`);
   }
   const order={c:'caches beat PNIs',p:'PNIs beat IX peering',ix:'IX peering beats transit',t:'transit is the last resort'}[e.k];
   const cn=cnCity(src)!==!!N.cn?` Crossing the Great Firewall here loses about ${S.ev.gfw>S.day?35:20}% of packets.`:'';
@@ -1692,11 +1700,11 @@ function fmtNum(n){
    so the economy, the balance sheet and the save format do not change — only the label and
    the scale the player reads. */
 function fmt$(v){
-  /* Brief 18 §D: no k / M / T suffixes anywhere. Every amount is written out in full with a
-     dot for thousands and a comma for the decimals, in both currencies, so the reader never
-     has to expand a shorthand in their head. */
+  /* Brief 18 §L: rupiah is quoted in thousands with a K suffix — Rp 1.000,00 K is one million
+     rupiah. Dollars stay whole. The scale is a display convention only; every stored number is
+     still dollars. */
   const c=curInfo(),s=v<0?'-':'';
-  if(c.code==='IDR')return s+'Rp '+fmtNum(Math.abs(v)*c.rate);
+  if(c.code==='IDR')return s+'Rp '+fmtNum(Math.abs(v)*c.rate/1000)+' K';
   return s+'$'+fmtNum(Math.abs(v));
 }
 const fmtG=g=>g>=1000?(g/1000).toFixed(g>=10000?1:2)+' Tbps':(g>=100?g.toFixed(0):g.toFixed(1))+' Gbps';
@@ -2093,7 +2101,11 @@ function compute(){
       if(cacheNets.has(n.id)){flows.push({c,n:n.id,rem:a*CACHE_HIT,cache:true});flows.push({c,n:n.id,rem:a*(1-CACHE_HIT)});}
       else flows.push({c,n:n.id,rem:a});}
   }
-  const res={},eload={},nres={};for(const k in edges)res[k]=edges[k].cap;for(const c of pops){nres[c]=nodeCap(c);R2.nodeCap[c]=nres[c];}
+/* Every POP the player owns reports its capacity, not only the ones that are up right now. A POP
+     in a maintenance window still has a chassis, and the UI reads this map to decide whether a new
+     contract fits — an empty map made every upgraded POP look like it could take nothing. */
+  const res={},eload={},nres={};for(const k in edges)res[k]=edges[k].cap;
+  for(const c of Object.keys(S.pops)){nres[c]=nodeCap(c);R2.nodeCap[c]=nres[c];}
   for(const b of S.biz){if(!BIZ_T[b.type].l2)continue;
     // An SD-WAN is hub-and-spoke: one circuit from the first site to each of the others.
     const pairs=b.sites?b.sites.slice(1).map(x=>[b.sites[0],x]):[[b.city,b.city2]];let minF=1,maxLat=0,tot=0,noPath=false;
@@ -3014,6 +3026,13 @@ const ACT={
    S.caches.push({id:uid(),city,net});toast(`<b>${esc(n.cache.name)} installed in ${CITY[city].name}!</b><br>${esc(n.name)} shipped it for free. You pay ${fmt$(CACHE_MO)}/mo power.`,'good');sfx('build');after();},
  rmCache:({id})=>{S.caches=S.caches.filter(c=>c.id!==id);after();},
  accept:({id})=>{const o=S.offers.find(x=>x.id===id);if(!o)return;if(!roleOfferOk(o)){toast('<b>Not your line of business.</b><br>Your role cannot take this contract.','bad');sfx('err');return;}if(!bHas(o)){toast('<b>You need a POP in every city on the contract first.</b>','bad');return;}
+   /* Brief 18 §K: refuse the contract up front when the POP physically cannot forward it. Signing
+      an 800 Gbps customer onto a 400 Gbps chassis used to be allowed, and the shortfall showed up
+      later as unhappy customers rather than as a clear refusal here. */
+   {const need=bCities(o).reduce((a,c)=>a+(R.nodeCap[c]||0),0);
+    const now=bCities(o).reduce((a,c)=>a+(R.cityDem[c]||0),0);
+    if(o.bw&&need>0&&now+o.bw>need){
+      toast(`<b>Too much capacity for this POP.</b><br>${esc(CITY[o.city].name)} can forward ${fmtG(need)} and already carries ${fmtG(now)}. This contract needs ${fmtG(o.bw)} more. Add a router or upgrade the model in the Infra tab.`,'bad');sfx('err');return;}}
    if(o.type==='wwave'){const l=S.links.find(x=>x.id===o.link);if(!l||DF_SYS[l.sys].max-(l.ch||[]).length-soldSlots(l)<o.slots){toast('<b>Not enough free channels on that fiber any more.</b>','bad');return;}}
    if(BIZ_T[o.type].event&&S.day>=o.start){toast('<b>Too late: the event has already started.</b>','bad');return;}
    S.offers=S.offers.filter(x=>x!==o);S.biz.push({id:o.id,city:o.city,city2:o.city2||null,reqs:o.reqs||[],latMax:o.latMax||null,route:BIZ_T[o.type].scenic?'scenic':BIZ_T[o.type].lat?'fast':'normal',name:o.name,type:o.type,bw:o.bw,rate:o.rate,mood:100,since:S.day,sites:o.sites||null,start:o.start,dur:o.dur,fee:o.fee,link:o.link,slots:o.slots||0,what:o.what});
@@ -3145,7 +3164,16 @@ function eyeMul(c){
   const boost=(r.eyeBoost&&r.eyeBoost[c])||1;
   return m*boost;
 }
-function eyeCap(c){return Math.max(1,Math.round(CITY[c].P*eyeMul(c)));}
+/* Brief 18 §M: the eyeball ceiling must follow the hardware. A POP with a 3.2 Tbps chassis and
+   259 Gbps of eyeball ceiling is a POP that can never fill its own router — the customer then
+   reads as unserved and churns for no reason. The ceiling is the larger of the calibrated P
+   times the regional multiplier, and what the router in that POP can actually forward. */
+function eyeCap(c){
+  const p=S&&S.pops&&S.pops[c];
+  const hw=p?RG[p.rgen||0].cap*Math.max(1,(p.routers||1)):0;
+  const cal=Math.round(CITY[c].P*eyeMul(c));
+  return Math.max(1,Math.max(cal,hw));
+}
 function bbCost(c){if(S&&!roleDef().bb)return Infinity;return 15000+CITY[c].P*20;}
 function after(){if(S)purgeInc();compute();checkGoals();renderAll();save();}
 const isTablet=()=>innerWidth>760&&innerWidth<=1200;
@@ -4228,38 +4256,38 @@ function seaRegion(){
    real company, and the list is only wired into the Indonesia map. */
 const IDN_TRANSIT=[
  {id:'ionx',transitOnly:true,name:'Ion-Kosong',asn:48000,type:'t2',pol:'restrictive',share:.16,price:7,col:'#E4572E',
-  pops:['jkt','sby','bdg','smg','mdn','dps','btm'],ix:['jkt','sby'],
+  pops:['jkt','sby','bdg','smg','mdn','dps','btm','sin'],ix:['jkt','sby'],
   blurb:'The new wholesale backbone. Sells capacity to everyone and undercuts the incumbents.'},
  {id:'tlkm',transitOnly:true,name:'Tele-Komedi',asn:48001,type:'t2',pol:'restrictive',share:.15,price:9,col:'#E4002B',
-  pops:['jkt','sby','bdg','smg','mdn','dps','btm','upg','bjm','plm','pku','pdg','jog','bpn','mdc'],
+  pops:['jkt','sby','bdg','smg','mdn','dps','btm','upg','bjm','plm','pku','pdg','jog','bpn','mdc','sin'],
   ix:['jkt','sby','smg','mdn','dps'],
   blurb:'The incumbent. Owns most of the ducts, the subsea landings and the patience of regulators.'},
  {id:'inds',transitOnly:true,name:'Indo-Sate',asn:48002,type:'t2',pol:'restrictive',share:.14,price:8,col:'#F5A623',
-  pops:['jkt','sby','bdg','mdn','dps','btm','upg'],ix:['jkt','sby','mdn'],
+  pops:['jkt','sby','bdg','mdn','dps','btm','upg','sin'],ix:['jkt','sby','mdn'],
   blurb:'The second incumbent. Satellites, mobile and a backbone that reaches most of the archipelago.'},
  {id:'xlnt',transitOnly:true,name:'Eks-Ell',asn:48003,type:'t2',pol:'restrictive',share:.12,price:7,col:'#0B5CAD',
-  pops:['jkt','sby','bdg','smg','mdn','dps','btm','jog'],ix:['jkt','sby','smg'],
+  pops:['jkt','sby','bdg','smg','mdn','dps','btm','jog','sin'],ix:['jkt','sby','smg'],
   blurb:'Mobile-first carrier with a growing fibre backbone. Aggressive on price.'},
  {id:'mtri',transitOnly:true,name:'Matrik-Sih',asn:48004,type:'t2',pol:'selective',minIx:6,minPni:20,share:.06,price:6,col:'#6A2C91',
-  pops:['jkt','sby','bdg','btm'],ix:['jkt','sby'],
+  pops:['jkt','sby','bdg','btm','sin'],ix:['jkt','sby'],
   blurb:'Tower and fibre operator. Sells backhaul to whoever needs a mast connected.'},
  {id:'jlmx',transitOnly:true,name:'Jelimut-Net',asn:48005,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#2C7A7B',
-  pops:['jkt','sby','smg','jog'],ix:['jkt','sby'],
+  pops:['jkt','sby','smg','jog','sin'],ix:['jkt','sby'],
   blurb:'Java backbone specialist. Short routes, honest latency, no drama.'},
  {id:'sdix',transitOnly:true,name:'Es-De-Ih',asn:48006,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#1E90FF',
-  pops:['jkt','sby','bdg','dps'],ix:['jkt','sby'],
+  pops:['jkt','sby','bdg','dps','sin'],ix:['jkt','sby'],
   blurb:'Enterprise networks and government links. Slow to quote, quick to deliver.'},
  {id:'mvnx',transitOnly:true,name:'Em-Ve-Net',asn:48007,type:'t2',pol:'open',share:.04,price:4,col:'#00843D',
-  pops:['jkt','sby','bdg','smg','jog','dps','btm'],ix:['jkt','sby','smg'],
+  pops:['jkt','sby','bdg','smg','jog','dps','btm','sin'],ix:['jkt','sby','smg'],
   blurb:'The open one. Peers with anyone and sells transit without a sales meeting.'},
  {id:'dgsx',transitOnly:true,name:'Dugi-Sate',asn:48008,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#FF6A00',
-  pops:['jkt','mdn','btm','pku','pnk'],ix:['jkt','mdn'],
+  pops:['jkt','mdn','btm','pku','pnk','sin'],ix:['jkt','mdn'],
   blurb:'Satellite and microwave for the places fibre has not reached. Sumatra specialist.'},
  {id:'dtmx',transitOnly:true,name:'Data-Tamau',asn:48009,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#4B3FC4',
-  pops:['jkt','sby','bdg','smg','upg','bjm'],ix:['jkt','sby'],
+  pops:['jkt','sby','bdg','smg','upg','bjm','sin'],ix:['jkt','sby'],
   blurb:'Data centre operator with a backbone bolted on. Sells racks and routes together.'},
  {id:'ntti',transitOnly:true,name:'En-Te-Te Nusantara',asn:48010,type:'t2',pol:'restrictive',share:.08,price:9,col:'#00A0E9',
-  pops:['jkt','sby','bdg','btm'],ix:['jkt','sby'],
+  pops:['jkt','sby','bdg','btm','sin'],ix:['jkt','sby'],
   blurb:'The local arm of a global carrier. Same logo, local pricing, better paperwork.'},
 ];
 function idnRegion(){

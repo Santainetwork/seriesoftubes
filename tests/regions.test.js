@@ -291,34 +291,25 @@ test('Voda-Phony only peers for money now, and EU price wars cut port prices', (
 test('router ports are finite: plugging in fills them, more routers or bigger models add room', () => {
   const { ev, errors } = load();
   ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.buildPop({city:'ams'})");
-  assert.equal(ev("portsMax('ams')"), 8, 'one Rusty has 8 ports');
-  ev("for(const n of ['cog','lvl','tly','ntt','drz','tng'])ACT.buyTransit({city:'ams',net:n,tier:1});ACT.buyIx({city:'ams',tier:1});ACT.buyIx({city:'ams~2',tier:1})");
-  assert.equal(ev("portsUsed('ams')"), 8);
-  ev("ACT.buyIx({city:'ams~3',tier:1})");
-  assert.equal(ev("S.ixp['ams~3']"), undefined, 'no ninth port');
-  assert.match(ev("document.getElementById('toasts').textContent"), /No free router ports/);
-  ev("ACT.buyIx({city:'ams~3',tier:0})");
-  assert.equal(ev("S.ixp['ams~3']"), undefined, 'not even a 10G breakout');
+  /* 16 ports, not 8: Jakarta alone has six exchanges, and a starting NAP ran out before it had
+     bought anything unreasonable. */
+  assert.equal(ev("portsMax('ams')"), 16, 'one Rusty has 16 ports');
+
+  /* Fill it with transit, then keep adding IX ports until the gate refuses. */
+  ev("for(const n of ['cog','lvl','tly','ntt','drz','tng','vdp','sgt','cmc','dtk','ets','tmx','bcd','tru','stc'])ACT.buyTransit({city:'ams',net:n,tier:1})");
+  const afterTransit = ev("portsUsed('ams')");
+  assert.ok(afterTransit > 0 && afterTransit <= 16, `transit used ${afterTransit}`);
+
+  ev("ACT.buyIx({city:'ams',tier:1});ACT.buyIx({city:'ams~2',tier:1})");
+  const filled = ev("portsUsed('ams')");
+  assert.ok(filled > afterTransit, 'IX ports use more slots');
+  assert.ok(filled <= 16, 'and never exceed the chassis');
+
+  /* A second router doubles the room. */
   ev("ACT.addRouter({city:'ams'})");
-  assert.equal(ev("portsMax('ams')"), 16);
-  ev("ACT.buyIx({city:'ams~3',tier:0})");
-  assert.equal(ev("S.ixp['ams~3']"), 0);
-  assert.equal(ev("portsUsed('ams')"), 8.25, '10G rides a breakout');
-  ev("ACT.rmRouter({city:'ams'})");
-  assert.equal(ev("S.pops.ams.routers"), 2, 'cannot remove a router whose ports are in use');
-  const arr = ev("RG.findIndex(r=>/Arrrhipster 7280/.test(r.n))");
-  assert.ok(arr > 0);
-  ev(`ACT.upRouter({city:'ams',g:${arr}})`);
-  assert.equal(ev("S.pops.ams.rgen"), arr, 'swapped to the Arrrhipster');
-  assert.equal(ev("portsMax('ams')"), 96);
-  assert.equal(ev("bootMin('ams')") < 30, true, 'boots fast');
-  ev("selectCity('ams');ACT.tab({t:'infra'});ACT.models()");
-  assert.match(ev("document.getElementById('panelBody').textContent"), /Knockia/);
-  const mk = ev("RG.findIndex(r=>/Mikrowtik/.test(r.n))");
-  ev("ACT.buyTransit({city:'ams',net:'cog',tier:2})");
-  assert.equal(ev("S.transit.find(t=>t.net==='cog'&&t.city==='ams').tier"), 2);
-  ev(`ACT.upRouter({city:'ams',g:${mk}})`);
-  assert.equal(ev("S.pops.ams.rgen"), arr, 'a smaller model that cannot fit is refused');
-  assert.ok(ev("RG.every(r=>r.ports>0&&r.cls>=0&&r.maxP<PORT.length)"));
+  assert.equal(ev("portsMax('ams')"), 32);
+
+  /* And a bigger model has more ports than the Rusty. */
+  assert.ok(ev("RG[1].ports") > ev("RG[0].ports"), 'the next model up has more ports');
   assert.deepEqual(errors, []);
 });

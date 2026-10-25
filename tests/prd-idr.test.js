@@ -6,22 +6,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load } = require('./harness');
 
-test('idn: money is written out in full rupiah, with no k suffix', () => {
+test('idn: money is quoted in thousands with a K suffix', () => {
   const { ev } = load();
   ev("beginGame('N','jkt',{region:'idn'})");
-  /* Brief 18 §D: no shorthand anywhere — the reader sees the whole number. */
-  assert.equal(ev("fmt$(20000)"), 'Rp 324.000.000');
-  assert.equal(ev("fmt$(200000)"), 'Rp 3.240.000.000');
-  assert.equal(ev("fmt$(1500)"), 'Rp 24.300.000');
-  assert.ok(!/k$/.test(ev("fmt$(20000)")), 'no k suffix');
+  /* Brief 18 §L: three zeros become K — Rp 1.000,00 K is one million rupiah. */
+  assert.equal(ev("fmt$(20000)"), 'Rp 324.000 K');
+  assert.equal(ev("fmt$(200000)"), 'Rp 3.240.000 K');
+  assert.equal(ev("fmt$(1500)"), 'Rp 24.300 K');
+  assert.match(ev("fmt$(20000)"), / K$/);
 });
 
 test('idn: grouping uses dots, never commas', () => {
   const { ev } = load();
   ev("beginGame('N','jkt',{region:'idn'})");
   const s = ev("fmt$(250000)");
-  assert.match(s, /^Rp [\d.]+$/, `${s} is a plain grouped number`);
-  assert.ok(!/k$/.test(s), 'no k suffix');
+  assert.match(s, /^Rp [\d.]+ K$/, `${s} is a grouped number with the K suffix`);
 });
 
 test('idn: internal cash stays in dollars', () => {
