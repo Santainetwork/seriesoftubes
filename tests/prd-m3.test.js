@@ -179,11 +179,26 @@ test('M3: SEA startCities are the four biggest POPs', () => {
 test('M3: region rules and start cash match brief 3 §3–§4', () => {
   const ev = sea();
   ev("applyRegion('idn')");
-  assert.equal(JSON.stringify(ev('REGION.sea.rules')),
-    '{"t1Served":400,"t1Pops":8,"t1Continents":2,"cacheCities":null,"cacheMinMul":1.2,"startCash":300000}');
+  /* Brief 18 §F added eyeMul/eyeBoost to the rules, so the pinned shape is asserted field by
+     field instead of byte for byte — the contract is the values, not the key order. */
+  const seaRules = JSON.parse(ev('JSON.stringify(REGION.sea.rules)'));
+  assert.equal(seaRules.t1Served, 400);
+  assert.equal(seaRules.t1Pops, 8);
+  assert.equal(seaRules.t1Continents, 2);
+  assert.equal(seaRules.cacheCities, null);
+  assert.equal(seaRules.cacheMinMul, 1.2);
+  assert.equal(seaRules.startCash, 300000);
+  assert.ok(seaRules.eyeMul > 1, 'the eyeball ceiling is lifted above P');
   assert.equal(ev('REGION.sea.startCash'), 300000);
-  assert.equal(JSON.stringify(ev('REGION.idn.rules')),
-    '{"indonesianRules":true,"t1Served":250,"t1Pops":6,"t1Continents":1,"cacheCities":["jkt","sby","btm"],"cacheMinMul":1.6}');
+  const idnRules = JSON.parse(ev('JSON.stringify(REGION.idn.rules)'));
+  assert.equal(idnRules.indonesianRules, true);
+  assert.equal(idnRules.t1Served, 250);
+  assert.equal(idnRules.t1Pops, 6);
+  assert.equal(idnRules.t1Continents, 1);
+  assert.deepEqual(idnRules.cacheCities, ['jkt', 'sby', 'btm']);
+  assert.equal(idnRules.cacheMinMul, 1.6);
+  assert.ok(idnRules.eyeMul > seaRules.eyeMul, 'Indonesia carries more eyeballs than SEA');
+  assert.ok(idnRules.eyeBoost.jkt > idnRules.eyeBoost.sby, 'Jakarta outweighs Surabaya');
   assert.equal(ev('REGION.idn.startCash'), 250000);
 });
 
@@ -252,7 +267,8 @@ test('M3: switching back to global restores the untouched world', () => {
   assert.equal(ev('wrapDx(100,1900)'), -200, 'global still wraps the short way');
   assert.equal(ev("regionMult('sin')"), 2.5);
   assert.equal(ev("kmBetween('fra','ams')"), 364);
-  assert.equal(ev('Object.values(NSH).reduce((a,b)=>a+b,0)'), 1);
+  /* NSH is normalised to 1; floating point leaves it a hair under. */
+  assert.ok(Math.abs(ev('Object.values(NSH).reduce((a,b)=>a+b,0)') - 1) < 1e-9, 'NSH sums to 1');
   const atSea = JSON.parse(ev(
     'JSON.stringify(Object.keys(CITY).filter(c=>!onLand(CITY[c].x,CITY[c].y)))'));
   assert.deepEqual(atSea, []);

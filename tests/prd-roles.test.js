@@ -115,7 +115,7 @@ test('ROLES: RT/RW net takes small DIA only, keeps a 2-POP footprint, needs tran
   assert.deepEqual(errors, []);
 });
 
-test('ROLES: NAP gets small ISP jobs below 3 POPs, then only ISP/hyperscaler/AI', () => {
+test('ROLES: NAP gets small ISP jobs below 3 POPs, then ISP, hyperscale, AI, metro and remote peering', () => {
   const { ev, errors } = load();
   ev("UI.role='nap';ACT.start({});S.cash=1e7");
   assert.equal(ev('S.cash'), 10000000);
@@ -136,6 +136,8 @@ test('ROLES: NAP gets small ISP jobs below 3 POPs, then only ISP/hyperscaler/AI'
 
   const seen = JSON.parse(ev("JSON.stringify((()=>{const s=new Set();for(let i=0;i<400;i++){S.offers=[];spawnOffer();for(const o of S.offers)s.add(o.type)}return [...s]})())"));
   assert.ok(seen.length > 0, 'offers start once the NAP is big enough');
-  for (const t of seen) assert.ok(['isp', 'hyper', 'ai'].includes(t), `unexpected type ${t}`);
+  /* Brief 18 §C: a NAP also sells metro L2VPN and remote peering — that is what a carrier
+     hotel actually does. Anything outside this list means the role gate leaked. */
+  for (const t of seen) assert.ok(['isp', 'hyper', 'ai', 'l2vpn', 'remote'].includes(t), `unexpected type ${t}`);
   assert.deepEqual(errors, []);
 });

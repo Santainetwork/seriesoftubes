@@ -99,6 +99,12 @@ html,body{height:100%}
 body{margin:0}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .ver{font-size:11.5px;color:var(--ink2);margin-top:10px}
+/* Brief 18 §E: the install hint. Sits under the start buttons, quiet enough to ignore. */
+.apphint{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px;padding:10px 12px;
+  background:#EAF7FD;border:2px solid #B9E4F5;border-radius:12px;font-size:12.5px;color:var(--ink2)}
+.apphint b{color:var(--ink);font-size:13px;display:block;flex:1 0 100%}
+.apphint span{flex:1 1 220px;line-height:1.35}
+.apphint .b{flex:0 0 auto}
 .ver a{color:inherit}
 body{background:var(--sea);color:var(--ink);font-family:var(--body);overflow:hidden;font-size:14px;-webkit-font-smoothing:antialiased}
 #map{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block;cursor:grab}
@@ -520,7 +526,29 @@ const MYIX_COST=80000, MYIX_MO=3000, MYIX_FEE=1500, START_CASH=200000;
 const MYIX_FAB=[{n:'400G',g:400,cost:0,mo:3000,max:12},{n:'1.6T',g:1600,cost:60000,mo:6000,max:20,lvl:2},{n:'6.4T',g:6400,cost:200000,mo:12000,max:30,lvl:3},{n:'25.6T',g:25600,cost:600000,mo:25000,max:45,lvl:4}];
 const myFab=c=>MYIX_FAB[Math.min(MYIX_FAB.length-1,Math.max(0,(S.myIx[c]&&S.myIx[c].fab)|0))];
 const LT=[{n:'10G',g:10,m:1},{n:'100G',g:100,m:2.8},{n:'400G',g:400,m:6},{n:'800G',g:800,m:9},{n:'1.6T',g:1600,m:13},{n:'6.4T',g:6400,m:28,note:'handed off as 4×1.6T'}];
-const PORT=[{n:'10G',g:10,setup:500,tmo:150,ix:400,pni:200},{n:'100G',g:100,setup:1500,tmo:400,ix:1500,pni:350},{n:'400G',g:400,setup:4000,tmo:900,ix:4000,pni:600},{n:'800G',g:800,setup:8000,tmo:1600,ix:7000,pni:1000},{n:'1.6T',g:1600,setup:16000,tmo:2800,ix:12000,pni:1600}];
+/* Brief 18: the port ladder runs from a copper 1G hand-off to a 6.4T fibre port, and every
+   port carries two charges — the port itself, and the cross-connect that patches it into the
+   meet-me room. Indices are load bearing (saves and tests store `tier` as an index), so the
+   new sizes are appended and 1G lives at PORT_1G instead of shifting everything down by one. */
+const PORT=[
+ {n:'10G', g:10,  setup:500,  tmo:150, ix:400,  pni:200, xc:350,  xmo:28,  media:'FO'},
+ {n:'100G',g:100, setup:1500, tmo:400, ix:1500, pni:350, xc:1500, xmo:120, media:'FO'},
+ {n:'400G',g:400, setup:4000, tmo:900, ix:4000, pni:600, xc:4500, xmo:360, media:'FO'},
+ {n:'800G',g:800, setup:8000, tmo:1600,ix:7000, pni:1000,xc:7000, xmo:560, media:'FO'},
+ {n:'1.6T',g:1600,setup:16000,tmo:2800,ix:12000,pni:1600,xc:11000,xmo:880, media:'FO'},
+ {n:'3.2T',g:3200,setup:30000,tmo:5000,ix:22000,pni:3000,xc:18000,xmo:1440,media:'FO'},
+ {n:'6.4T',g:6400,setup:55000,tmo:9000,ix:40000,pni:5500,xc:30000,xmo:2400,media:'FO'},
+ {n:'1G',  g:1,   setup:80,   tmo:25,  ix:120,  pni:60,  xc:150,  xmo:12,  media:'UTP'},
+];
+const PORT_MAX=PORT.length-1;
+const PORT_1G=PORT_MAX;               /* the copper hand-off, kept last so no index moves */
+/* Cross-connect: the patch cable somebody physically runs in the meet-me room. An IX port pays
+   a premium because the exchange runs its own cross-connect crew. */
+function xcCost(tier,kind){const P=PORT[tier];if(!P||!P.xc)return 0;return Math.round(P.xc*(kind==='ix'?1.2:1));}
+function xcMo(tier,kind){const P=PORT[tier];if(!P||!P.xmo)return 0;return Math.round(P.xmo*(kind==='ix'?1.2:1));}
+/* Old saves predate the new sizes but their indices never moved, so there is nothing to shift.
+   The hook stays so a future reindex has somewhere to land. */
+function migratePorts(s){if(!s)return s;s.pv=2;return s;}
 const RG=[
  {n:'Rusty Router 9000',pn:'100G',cap:400,cost:0,mo:0,maxLT:1,maxP:1,ports:8,cls:0,lvl:1,boot:6,slowP:10,chip:'a mystery ASIC',blurb:'Bought used on eBuy. The fans sound like a jet engine.'},
  {n:'Edge Lord 400',pn:'400G',cap:3200,cost:30000,mo:1000,maxLT:2,maxP:2,ports:24,cls:1,lvl:2,boot:11,slowP:20,chip:'merchant silicon',blurb:'Sharp, edgy, and finally speaks 400G and 400ZR+.'},
@@ -977,6 +1005,23 @@ TAIL.forEach(([name,type,home,blurb,sh],i)=>{const h=hstr(name),cand=home.flatMa
   if(cand.length){ix.push(cand[h%cand.length]);if(cand.length>1&&(h>>>8)%100<40){const o=cand[(h>>>12)%cand.length];if(!ix.includes(o))ix.push(o);}}
   const sel=(h>>>4)%10>=8;
   NETS.push({id:'tail'+i,name,asn:200000+(h%190000),type,tail:true,pol:sel?'selective':'open',...(sel?{minIx:1+(h>>>16)%3,minPni:6+(h>>>18)%8}:{}),share:sh||+(0.0006+((h>>>20)%15)*0.0001).toFixed(4),col:`hsl(${h%360} 55% 46%)`,pops:home.slice(),ix,blurb});});
+NETS.push(
+ /* Brief 18 §H: three carriers that behave like Tier 1s — they sell global transit, peer
+    openly at most exchanges, and a NAP can buy from them directly. They are labelled t2 so
+    t1Club() and the "transit-free" goal stay honest: a player who only buys these still has
+    upstreams. Names are parodied. */
+ {id:'cmi',name:'China Mobile-ish Intl',asn:58453,type:'t2',pol:'selective',minIx:12,minPni:30,share:.0028,price:14,
+  col:'#0085CA',pops:['hkg','sin','tok','lon','fra','ams','jkt','syd','lax','pek','sha','nyc','bom'],
+  ix:['hkg','sin','tok','lon','fra','ams','jkt','syd','lax'],tail:true,
+  blurb:'The international arm of the biggest mobile network on Earth. Sells transit to anyone with a port and a cheque.'},
+ {id:'ctg',name:'China Telecom-ish Global',asn:4809,type:'t2',pol:'selective',minIx:12,minPni:30,share:.0026,price:15,
+  col:'#0B5CAD',pops:['hkg','sin','tok','lon','fra','ams','jkt','syd','lax','pek','sha','nyc','bom','dxb'],
+  ix:['hkg','sin','tok','lon','fra','ams','jkt','syd','lax','dxb'],tail:true,
+  blurb:'Global wholesale arm of the Chinese incumbent. Two routes to everywhere, one of them expensive.'},
+ {id:'rtn',name:'RETN-ish',asn:9002,type:'t2',pol:'open',share:.0022,price:11,
+  col:'#E4572E',pops:['fra','ams','lon','par','sto','hel','waw','prg','bud','sof','beg','kyv','mos','jkt','sin','hkg','nyc','ash'],
+  ix:['fra','ams','lon','par','sto','hel','waw','prg','bud','sof','beg','jkt','sin','hkg','nyc'],tail:true,
+  blurb:'The independent Eurasian backbone. Peers openly, sells transit cheaply, and connects places the big carriers forgot.'});
 let NET=Object.fromEntries(NETS.map(n=>[n.id,n]));
 for(const X of XIX){X.members=NETS.filter(n=>Array.isArray(n.ix)&&n.ix.includes(X.id)||!n.tail&&(n.ix==='ALL'||Array.isArray(n.ix)&&n.ix.includes(X.c))&&hstr(n.id+'|'+X.id)%100<(n.ix==='ALL'?72:X.take*100)).map(n=>n.id);}
 let NSH={}; {const t=NETS.reduce((a,n)=>a+n.share,0); NETS.forEach(n=>NSH[n.id]=n.share/t);}
@@ -995,6 +1040,9 @@ const BIZ_T={
  host:{l:'Hosting',opts:[10,20,40,80],rate:60},
  isp:{l:'Downstream ISP (buys transit)',opts:[100,200,400,800],rate:15,lv:2},
  l2vpn:{l:'L2VPN circuit',opts:[1,10,40,100],rate:0,l2:true,km:1,lv:1},
+ /* Brief 18 §C: remote peering — an exchange or a content network that wants a port in your
+    building without building its own POP. This is the bread and butter of a carrier hotel. */
+ remote:{l:'Remote peering port',opts:[10,100,400],rate:0,l2:true,km:0.4,lv:2,div:true},
  stream:{l:'Streaming startup',opts:[50,100,200],rate:80,lv:2},
  edu:{l:'University network',opts:[20,50,100],rate:90,lv:2},
  gpu:{l:'AI GPU data center',opts:[200,400,800],rate:70,lv:3,names:['Neural Noodles AI','GPUs R Us','Hallucination Labs','Transformers & Sons','Token Burners Inc.','Very Large Language Co.','Prompt Engineering Ltd','DeepThought Farms','Parameter Pastures','Gradient Descent Diner','Attention Is All We Need LLC','Overfit Analytics']},
@@ -1027,7 +1075,7 @@ function custLevel(){const pops=Object.keys(S.pops).length,pk=S.stats.peak;if(pk
 const ROLES={
  hosting:{l:'Hosting',cash:90000,maxPops:3,bb:false,types:['host','gpu','onramp','ai'],
    blurb:'Colo and AI hosting. Hosting, GPU, cloud on-ramp and AI deals only. Max 3 POPs, no home broadband.'},
- nap:{l:'NAP',cash:2000000,minPops:3,bb:false,types:['isp','hyper','ai'],
+ nap:{l:'NAP',cash:2000000,minPops:3,bb:false,types:['isp','hyper','ai','l2vpn','remote'],
    blurb:'Carrier hotel. Sells to ISPs, hyperscalers and AI. Small ISP deals from day one; wholesale contracts need 3 POPs.'},
  isp:{l:'ISP',cash:START_CASH,all:true,bb:true,
    blurb:'The classic all-rounder: home broadband, DIA, downstream ISPs, streaming, education and GPU deals. No extra limits.'},
@@ -1109,6 +1157,10 @@ function popOverMul(){
 }
 function canAddPop(){return true;}        // never blocks; the cap only raises the price
 const BIZ_N=['Byte-Size Bakery','Hamster Wheel Power Co.','Llama Logistics','Cloud Nine Hosting','Rural Rabbit Broadband','Tiny Telco','Pixel Pirates Games','Moo-Moo Dairy Corp','Snack Overflow','Git Happens Ltd','Kernel Sanders Fried Code','Lag-Free Llamas','404 Bistro','Ping Pong Sports','Null Pointer Pets','Buffer Bloat Boats','Packet Pizza','Latency Lattes','Ctrl-Alt-Deli','Sudo Sandwiches','Cache Me Outside','Hertz So Good Radio','Jitterbug Dance Hall','Bit Barn Hosting','Fiber Optimists','The Daily Ping','Squirrel Mesh Wireless','Spam & Eggs Diner','Router Rooter Plumbing','Kilobyte Kebab','Gigglebit Studios','Uptime Funk Records','Ohm Sweet Ohm','Dial-Up Nostalgia Club','Two-Factor Tacos'];
+/* Brief 18 §B: the same region switch for the generic pool. On the Indonesia map a prospect
+   is a warung, a kampus or a minimarket — all parodies, never the real brand. */
+const BIZ_N_IDN=['Mie Gacuan','Solariya','Kopi Kenongan','Bakso Pak Tebe','Ayam Geprek Juara','Martabak Kubang-ish','Nasi Goreng Gila','Es Teh Nusantara','Warung Padang Sederhana-ish','Roti Bakar Keju','Sate Taichan Srengseng','Kebab Turki Baba Rafi-ish','Minimarket Sejahtera','Apotek Kesehatan Rakyat','Bank Rakyat Digital','Klinik Gigi Keluarga','Salon Kecantikan Ayu','Bengkel Motor Jaya','Toko Bangunan Makmur','Laundry Kilat','Katering Ibu Rumah','SPBU Nusantara','Bimbel Cerdas Bangsa','Kampus Online Nusa','Ruang Belajar Kita'];
+
 
 /* ================= GOALS ================= */
 const GOALS=[
@@ -1517,16 +1569,12 @@ function fmtNum(n){
    so the economy, the balance sheet and the save format do not change — only the label and
    the scale the player reads. */
 function fmt$(v){
+  /* Brief 18 §D: no k / M / T suffixes anywhere. Every amount is written out in full with a
+     dot for thousands and a comma for the decimals, in both currencies, so the reader never
+     has to expand a shorthand in their head. */
   const c=curInfo(),s=v<0?'-':'';
-  if(c.code==='IDR'){
-    /* Brief 15 revisi K: one unit only — thousands of rupiah, suffix k. No jt/M/T. */
-    const n=Math.abs(v)*c.rate/1000;
-    return s+'Rp '+fmtNum(n)+'k';
-  }
-  const a=Math.abs(v);
-  if(a>=1e6){const m=a/1e6;return s+'$'+(m>=10?m.toFixed(1):m.toFixed(2).replace(/0$/,''))+'M';}
-  if(a>=1e3)return s+'$'+(a/1e3).toFixed(a>=1e5?0:1).replace(/\.0$/,'')+'k';
-  return s+'$'+Math.round(a);
+  if(c.code==='IDR')return s+'Rp '+fmtNum(Math.abs(v)*c.rate);
+  return s+'$'+fmtNum(Math.abs(v));
 }
 const fmtG=g=>g>=1000?(g/1000).toFixed(g>=10000?1:2)+' Tbps':(g>=100?g.toFixed(0):g.toFixed(1))+' Gbps';
 const pct=x=>Math.round(x*100)+'%';
@@ -2070,8 +2118,35 @@ function spawnMega(t,T,nm,mine){
   if(t==='pairs'){const ls=S.links.filter(l=>l.kind==='df'&&l.own&&l.ready<=S.day&&!S.biz.some(b=>(b.type==='pairs'||b.type==='dfpair')&&b.link===l.id)&&!S.offers.some(o=>o.link===l.id));if(!ls.length)return;const l=pick(ls),n=100+50*Math.floor(Math.random()*7);
     S.offers.push({id:uid(),city:l.a,city2:l.b,link:l.id,what:`${n} fiber pairs in your ${CITY[l.a].name}–${CITY[l.b].name} trench. Trenching was the expensive part, so they want all of it`,name:nm(),type:t,bw:1,rate:Math.round(dfLeaseMo(l.km)*n*0.2),reqs:[],exp:S.day+30,mega:true});}
 }
+/* Brief 18 §B: Indonesian customer names for the Indonesia map. Every one is a parody —
+   the real brand is never spelled correctly, so nothing here can be mistaken for the actual
+   company. Only used when the region is `idn`; the global map keeps the original pool. */
+const IDN_NAMES={
+ dia:['Mie Gacuan','Solariya','Kopi Kenongan','Warung Padang Sederhana-ish','Bakso Pak Tebe','Ayam Geprek Bensu-ish','Nasi Goreng Gila','Martabak Bangka-ish','Sate Taichan Srengseng','Es Teh Nusantara','Roti Bakar Keju','Soto Betawi Haji Umar-ish'],
+ host:['Rukonet Data Center','Gedung Siber Nusantara','Kandang Server Cikarang','Balai Data Sentul','Rumah Server Tangerang','Wisma Data Bekasi','Menara Bit Surabaya','Pondok Rack Bandung'],
+ stream:['Nontonin Yuk','Streamin Aja','Vidioan','Layar Nusantara','Tontonan Kita','Filmku Gratisan','Siaran Rakyat','Nobar Terus'],
+ edu:['Kampus Online Nusa','Sekolah Digital Rakyat','Bimbel Cerdas Bangsa','Universitas Terbuka-ish','Les Privat Online','Akademi Koding Kampung','Ruang Belajar Kita','Guru Ngaji Digital'],
+ gpu:['Warung GPU Nusantara','Render Kampung AI','Kandang Tensor Indonesia','Server Latih Model','Bengkel AI Jakarta','Klinik Komputasi','Rumah GPU Batam','Pabrik Model Bahasa'],
+ onramp:['Awan Nusantara on-ramp','Gumpalan Cloud on-ramp','Toko Awan on-ramp','Layanan Awan Rakyat on-ramp','Awan Merah Putih on-ramp'],
+ ai:['Otak Buatan Nusantara','Model Bahasa Indonesia','Latih Cerdas','Kandang Neural','Pabrik Kecerdasan','Riset AI Kampung','Bengkel Model','Data Latih Rakyat'],
+ hyper:['Awan Nusantara DCI','Gumpalan Cloud DCI','Toko Awan DCI','Awan Rakyat DCI','Pusat Data Nasional-ish DCI'],
+ hft:['Dana Kilat Sekuritas','Nanodetik Nusantara','Arbitrase Bursa','Modal Cepat','Perdagangan Kilat','Front-Run Pasar','Mikrowave Jakarta'],
+ bulk:['Arsip Dingin Nusantara','Backup Nasional','Gudang Data Lambat','Tape Kampung','Cadangan Data Rakyat','Arsip Kementerian-ish'],
+ event:['Konser Musik Nusantara','Pesta Rakyat Jakarta','Turnamen Esport Nasional','Festival Kuliner Nusantara','Panggung Gede Bandung','Karnaval Surabaya','Nobar Bareng Piala','Pameran Teknologi'],
+ sdwan:['Kebab Turki Baba Rafi-ish','Warung Kopi Kekinian','Ayam Geprek Juara','Bakso President-ish','Martabak Kubang-ish','Es Krim Glico-ish','Resto Padang Sederhana-ish','Minimarket Sejahtera','Apotek Kesehatan Rakyat','Bank Rakyat Digital','SPBU Nusantara','Salon Kecantikan'],
+ wwave:['Fiber Nusantara','Jaringan Rakyat','Kabel Kita','Serat Optik Kampung','Tiang Fiber Indonesia','Jalur Terang','Kabel Bawah Tanah','Serat Nusa'],
+ dfpair:['Konsorsium Fiber Nusantara','Operator Kabel Nasional-ish','Investor Fiber Asing','Dana Infrastruktur','Konsorsium Gelap'],
+ l2vpn:['Jaringan Tertutup Nusantara','VPN Korporat Kita','Jalur Khusus Bank','Kabel Pemerintah-ish','Jaringan Internal Grup'],
+ game:['Server Game Nusantara','Game Online Rakyat','Arena Mobile','Turnamen Daring','Studio Game Kampung'],
+ scrub:['Perisai Siber Nusantara','Benteng DDoS','Penangkal Serangan','Satpam Digital'],
+ ingest:['Pengumpul Data Nusantara','Sensor Kota','Kamera Cerdas','Jaringan IoT Rakyat'],
+ mtrain:['Latih Model Bersama','Konsorsium AI Nusantara','Riset Bahasa Daerah'],
+ pairs:['Pasangan Fiber Nusantara','Duplet Kabel','Jalur Ganda'],
+};
+
 function spawnSpecial(t){const T=BIZ_T[t],mine=Object.keys(S.pops),lv=S.lvl||1;
-  const nm=()=>{const list=T.names.filter(n=>!S.usedNames.includes(n));const n=list.length?pick(list):pick(T.names);S.usedNames.push(n);return n;};
+  const poolS=(curRegion==='idn'&&IDN_NAMES[t])?IDN_NAMES[t]:T.names;
+  const nm=()=>{const list=poolS.filter(n=>!S.usedNames.includes(n));const n=list.length?pick(list):pick(poolS);S.usedNames.push(n);return n;};
   if(T.mega){spawnMega(t,T,nm,mine);return;}
   if(T.event){const city=Math.random()<0.85&&mine.length?pick(mine):pick(ALLC);const bw=pick(T.opts.slice(0,Math.min(T.opts.length,lv+2)));const dur=3+Math.floor(Math.random()*5),start=S.day+12+Math.floor(Math.random()*14);
     S.offers.push({id:uid(),city,city2:null,name:nm()+' in '+CITY[city].name,type:t,bw,rate:0,reqs:[],start,dur,fee:Math.round(bw*dur*70),exp:start-2});return;}
@@ -2343,7 +2418,7 @@ function dayTick(){
   }
   // eyeball growth / churn uses last computed service
   for(const c in S.pops){const p=S.pops[c];if(!p.bb)continue;const sf=sfOf(R,c),P=CITY[c].P;
-    if(sf>=0.9){const g=0.025*(scnRule('boom')?1.5:1)*(p.boost>d?2:1)*sf*(0.7+0.6*(R.peerShare||0))*(CITY[c].reg==='AS'&&!CITY[c].cn?1.6:1);p.bb.d+=g*p.bb.d*(1-p.bb.d/P);}
+    if(sf>=0.9){const CAP=eyeCap(c);const g=0.025*(scnRule('boom')?1.5:1)*(p.boost>d?2:1)*sf*(0.7+0.6*(R.peerShare||0))*(CITY[c].reg==='AS'&&!CITY[c].cn?1.6:1);p.bb.d+=g*p.bb.d*(1-p.bb.d/CAP);}
     else p.bb.d=Math.max(3,p.bb.d*(1-(0.9-sf)*0.04));}
   compute();
   for(const t of S.transit){(t.hist=t.hist||[]).push(R.useT[t.id]||0);if(t.hist.length>30)t.hist.shift();}
@@ -2453,8 +2528,10 @@ function _spawnOffer(preferCity){
   const bwRole=S.role==='rtnet'&&t==='dia'&&bwCap
     ? pick(T.opts.filter(v=>v<=bwCap).length?T.opts.filter(v=>v<=bwCap):[1])
     : bw;
-  const list=(T.names||BIZ_N).filter(n=>!S.usedNames.includes(n));
-  let name=list.length?pick(list):(T.names?pick(T.names):'Startup #'+Math.floor(Math.random()*999));
+  /* Brief 18 §B: on the Indonesia map the prospect pool is Indonesian and parodic. */
+  const pool18=(curRegion==='idn'&&IDN_NAMES[t])?IDN_NAMES[t]:(curRegion==='idn'&&!T.names?BIZ_N_IDN:(T.names||BIZ_N));
+  const list=pool18.filter(n=>!S.usedNames.includes(n));
+  let name=list.length?pick(list):pick(pool18);
   S.usedNames.push(name);
   if(t==='provedor')city=pick(br);
   if(t==='hft'){const fin=['nyc','chi','lon','fra','tok','sin','hkg','ams','ash'],mf=mine.filter(c=>fin.includes(c));city=mf.length?pick(mf):pick(mine);city2=pick(fin.filter(c=>c!==city));}
@@ -2546,6 +2623,7 @@ function checkGoals(){checkBadges();
 /* ================= ACTIONS ================= */
 function spend(c){if(S.cash<c){toast('<b>Not enough cash.</b><br>Wait for revenue, or speed up time.','bad');sfx('err');return false;}S.cash-=c;sfx('build');return true;}
 const ACT={
+ installApp:()=>{installApp();},
  speed:({v})=>{v=+v;if(![0,0.5,1,2,4,8].includes(v))return;UI.speed=v;renderHUD();},
  help:()=>showHelp(),
  dash:()=>{if(!S)return;const d=$('dash');d.hidden=!d.hidden;if(!d.hidden)renderDash();},
@@ -2615,13 +2693,19 @@ const ACT={
    const made=forceOfferAt(city);
    toast(`<b>Campaign live in ${esc(CITY[city].name)}.</b><br>${made?`A prospect walked in the same week.`:`The sales team is working the phones.`} For ${PROMO_DAYS} days, leads here come three times as often.`,'goal');
    sfx('coin');after();},
- buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}if(!S.pops[city]||!NET[net]||!NET[net].price||!NET[net].pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;if(!spend(PORT[tier].setup*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.transit.push({id:uid(),city,net,tier,down:0});toast(`<b>${esc(NET[net].name)} transit is live in ${CITY[city].name}.</b><br>Full table received: ~1,000,000 routes.`,'good');after();},
+ buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}if(!S.pops[city]||!NET[net]||!NET[net].price||!NET[net].pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;/* Brief 18 (R&D, NAP first): a carrier hotel sells rack space and a patch, so the
+     cross-connect is its own line item. Other roles keep the single charge for now. */
+  const xc=S.role==='nap'?xcCost(tier,'transit'):0;
+  if(!spend((PORT[tier].setup+xc)*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.transit.push({id:uid(),city,net,tier,down:0});toast(`<b>${esc(NET[net].name)} transit is live in ${CITY[city].name}.</b><br>Full table received: ~1,000,000 routes.`,'good');after();},
  lagT:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const t=S.transit.find(x=>x.id===id);if(!t)return;const n=(t.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0){if(!portOk(t.city,t.tier)||!portGate(t.city,PORT_SLOT(t.tier)))return;if(!spend(PORT[t.tier].setup))return;}t.n=n;if(n<2&&t.site==='ab')t.site='a';toast(+d>0?`<b>LAG member added.</b><br>${esc(NET[t.net].name)} in ${CITY[t.city].name} is now ${lagName(t.tier,n)}.`:`<b>LAG member removed.</b>`,'good');after();},
  lagP:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const p=S.pni.find(x=>x.id===id);if(!p)return;const n=(p.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0&&(!portGate(p.city,PORT_SLOT(p.tier))||!spend(1500+PORT[p.tier].setup/2)))return;p.n=n;if(n<2&&p.site==='ab')p.site='a';sfx('build');after();},
  lagIx:({city,d})=>{d=+d;if(d!==1&&d!==-1)return;if(!isIx(city)||S.ixp[city]===undefined||S.myIx[city]||!S.pops[ixCity(city)])return;S.ixn=S.ixn||{};const n=(S.ixn[city]||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0&&(!portGate(ixCity(city),PORT_SLOT(S.ixp[city]))||!spend(ixPortMo(city,S.ixp[city]))))return;S.ixn[city]=n;if(n<2&&S.ixSite&&S.ixSite[city]==='ab')S.ixSite[city]='a';sfx('build');after();},
  cancelTransit:({id})=>{if(UI.confirm!==id){UI.confirm=id;renderPanel();return;}S.transit=S.transit.filter(t=>t.id!==id);UI.confirm=null;after();},
  buyIx:({city,tier,signed})=>{tier=+tier;if(!PORT[tier]||!ixName(city)||(!S.pops[ixCity(city)]&&(!remoteCities().includes(ixCity(city))||tier>1))||(S.ixp[city]!==undefined&&tier<=S.ixp[city]))return;if(S.pops[ixCity(city)]&&!portOk(ixCity(city),tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}{const h0=S.ixp[city]!==undefined;if(!S.myIx[city]&&!portGate(ixCity(city),h0?(PORT_SLOT(tier)-PORT_SLOT(S.ixp[city]))*((S.ixn||{})[city]||1):PORT_SLOT(tier)))return;}
-   if(isDk(city)&&S.ixp[city]===undefined&&!signed){const dk=dkState();if(dk.stall>S.day){toast(`<b>DE-KICKS sales is still "aligning".</b><br>They will get back to you in ${dk.stall-S.day} days.`,'bad');sfx('err');return;}dk.lastQ=dk.lastQ||{};const lq=dk.lastQ[city];dk.q={city,tier,m:lq&&lq.until>S.day?lq.m:dkQuoteMult(),h:lq&&lq.until>S.day?lq.h:0};dk.lastQ[city]={m:dk.q.m,h:dk.q.h,until:S.day+90};dkQuoteModal();return;}const had=S.ixp[city]!==undefined;if(!spend(ixPortMo(city,tier)*(had?((S.ixn||{})[city]||1):1)))return;S.ixp[city]=tier;if(!had)toast(S.pops[ixCity(city)]?`<b>Port up at ${esc(ixName(city))}!</b><br>Now request peering, or join the route server.`:`<b>Remote port up at ${esc(ixName(city))}.</b><br>It came through a reseller, so expect a markup, a crowded port and some networks that won't talk to you. The route server is your friend here.`,'good');after();},
+   if(isDk(city)&&S.ixp[city]===undefined&&!signed){const dk=dkState();if(dk.stall>S.day){toast(`<b>DE-KICKS sales is still "aligning".</b><br>They will get back to you in ${dk.stall-S.day} days.`,'bad');sfx('err');return;}dk.lastQ=dk.lastQ||{};const lq=dk.lastQ[city];dk.q={city,tier,m:lq&&lq.until>S.day?lq.m:dkQuoteMult(),h:lq&&lq.until>S.day?lq.h:0};dk.lastQ[city]={m:dk.q.m,h:dk.q.h,until:S.day+90};dkQuoteModal();return;}const had=S.ixp[city]!==undefined;
+   /* Brief 18 (R&D, NAP first): the exchange bills its own cross-connect on top of the port. */
+   const ixc=S.role==='nap'&&!had?xcCost(tier,'ix'):0;
+   if(!spend((ixPortMo(city,tier)+ixc)*(had?((S.ixn||{})[city]||1):1)))return;S.ixp[city]=tier;if(!had)toast(S.pops[ixCity(city)]?`<b>Port up at ${esc(ixName(city))}!</b><br>Now request peering, or join the route server.`:`<b>Remote port up at ${esc(ixName(city))}.</b><br>It came through a reseller, so expect a markup, a crowded port and some networks that won't talk to you. The route server is your friend here.`,'good');after();},
  cancelIx:({city,sure})=>{if(UI.confirm!=='ix'+city){UI.confirm='ix'+city;renderPanel();return;}
    if(isDk(city)&&!sure){const dk=dkState();if(!dk.retUsed[city]){openModal(`<div class="eyebrow">DE-KICKS Group · Customer Success</div><h2 style="font-size:26px">Wait! Before you go…</h2><p class="tagline">We value our partnership too much to let a little thing like price get in the way.</p><div class="kv"><span>Retention offer</span><b>40% off for 6 months</b></div><p class="note">After that, the normal price returns, plus a small loyalty administration fee.</p><div class="btns">${btn('Stay, take the discount','dkStay',{city},'pink')}${btn('Leave anyway','cancelIx',{city,sure:1},'ghost')}</div>`);return;}}
    closeModal();if(S.dk){if(S.dk.m[city]){S.dk.lastQ=S.dk.lastQ||{};S.dk.lastQ[city]={m:S.dk.m[city],h:3,until:S.day+365};}delete S.dk.m[city];delete S.dk.add[city];delete S.dk.ret[city];}delete S.ixp[city];delete S.rs[city];if(S.ixn)delete S.ixn[city];for(const k in S.peers)if(k.endsWith('@'+city))delete S.peers[k];UI.confirm=null;after();},
@@ -2796,6 +2880,18 @@ function chWhy(l,o){const O=OPT[o];if(O.lvl>lvl())return `Unlocks at customer le
   if((l.ch||[]).length+soldSlots(l)>=DF_SYS[l.sys].max)return `${DF_SYS[l.sys].n} is full (${DF_SYS[l.sys].max} channels${soldSlots(l)?`, ${soldSlots(l)} sold to customers`:''}).`;
   for(const c of [l.a,l.b]){const p=S.pops[c];if(p&&RG[p.rgen||0].cls<O.rg)return `Needs ${RG[O.rg].n} routers at both ends (${CITY[c].name}).`;}return '';}
 /* PRD F7: only ISPs sell home broadband. The other roles get no broadband button at all. */
+/* Brief 18 §F: P is the eyeball ceiling in Gbps. On the Indonesia map a metro like Jakarta
+   carries far more residential traffic than its calibrated P suggests — 30 million people at
+   evening peak is not 450 Gbps. The multiplier is per region and only lifts the ceiling; the
+   starting broadband size still comes from P so a small city stays small. */
+function eyeMul(c){
+  const r=(REGION[curRegion]&&REGION[curRegion].rules)||{};
+  const m=r.eyeMul||1;
+  /* Capitals carry disproportionate traffic: Jakarta is roughly a third of the country. */
+  const boost=(r.eyeBoost&&r.eyeBoost[c])||1;
+  return m*boost;
+}
+function eyeCap(c){return Math.max(1,Math.round(CITY[c].P*eyeMul(c)));}
 function bbCost(c){if(S&&!roleDef().bb)return Infinity;return 15000+CITY[c].P*20;}
 function after(){if(S)purgeInc();compute();checkGoals();renderAll();save();}
 const isTablet=()=>innerWidth>760&&innerWidth<=1200;
@@ -3034,9 +3130,9 @@ function cityPanel(c){
   if(UI.tab==='cust'){
     {const nl=R.nodeLoad[c]||0,nc=R.nodeCap[c]||1;if(nl>=nc*0.95)h+=`<section><h3 style="color:var(--bad)">Router maxed out</h3><p class="lead">Your routers here are forwarding ${fmtG(nl)} of ${fmtG(nc)}. Traffic is being dropped. Upgrade or add a router in the Infra tab.</p>${btn('Open Infra','tab',{t:'links'},'pink sm')}</section>`;}
     if(roleDef().bb){h+=`<section><h3>Home broadband</h3>`;
-    if(!p.bb){const s=Math.max(8,C.P*0.03);h+=`<p class="lead">Sell internet to homes here. Starts around ${fmtG(s)} and grows toward ${fmtG(C.P)} while service is good. Pays ${fmt$(EYE_RATE)} per Gbps served, every month.</p>${btn(`Launch broadband <small>${fmt$(bbCost(c))}</small>`,'launchBB',{city:c},'pink big',S.cash<bbCost(c))}`;}
+    if(!p.bb){const s=Math.max(8,C.P*0.03),cap=eyeCap(c);h+=`<p class="lead">Sell internet to homes here. Starts around ${fmtG(s)} and grows toward ${fmtG(cap)} while service is good. Pays ${fmt$(EYE_RATE)} per Gbps served, every month.</p>${btn(`Launch broadband <small>${fmt$(bbCost(c))}</small>`,'launchBB',{city:c},'pink big',S.cash<bbCost(c))}`;}
     else{const eye=R.cityEye[c]||0;
-      h+=`<div class="kv"><span>Eyeball demand</span><b>${fmtG(eye)} of ${fmtG(C.P)}</b></div><div class="bar me"><i style="width:${eye/C.P*100}%"></i></div>
+      h+=`<div class="kv"><span>Eyeball demand</span><b>${fmtG(eye)} of ${fmtG(eyeCap(c))}</b></div><div class="bar me"><i style="width:${Math.min(100,eye/eyeCap(c)*100)}%"></i></div>
       <div class="kv"><span>Served in ${C.name}</span><b style="color:${sf<0.9?'var(--bad)':'var(--eye)'}">${pct(sf)}</b></div><div class="bar ${sf<0.9?'bad':''}"><i style="width:${sf*100}%"></i></div>
       <div class="kv"><span>Revenue</span><b>${fmt$(eye*sf*EYE_RATE)}/mo</b></div>
       <div class="kv"><span>Network-wide peering ratio</span><b>${pct(R.peerShare||0)}</b></div><p class="note">More traffic over peering, PNIs and caches means lower latency, and happier users grow faster.</p>
@@ -3334,7 +3430,7 @@ function showTitle(){
   <label class="f" for="nmIn">Name your network</label><input class="t" id="nmIn" maxlength="24" value="Packet Pals" autocomplete="off">
   <label class="f">Pick your home city</label><div class="starts">${starts.map(([c,d])=>`<button class="start ${UI.startCity===c?'on':''}" data-city="${c}" data-act="pickStart" data-args='{"city":"${c}"}'><b>${CITY[c].name}</b><span>${d}</span></button>`).join('')}</div>
   <label class="f">Mode</label><div class="btns">${[['normal','Normal'],['sandbox','Sandbox']].map(([m,l])=>`<button class="b sm modeb ${(UI.mode||'normal')===m?'pink':'ghost'}" data-m="${m}" data-act="modeSet" data-args='{"m":"${m}"}'>${l}</button>`).join('')}${btn('Scenarios &amp; weekly challenge →','scenarios',{},'sm')}</div>
-  <div class="btns" style="margin-top:16px;justify-content:space-between;align-items:center">${btn(sv?'Start a new network':'Start building','start',{},'big')}${btn('How to play','help',{},'ghost')}${btn('Import a save','importPick',{},'ghost sm')}</div><p class="ver">v${APP_VERSION} · <a href="https://github.com/fjaeckel/seriesoftubes" target="_blank" rel="noopener">Source on GitHub</a> · Cookieless stats, no tracking</p>`);
+  <div class="btns" style="margin-top:16px;justify-content:space-between;align-items:center">${btn(sv?'Start a new network':'Start building','start',{},'big')}${btn('How to play','help',{},'ghost')}${btn('Import a save','importPick',{},'ghost sm')}</div>${installAvailable()?`<div class="apphint"><b>📲 Best played as an app</b><span>Full screen, works offline, one tap from your home screen.${isStandalone()?'':' Install it before you start: a game begun in Safari stays in Safari.'}</span>${isStandalone()?'':btn('Install','installApp',{},'ghost sm')}</div>`:''}<p class="ver">v${APP_VERSION} · <a href="https://github.com/fjaeckel/seriesoftubes" target="_blank" rel="noopener">Source on GitHub</a> · Cookieless stats, no tracking</p>`);
   /* The Continue save may belong to another region. Materialise it before migrate() so
      sanitize() does not downgrade an IDN/SEA run to Global; ACT.cont rebinds the map. */
   if(sv){if(sv.region)ensureRegion(sv.region);S=migrate(sv);compute();}else if(!UI.started)S=null;
@@ -3755,7 +3851,10 @@ function seaRegion(){
   startCities:['jkt','mnl','bkk','sin'],
   startCash:300000,
   regionMult:{AS:2.5,AF:2,OC:1.4,SA:1.6,EU:1},
-  rules:{t1Served:400,t1Pops:8,t1Continents:2,cacheCities:null,cacheMinMul:1.2,startCash:300000},
+  rules:{t1Served:400,t1Pops:8,t1Continents:2,cacheCities:null,cacheMinMul:1.2,startCash:300000,
+    /* Brief 18 §F: the eyeball ceiling. A metro carries far more than its calibrated P once
+       broadband is cheap; the boost table lifts the handful of capitals that dwarf their region. */
+    eyeMul:1.9,eyeBoost:{jkt:2.6,sby:1.6,sin:1.8,bkk:1.5,mnl:1.5,hkg:1.4,tok:1.5,sel:1.3}}, 
   roles:{
     hosting:{cash:120000,maxPops:4},
     nap:{cash:900000,minPops:3},
@@ -3768,8 +3867,52 @@ function seaRegion(){
   cables:SEA_CABLES,nets:NETS,xix:SEA_XIX,tail:TAIL,
  };
 }
+/* Brief 18 §G: Indonesian transit providers. The global T1 list is a set of parodies of the
+   real Tier 1 carriers, but in Indonesia a NAP buys transit from domestic carriers — Telkom,
+   Indosat, XL and the rest. Every name is parodied so nothing here can be mistaken for the
+   real company, and the list is only wired into the Indonesia map. */
+const IDN_TRANSIT=[
+ {id:'ionx',name:'Ion-Net',asn:48000,type:'t1',pol:'restrictive',share:.16,price:7,col:'#E4572E',
+  pops:['jkt','sby','bdg','smg','mdn','dps','btm'],ix:['jkt','sby'],
+  blurb:'The new wholesale backbone. Sells capacity to everyone and undercuts the incumbents.'},
+ {id:'tlkm',name:'Tel-Kom',asn:48001,type:'t1',pol:'restrictive',share:.15,price:9,col:'#E4002B',
+  pops:['jkt','sby','bdg','smg','mdn','dps','btm','upg','bjm','plm','pku','pdg','jog','bpn','mdc'],
+  ix:['jkt','sby','smg','mdn','dps'],
+  blurb:'The incumbent. Owns most of the ducts, the subsea landings and the patience of regulators.'},
+ {id:'inds',name:'Indo-Sat',asn:48002,type:'t1',pol:'restrictive',share:.14,price:8,col:'#F5A623',
+  pops:['jkt','sby','bdg','mdn','dps','btm','upg'],ix:['jkt','sby','mdn'],
+  blurb:'The second incumbent. Satellites, mobile and a backbone that reaches most of the archipelago.'},
+ {id:'xlnt',name:'Ex-L',asn:48003,type:'t1',pol:'restrictive',share:.12,price:7,col:'#0B5CAD',
+  pops:['jkt','sby','bdg','smg','mdn','dps','btm','jog'],ix:['jkt','sby','smg'],
+  blurb:'Mobile-first carrier with a growing fibre backbone. Aggressive on price.'},
+ {id:'mtri',name:'Matriks',asn:48004,type:'t2',pol:'selective',minIx:6,minPni:20,share:.06,price:6,col:'#6A2C91',
+  pops:['jkt','sby','bdg','btm'],ix:['jkt','sby'],
+  blurb:'Tower and fibre operator. Sells backhaul to whoever needs a mast connected.'},
+ {id:'jlmx',name:'JLM-Net',asn:48005,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#2C7A7B',
+  pops:['jkt','sby','smg','jog'],ix:['jkt','sby'],
+  blurb:'Java backbone specialist. Short routes, honest latency, no drama.'},
+ {id:'sdix',name:'SD-I',asn:48006,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#1E90FF',
+  pops:['jkt','sby','bdg','dps'],ix:['jkt','sby'],
+  blurb:'Enterprise networks and government links. Slow to quote, quick to deliver.'},
+ {id:'mvnx',name:'MV-Net',asn:48007,type:'t2',pol:'open',share:.04,price:4,col:'#00843D',
+  pops:['jkt','sby','bdg','smg','jog','dps','btm'],ix:['jkt','sby','smg'],
+  blurb:'The open one. Peers with anyone and sells transit without a sales meeting.'},
+ {id:'dgsx',name:'Digi-Sat',asn:48008,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#FF6A00',
+  pops:['jkt','mdn','btm','pku','pnk'],ix:['jkt','mdn'],
+  blurb:'Satellite and microwave for the places fibre has not reached. Sumatra specialist.'},
+ {id:'dtmx',name:'Data-Utama',asn:48009,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#4B3FC4',
+  pops:['jkt','sby','bdg','smg','upg','bjm'],ix:['jkt','sby'],
+  blurb:'Data centre operator with a backbone bolted on. Sells racks and routes together.'},
+ {id:'ntti',name:'NTT Indonesia-ish',asn:48010,type:'t1',pol:'restrictive',share:.08,price:9,col:'#00A0E9',
+  pops:['jkt','sby','bdg','btm'],ix:['jkt','sby'],
+  blurb:'The local arm of a global carrier. Same logo, local pricing, better paperwork.'},
+];
 function idnRegion(){
- const rules={indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','btm'],cacheMinMul:1.6};
+ const rules={indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','btm'],cacheMinMul:1.6,
+    /* Brief 18 §F: Indonesia is the densest eyeball market in the game. Jakarta alone is roughly
+       a third of the country's traffic, and the multiplier lifts every city so a NAP selling
+       transit is not starved by a ceiling calibrated for the global map. */
+    eyeMul:2.4,eyeBoost:{jkt:3.2,sby:2.0,btm:1.8,bdg:1.7,mdn:1.5,smg:1.4,jog:1.4,mks:1.4,dps:1.4,pku:1.3,pdg:1.3,plm:1.3,bjm:1.2,bpn:1.2,mdc:1.2,pnk:1.2,jay:1.2,tkg:1.2,btj:1.2,djb:1.2,bks:1.2,pky:1.2,sri:1.2,tnj:1.2,koe:1.2,ami:1.2,kdi:1.2,plw:1.2,amb:1.2,ttn:1.2,soq:1.2,soc:1.2,mlg:1.3}};
  /* Brief 15 §1.1: the region's currency lives on its rules. Non-enumerable so the pinned
     JSON shape of the rules object (tests/prd-m3) stays byte-for-byte identical. */
  Object.defineProperty(rules,'currency',{value:{code:'IDR',symbol:'Rp',rate:16200,dec:0},enumerable:false});
@@ -3790,7 +3933,11 @@ function idnRegion(){
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))).concat(IDN_NEW_CABLES,WEAVE_CABLES),
-  nets:NETS,xix:XIX_IDN,tail:TAIL,
+  /* Brief 18 §G: the Indonesia map buys transit from Indonesian carriers. The global T1/T2 list
+     is a parody of the international carriers, and on a domestic map it made no sense to sell
+     "Not That Telecom" a port in Surabaya — those networks belong to the peering side. CDNs and
+     eyeball networks stay, because a NAP still peers with them. */
+  nets:NETS.filter(n=>n.type!=='t1'&&n.type!=='t2').concat(IDN_TRANSIT),xix:XIX_IDN,tail:TAIL,
  };
 }
 function ensureRegion(id){
@@ -4187,6 +4334,30 @@ function boot(data){
   window.claude?.hot?.snapshot?.(()=>({S:S&&JSON.parse(JSON.stringify(S)),cam:{...cam}}));
   if(!window.__TUBES_TEST__){requestAnimationFrame(frame);setTimeout(checkUpdate,4000);setInterval(checkUpdate,10*60*1000);}
 }
+/* Brief 18 §E: the game is one file plus a few images, so it installs as a real app and plays
+   with no network at all. The service worker caches the shell; the install prompt is only
+   offered when the browser actually fires beforeinstallprompt, so a desktop Firefox user is
+   never shown a button that cannot work. */
+let _installEvt=null;
+function isStandalone(){
+  /* jsdom (and old browsers) have no matchMedia, so every query is guarded. */
+  try{
+    if(typeof matchMedia==='function'&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches))return true;
+  }catch(e){}
+  return navigator.standalone===true;
+}
+function installAvailable(){return !!_installEvt||(!isStandalone()&&/iphone|ipad|ipod/i.test(navigator.userAgent));}
+function installApp(){
+  if(_installEvt){_installEvt.prompt();_installEvt.userChoice.then(()=>{_installEvt=null;renderAll();}).catch(()=>{});return;}
+  /* iOS has no prompt API — tell the player where the button is instead of failing silently. */
+  toast('<b>Add to Home Screen</b><br>Tap the Share button, then <i>Add to Home Screen</i>. The game then opens full screen and works offline.','good');
+}
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();_installEvt=e;if(UI.started)renderAll();});
+addEventListener('appinstalled',()=>{_installEvt=null;toast('<b>Installed.</b><br>Open it from your home screen — it works offline now.','good');});
+if('serviceWorker' in navigator&&!window.__TUBES_TEST__){
+  addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{});});
+}
+
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 </script>
 

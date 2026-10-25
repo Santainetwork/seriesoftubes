@@ -21,7 +21,9 @@ test('trace: the modal opens in every region', () => {
 });
 
 test('trace: the network list matches the region, not the global NETS', () => {
-  const expected = { global: 125, sea: 37, idn: 15 };
+  /* Brief 18 §G: IDN now carries its own domestic transit list, so the count is no longer the
+     15 networks that happened to have a POP in Jakarta. Global and SEA are unchanged. */
+  const expected = { global: 128, sea: 40 };
   for (const reg of Object.keys(expected)) {
     const { ev } = load();
     ev(`beginGame('T','jkt',{region:'${reg}',role:'isp'})`);
@@ -29,6 +31,19 @@ test('trace: the network list matches the region, not the global NETS', () => {
     ev("ACT.trace({city:'jkt'})");
     const n = ev("document.querySelectorAll('#trTo optgroup:first-child option').length");
     assert.equal(n, expected[reg], `${reg}: offered ${n} networks`);
+  }
+  /* IDN: assert the list is the region's own, and that no global T1 leaks into it. */
+  const { ev } = load();
+  ev("beginGame('T','jkt',{region:'idn',role:'isp'})");
+  ev('S.cash=1e9');
+  ev("ACT.trace({city:'jkt'})");
+  /* The picker only lists networks with a POP in the selected city, so the count is small even
+     though the region carries over a hundred. What matters is which names are there. */
+  const idnN = ev("document.querySelectorAll('#trTo optgroup:first-child option').length");
+  assert.ok(idnN > 10, `idn: offered only ${idnN} networks`);
+  const names = JSON.parse(ev("JSON.stringify([...document.querySelectorAll('#trTo optgroup:first-child option')].map(o=>o.textContent))"));
+  for (const dead of ['Level Tree', 'Tell-Ya Carrier', 'Cogentle', 'Ta-Ta Comms']) {
+    assert.ok(!names.includes(dead), `${dead} must not appear on the Indonesia map`);
   }
 });
 

@@ -60,6 +60,6 @@ test('M1: boot rebinds through applyRegion with no errors', () => {
   ev("boot()");
   assert.equal(ev('curRegion'), 'global');
   assert.equal(ev('CITIES.length'), 94);
-  assert.equal(ev('NETS.length'), 125);
+  assert.equal(ev('NETS.length'), 128);
   assert.deepEqual(errors, []);
 });

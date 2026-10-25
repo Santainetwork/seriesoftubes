@@ -88,26 +88,37 @@ test('NSH sums to 1 in every region', () => {
 test('global NETS untouched after visiting sea', () => {
   const ev = region('global');
   ev("applyRegion('sea')");
-  assert.equal(ev('NETS.length'), 125, 'NETS must not be spliced in place');
+  assert.equal(ev('NETS.length'), 128, 'NETS must not be spliced in place');
   assert.equal(ev('REGION.global.nets===NETS'), true, 'global nets still aliases NETS');
   ev("applyRegion('global')");
-  assert.equal(ev('NETS.length'), 125);
-  assert.equal(ev('Object.keys(NSH).length'), 125);
+  assert.equal(ev('NETS.length'), 128);
+  assert.equal(ev('Object.keys(NSH).length'), 128);
   assert.equal(ev('CABLE_PAIRS.length'), 134);
 });
 
-test('live network counts match the brief (37 SEA, 15 IDN)', () => {
+test('live network counts match the brief (40 SEA, own IDN list)', () => {
   const ev = region('sea');
-  assert.equal(ev('Object.keys(NET).length'), 37);
+  assert.equal(ev('Object.keys(NET).length'), 40);
   assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 4);
   ev("applyRegion('idn')");
-  assert.equal(ev('Object.keys(NET).length'), 15);
-  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 2);
+  /* Brief 18 §G: the Indonesia map no longer inherits the global T1/T2 carriers — a domestic
+     NAP buys from Tel-Kom, Indo-Sat and friends. CDNs and eyeball networks stay. */
+  const idnNets = JSON.parse(ev('JSON.stringify(Object.keys(NET))'));
+  /* Only networks with a POP in an Indonesian city are live there — the 33-city map reaches
+     far more of them than the old 16-city one did, but it is still a subset. */
+  assert.ok(idnNets.length >= 20, `only ${idnNets.length} networks live in IDN`);
+  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 5);
+  for (const dead of ['lvl', 'tly', 'cog', 'tat']) {
+    assert.ok(!idnNets.includes(dead), `${dead} must not sell transit on the Indonesia map`);
+  }
+  for (const live of ['tlkm', 'inds', 'xlnt', 'ionx', 'mvnx']) {
+    assert.ok(idnNets.includes(live), `${live} should be live in IDN`);
+  }
 });
 
 test('exchange member lists only include live networks', () => {
   const ev = region('sea');
-  assert.equal(ev('Object.keys(NET).length'), 37);
+  assert.equal(ev('Object.keys(NET).length'), 40);
   assert.equal(ev(`XIX.every(x=>x.members.every(id=>!!NET[id]))`), true);
   ev("applyRegion('idn')");
   assert.equal(ev(`XIX.every(x=>x.members.every(id=>!!NET[id]))`), true);
@@ -132,6 +143,6 @@ test('global baseline unchanged', () => {
   assert.equal(ev('CITIES.length'), 94);
   assert.equal(ev('CABLES.length'), 73);
   assert.equal(ev('CABLE_PAIRS.length'), 134);
-  assert.equal(ev('NETS.length'), 125);
+  assert.equal(ev('NETS.length'), 128);
   assert.equal(ev('NETS.filter(n=>!n.tail).length'), 65);
 });

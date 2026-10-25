@@ -6,20 +6,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load } = require('./harness');
 
-test('idn: money is shown in thousands of rupiah', () => {
+test('idn: money is written out in full rupiah, with no k suffix', () => {
   const { ev } = load();
   ev("beginGame('N','jkt',{region:'idn'})");
-  assert.equal(ev("fmt$(20000)"), 'Rp 324.000k');
-  assert.equal(ev("fmt$(200000)"), 'Rp 3.240.000k');
-  assert.equal(ev("fmt$(1500)"), 'Rp 24.300k');
+  /* Brief 18 §D: no shorthand anywhere — the reader sees the whole number. */
+  assert.equal(ev("fmt$(20000)"), 'Rp 324.000.000');
+  assert.equal(ev("fmt$(200000)"), 'Rp 3.240.000.000');
+  assert.equal(ev("fmt$(1500)"), 'Rp 24.300.000');
+  assert.ok(!/k$/.test(ev("fmt$(20000)")), 'no k suffix');
 });
 
 test('idn: grouping uses dots, never commas', () => {
   const { ev } = load();
   ev("beginGame('N','jkt',{region:'idn'})");
   const s = ev("fmt$(250000)");
-  assert.ok(!s.includes(','), `${s} must not use a comma as a thousands separator`);
-  assert.match(s, /^Rp [\d.]+k$/);
+  assert.match(s, /^Rp [\d.]+$/, `${s} is a plain grouped number`);
+  assert.ok(!/k$/.test(s), 'no k suffix');
 });
 
 test('idn: internal cash stays in dollars', () => {
@@ -31,14 +33,15 @@ test('idn: internal cash stays in dollars', () => {
 test('global: money stays in dollars', () => {
   const { ev } = load();
   ev("beginGame('N','fra',{region:'global'})");
-  assert.equal(ev("fmt$(20000)"), '$20k');
-  assert.equal(ev("fmt$(2000000)"), '$2.0M');
+  /* Brief 18 §D: dollars are written out too — no k, no M. */
+  assert.equal(ev("fmt$(20000)"), '$20.000');
+  assert.equal(ev("fmt$(2000000)"), '$2.000.000');
 });
 
 test('sea: money stays in dollars', () => {
   const { ev } = load();
   ev("beginGame('N','jkt',{region:'sea'})");
-  assert.equal(ev("fmt$(20000)"), '$20k');
+  assert.equal(ev("fmt$(20000)"), '$20.000');
 });
 
 test('idn: no bare dollar sign in the rendered HUD', () => {
