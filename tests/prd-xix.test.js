@@ -11,18 +11,19 @@ const idn = () => {
   return ev;
 };
 
-// The 11 Indonesian cities already on the map (brief 14 §6, 16-city build).
-const EXISTING = ['jkt', 'sby', 'bdg', 'smg', 'mdn', 'jog', 'plm', 'upg', 'dps', 'btm', 'pku'];
-// Brief 14 §1.1 picks per existing city, and the total.
+// The 14 Indonesian cities with PeeringDB IX (brief 14 §1.1: 11 existing + tkg/djb/soc/mlg now that brief 7 §3 landed).
+const EXISTING = ['jkt', 'sby', 'bdg', 'smg', 'mdn', 'jog', 'plm', 'upg', 'dps', 'btm', 'pku', 'tkg', 'djb', 'soc', 'mlg'];
+// Brief 14 §1.1 picks per city, and the total (23 + 5 wired new = 28).
 const EXPECTED = {
   jkt: 6, sby: 4, jog: 2, dps: 2, bdg: 1, smg: 2,
   mdn: 1, plm: 1, upg: 1, btm: 1, pku: 2,
+  tkg: 2, djb: 1, soc: 1, mlg: 1,
 };
 
 test('idn: existing-city exchanges are wired, one entry per IX', () => {
   const ev = idn();
-  assert.equal(ev('XIX.length'), 23, '23 existing-city entries in the §3.1 table');
-  assert.equal(ev('new Set(XIX.map(x=>x.c)).size'), 11, 'only the 11 existing cities');
+  assert.equal(ev('XIX.length'), 28, '23 old + 5 wired new-city entries');
+  assert.equal(ev('new Set(XIX.map(x=>x.c)).size'), 15, 'only cities with a PeeringDB IX');
   for (const c of EXISTING) {
     assert.equal(ev(`ixStatic('${c}').length`), EXPECTED[c], `${c} exchange count`);
   }
@@ -38,13 +39,15 @@ test('idn: Jakarta has six exchanges and Surabaya four', () => {
   assert.equal(ev("XIX.filter(x=>x.c==='sby').length"), 4);
 });
 
-test('idn: no IX is wired for a city this map does not have', () => {
+test('idn: no IX is wired for a city without a PeeringDB IX', () => {
   const ev = idn();
-  for (const c of ['tkg', 'pdg', 'djb', 'soc', 'mlg', 'tnj', 'koe', 'ami', 'kdi', 'plw', 'amb', 'ttn', 'soq']) {
+  for (const c of ['pdg', 'tnj', 'koe', 'ami', 'kdi', 'plw', 'amb', 'ttn', 'soq']) {
     assert.equal(ev(`XIX.some(x=>x.c==='${c}')`), false, `${c} is future-only`);
     assert.equal(ev(`ixStatic('${c}').length`), 0, `${c} has no IX yet`);
   }
-  assert.equal(ev("typeof XIX_IDN_FUTURE"), 'undefined', 'future block stays commented out');
+  for (const c of ['tkg', 'djb', 'soc', 'mlg']) {
+    assert.equal(ev(`XIX.some(x=>x.c==='${c}')`), true, `${c} is wired now`);
+  }
 });
 
 test('idn: bjm, bpn, mdc, pnk and jay keep zero exchanges', () => {
@@ -66,7 +69,7 @@ test('idn: every exchange name is a parody, not a real one', () => {
     }
   }
   // And the parodies the brief names are actually present.
-  for (const n of ['JKT-IKS', 'IXI', 'AIKS', 'SisiX', 'BIKS', 'DU-CIKS', 'ODIKS', 'PANDA-IKS', 'BatamIKS']) {
+  for (const n of ['JKT-IKS', 'IXI', 'AIKS', 'SisiX', 'BIKS', 'DU-CIKS', 'ODIKS', 'PANDA-IKS', 'BatamIKS', 'BJN-IKS', 'CitraIKS Solo', 'BIKS Malang', 'GPMIKS']) {
     assert.ok(names.includes(n), `missing parody ${n}`);
   }
 });
@@ -81,7 +84,7 @@ test('global XIX is still the untouched 25-entry baseline', () => {
   const { ev, errors } = load();
   assert.equal(ev('XIX.length'), 25);
   ev("applyRegion('idn')");
-  assert.equal(ev('XIX.length'), 23);
+  assert.equal(ev('XIX.length'), 28, 'region swap uses the wired IDN array');
   ev("applyRegion('global')");
   assert.equal(ev('XIX.length'), 25, 'region swap restores the global array');
   assert.deepEqual(errors, []);

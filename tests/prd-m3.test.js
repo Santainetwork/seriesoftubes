@@ -66,21 +66,21 @@ test('M3: SEA canvas is 2000×1200 with the documented projection', () => {
     '[[106.8,-6.2],[103.8,1.3],[121,14.6]]');
 });
 
-test('M3: SEA has 20 land polygons and 32 cities', () => {
+test('M3: SEA has 25 land polygons and 49 cities (brief 7 §3 coarse)', () => {
   const ev = sea();
-  assert.equal(ev('LANDS_LL.length'), 20);
-  assert.equal(ev('CITIES.length'), 32);
-  assert.equal(ev('Object.keys(CITY).length'), 32);
+  assert.equal(ev('LANDS_LL.length'), 25);
+  assert.equal(ev('CITIES.length'), 49);
+  assert.equal(ev('Object.keys(CITY).length'), 49);
   assert.equal(ev("Object.keys(CITY).filter(c=>!isFinite(CITY[c].lon)||!isFinite(CITY[c].lat)).length"), 0);
   assert.equal(ev("Object.keys(CITY).filter(c=>!CITY[c].land).length"), 0);
 });
 
-test('M3: every SEA city sits on land (32/32)', () => {
+test('M3: every SEA city sits on land (49/49)', () => {
   const ev = sea();
   const atSea = JSON.parse(ev(
     'JSON.stringify(Object.keys(CITY).filter(c=>!onLand(CITY[c].x,CITY[c].y)))'));
   assert.deepEqual(atSea, [], `cities in the sea: ${atSea.join(', ')}`);
-  assert.equal(ev('Object.keys(CITY).filter(c=>onLand(CITY[c].x,CITY[c].y)).length'), 32);
+  assert.equal(ev('Object.keys(CITY).filter(c=>onLand(CITY[c].x,CITY[c].y)).length'), 49);
 });
 
 test('M3: every SEA city projects inside the canvas', () => {
@@ -101,25 +101,25 @@ test('M3: no antimeridian wrap in SEA', () => {
   assert.equal(ev('cam.x'), 0);
 });
 
-test('M3: SEA P total matches calibrated data (7845)', () => {
+test('M3: SEA P total matches calibrated data (8252 = 7845 + 407)', () => {
   const ev = sea();
-  assert.equal(ev('CITIES.reduce((a,c)=>a+c.P,0)'), 7845);
+  assert.equal(ev('CITIES.reduce((a,c)=>a+c.P,0)'), 8252);
 });
 
-test('M3: SEA eyeball capacity matches (~340 Gbps)', () => {
+test('M3: SEA eyeball capacity matches (~476 Gbps = 340 + 136)', () => {
   const ev = sea();
   const eye = ev('CITIES.reduce((a,c)=>a+Math.max(8,c.P*0.03),0)');
-  assert.ok(Math.abs(eye - 340) < 2, `eyeball ${eye}`);
+  assert.ok(Math.abs(eye - 476) < 2, `eyeball ${eye}`);
 });
 
-test('M3: IDN has exactly 16 cities and P total 3170', () => {
+test('M3: IDN has exactly 33 cities and P total 3577 (brief 7 §3)', () => {
   const ev = idn();
-  assert.equal(ev('CITIES.length'), 16);
-  assert.equal(ev('CITIES.reduce((a,c)=>a+c.P,0)'), 3170);
+  assert.equal(ev('CITIES.length'), 33);
+  assert.equal(ev('CITIES.reduce((a,c)=>a+c.P,0)'), 3577);
   const eye = ev('CITIES.reduce((a,c)=>a+Math.max(8,c.P*0.03),0)');
-  assert.ok(Math.abs(eye - 156) < 2, `eyeball ${eye}`);
+  assert.ok(Math.abs(eye - 292) < 2, `eyeball ${eye}`);
   const lands = [...new Set(JSON.parse(ev('JSON.stringify(CITIES.map(c=>c.land))')))].sort();
-  assert.deepEqual(lands, ['bal', 'btm', 'jav', 'kal', 'pap', 'sul', 'sum']);
+  assert.deepEqual(lands, ['bal', 'btm', 'jav', 'kal', 'kep', 'mlk', 'ntb', 'ntt', 'pap', 'papw', 'sul', 'sum']);
 });
 
 test('M3: bwn is Brunei, not Kalimantan', () => {

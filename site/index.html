@@ -3486,6 +3486,14 @@ const SEA_LANDS=[
  {id:'pen',ll:[[100.15,5.25],[100.45,5.25],[100.50,5.50],[100.35,5.65],[100.15,5.55]]},
  {id:'brn',ll:[[114.20,4.60],[114.50,4.50],[115.00,4.60],[115.30,4.90],[115.20,5.20],[114.80,5.10],[114.40,4.90]]},
  {id:'tls',ll:[[124.00,-8.90],[124.50,-8.40],[125.20,-8.30],[125.60,-8.50],[126.00,-8.40],[126.30,-8.70],[126.00,-9.00],[125.00,-9.00],[124.50,-9.10]]},
+ /* Brief 7 §3.3: coarse boxes around the new cities. Rough on purpose;
+    calibrate later. Each must contain its city so onLand passes. */
+ {id:'ntt',ll:[[122.9,-9.6],[124.3,-9.6],[124.3,-8.4],[122.9,-8.4]]},
+ {id:'ntb',ll:[[115.4,-9.1],[117.0,-9.1],[117.0,-8.1],[115.4,-8.1]]},
+ {id:'mlk',ll:[[127.3,-4.6],[129.2,-4.6],[129.2,1.5],[127.3,1.5]]},
+ {id:'kep',ll:[[103.8,0.4],[105.0,0.4],[105.0,1.7],[103.8,1.7]]},
+ /* soq sits on the Bird's Head tip west of the pap polygon; a nub box, refine later. */
+ {id:'papw',ll:[[130.9,-1.2],[131.7,-1.2],[131.7,-0.5],[130.9,-0.5]]},
  {id:'jav',ll:[[105.2,-6.4],[106.8,-5.4],[108.5,-5.5],[110.5,-5.9],[112.6,-6.3],[114.6,-7.4],[114.4,-8.8],[111,-8.5],[108,-7.9],[105.5,-7.0]]},
  {id:'ph',ll:[[119.5,18.8],[121.0,18.8],[122.5,18.5],[122.5,16.0],[124.0,14.0],[125.0,11.5],[126.8,9.5],[126.8,5.5],[125.0,5.2],[124.0,6.5],[123.0,7.5],[121.5,7.0],[121.0,10.0],[120.0,13.0],[119.4,16.0]]},
  {id:'tw',ll:[[121.5,25.35],[122.05,25.0],[121.85,24.3],[121.4,23.0],[120.85,21.9],[120.6,22.3],[120.15,22.9],[120.1,23.6],[120.55,24.5],[121.0,25.1]]},
@@ -3508,6 +3516,12 @@ const SEA_CITY_LL={
  bjm:[114.59,-3.32],pnh:[104.92,11.56],dvo:[125.61,7.07],bpn:[116.83,-1.27],
  btm:[104.03,1.13],mdc:[124.84,1.47],pku:[101.45,0.51],pnk:[109.33,-0.02],
  vte:[102.60,17.97],jay:[140.72,-2.53],bwn:[114.94,4.89],dil:[125.57,-8.55],
+ /* Brief 7 §3: 17 new cities. Coords §3.3 + provincial capitals (kasar, kalibrasi menyusul). koe at -8.95: real Kupang (-10.18) falls off the SEA canvas (limit -9). */
+ tkg:[105.27,-5.43],pdg:[100.36,-0.95],btj:[95.32,5.55],djb:[103.61,-1.61],
+ bks:[102.27,-3.80],pky:[113.92,-2.21],sri:[117.15,-0.50],tnj:[104.45,0.92],
+ koe:[123.60,-8.95],ami:[116.12,-8.58],kdi:[122.52,-3.98],plw:[119.87,-0.90],
+ amb:[128.18,-3.70],ttn:[127.38,0.79],soq:[131.29,-0.88],soc:[110.83,-7.57],
+ mlg:[112.62,-7.98],
 };
 const SEA_CITIES=[
  {id:'jkt',name:'Jakarta',x:0,y:0,land:'jav',reg:'AS',P:900,ix:'JKT-IX',dc:'Monsoon-proof DC',note:'270 million people on 17,000 islands. Mobile first, and very hungry for bandwidth.'},
@@ -3540,11 +3554,29 @@ const SEA_CITIES=[
  {id:'pnk',name:'Pontianak',x:0,y:0,land:'kal',reg:'AS',P:45,ix:'',dc:'Equator Colo'},
  {id:'vte',name:'Vientiane',x:0,y:0,land:'lao',reg:'AS',P:35,ix:'',dc:'Mekong Riverside DC'},
  {id:'jay',name:'Jayapura',x:0,y:0,land:'pap',reg:'AS',P:20,ix:'',dc:'Eastern Edge DC'},
+ /* Brief 7 §3.2: 17 cities, P terkalibrasi, total +407 = 3577. Coarse, calibrate later. kdi/plw stay sul per §3.3. */
+ {id:'tkg',name:'Bandar Lampung',x:0,y:0,land:'sum',reg:'AS',P:50,ix:'IIX-Lampung',dc:'Sunda Strait Colo'},
+ {id:'pdg',name:'Padang',x:0,y:0,land:'sum',reg:'AS',P:45,ix:'',dc:'West Sumatra Colo'},
+ {id:'btj',name:'Banda Aceh',x:0,y:0,land:'sum',reg:'AS',P:25,ix:'',dc:'Veranda Colo'},
+ {id:'djb',name:'Jambi',x:0,y:0,land:'sum',reg:'AS',P:28,ix:'',dc:'Batanghari Colo'},
+ {id:'bks',name:'Bengkulu',x:0,y:0,land:'sum',reg:'AS',P:18,ix:'',dc:'Rafflesia Colo'},
+ {id:'pky',name:'Palangkaraya',x:0,y:0,land:'kal',reg:'AS',P:14,ix:'',dc:'Kahayan Colo'},
+ {id:'sri',name:'Samarinda',x:0,y:0,land:'kal',reg:'AS',P:38,ix:'',dc:'Mahakam Colo'},
+ {id:'tnj',name:'Tanjung Pinang',x:0,y:0,land:'kep',reg:'AS',P:12,ix:'',dc:'Bintan Colo'},
+ {id:'koe',name:'Kupang',x:0,y:0,land:'ntt',reg:'AS',P:20,ix:'',dc:'Timor Colo'},
+ {id:'ami',name:'Mataram',x:0,y:0,land:'ntb',reg:'AS',P:22,ix:'',dc:'Lombok Colo'},
+ {id:'kdi',name:'Kendari',x:0,y:0,land:'sul',reg:'AS',P:16,ix:'',dc:'Anduonohu Colo'},
+ {id:'plw',name:'Palu',x:0,y:0,land:'sul',reg:'AS',P:18,ix:'',dc:'Kaili Colo'},
+ {id:'amb',name:'Ambon',x:0,y:0,land:'mlk',reg:'AS',P:18,ix:'',dc:'Spice Islands Colo'},
+ {id:'ttn',name:'Ternate',x:0,y:0,land:'mlk',reg:'AS',P:9,ix:'',dc:'Clove Colo'},
+ {id:'soq',name:'Sorong',x:0,y:0,land:'papw',reg:'AS',P:11,ix:'',dc:'Bird Head Colo'},
+ {id:'soc',name:'Solo',x:0,y:0,land:'jav',reg:'AS',P:25,ix:'',dc:'Batik Colo'},
+ {id:'mlg',name:'Malang',x:0,y:0,land:'jav',reg:'AS',P:38,ix:'',dc:'Highland Apple Colo'},
  {id:'bwn',name:'Bandar Seri Begawan',x:0,y:0,land:'brn',reg:'AS',P:20,ix:'',dc:'Borneo Colo'},
  {id:'dil',name:'Dili',x:0,y:0,land:'tls',reg:'AS',P:10,ix:'',dc:'Timor Landing DC'},
 ];
 const SEA_NUDGE={jkt:[0,-6],bdg:[-10,6],sby:[8,-4],smg:[0,-10],jog:[-10,8],sin:[8,-6],btm:[-8,8],kul:[6,-6],hkg:[-6,-8],mnl:[6,-6],ceb:[6,-4],dvo:[6,-4],tpe:[0,-6],bkk:[0,-6],dps:[6,-6],upg:[0,-6],pen:[0,-6],rgn:[0,-6]};
-const SEA_IDN_LANDS=new Set(['jav','sum','kal','sul','bal','pap','btm']);
+const SEA_IDN_LANDS=new Set(['jav','sum','kal','sul','bal','pap','papw','btm','ntt','ntb','mlk','kep']);
 /* Region entries exist from module load. SEA is the calibrated 32-city map;
    Indonesia is that same map filtered to the seven Indonesian landmasses. */
 const SEA_IDS=new Set(SEA_CITIES.map(c=>c.id));
@@ -3593,9 +3625,14 @@ const XIX_IDN=[
  {id:'pku~2', c:'pku', name:'sumIKS',         cheap:0.25, take:0.20, blurb:'A tiny Sumatra-wide fabric with a very optimistic logo.'},
  {id:'btm',   c:'btm', name:'BatamIKS',       cheap:0.35, take:0.30, blurb:'Four milliseconds from Singapore, one customs form away.'},
  {id:'upg',   c:'upg', name:'IXI Sulampua',  cheap:0.20, take:0.10, blurb:'Makassar’s single tiny switch. Two members and a long way to anywhere.'},
+ /* Brief 7 §3 + brief 14 §2.3: these cities now exist — wired, not future. */
+ {id:'tkg',   c:'tkg', name:'IXI Lampung',  cheap:0.30, take:0.30},
+ {id:'tkg~2', c:'tkg', name:'GPMIKS',        cheap:0.25, take:0.25},
+ {id:'djb',   c:'djb', name:'BJN-IKS',       cheap:0.25, take:0.25},
+ {id:'soc',   c:'soc', name:'CitraIKS Solo', cheap:0.30, take:0.30},
+ {id:'mlg',   c:'mlg', name:'BIKS Malang',   cheap:0.25, take:0.20},
 ];
-/* Future entries — cities from brief 7 §3 that are not on this 16-city map yet.
-   Data only: do not wire these until those cities exist.
+/* All brief-7 cities are wired now; nothing left in the future block.
 const XIX_IDN_FUTURE=[
  {id:'tkg',   c:'tkg', name:'IXI Lampung',  cheap:0.30, take:0.30},
  {id:'tkg~2', c:'tkg', name:'GPMIKS',        cheap:0.25, take:0.25},
@@ -3614,6 +3651,10 @@ const SEA_NEW_CABLES=[
  {id:'sbbl',name:'Bali Strait',price:0.50,age:'new',blurb:'Surabaya to Denpasar, one short wet hop.',pairs:[['sby','dps',[[113.6,-7.6],[114.6,-8.1]]]]},
  {id:'mkst',name:'Makassar Strait',price:0.55,age:'new',blurb:'Banjarmasin to Makassar across a strait full of islands and fishing boats.',pairs:[['bjm','upg',[[115.6,-3.6],[117.0,-4.2],[118.4,-4.8]]]]},
  {id:'suln',name:'Sulawesi North',price:0.60,age:'new',blurb:'Makassar up to Manado, around the top of Sulawesi.',pairs:[['upg','mdc',[[119.9,-3.5],[121.5,-1.5],[123.5,0.2],[124.4,1.1]]]]},
+ {id:'kepri',name:'Kepri Link',price:0.40,age:'new',blurb:'Batam to Tanjung Pinang, the short hop that keeps the Riau Islands online.',pairs:[['btm','tnj',[[104.0,0.95],[104.45,0.92]]]]},
+ {id:'timor',name:'Timor Spur',price:0.55,age:'new',blurb:'Denpasar down to Kupang, the long empty stretch along the Lesser Sunda chain.',pairs:[['dps','koe',[[115.2,-8.8],[116.5,-9.1],[118.0,-9.3],[119.5,-9.6],[121.5,-9.9],[123.4,-9.9]]]]},
+ {id:'banda',name:'Banda Crossing',price:0.55,age:'new',blurb:'Makassar to Ambon across the Banda Sea, with nothing but water in between.',pairs:[['upg','ami',[[119.4,-4.5],[121.0,-4.6],[123.0,-4.3],[125.5,-3.9],[127.6,-3.8]]]]},
+ {id:'papua',name:'Papua Backbone',price:0.50,age:'new',blurb:'Sorong to Jayapura along the north coast of New Guinea.',pairs:[['soq','jay',[[131.3,-1.0],[133.0,-1.5],[135.0,-2.0],[137.5,-2.3],[139.5,-2.4]]]]},
  {id:'summ',name:'Malacca North',price:0.50,age:'new',blurb:'Medan to Kuala Lumpur, under the busiest shipping lane on earth.',pairs:[['mdn','kul',[[98.0,4.2],[99.5,3.4],[100.8,2.8]]]]},
  {id:'btmx',name:'Batam Cross',price:0.35,age:'new',blurb:'Singapore to Batam. Four milliseconds and a customs form.',pairs:[['sin','btm',[[103.9,1.25]]]]},
  {id:'indo1',name:'Nusantara Backbone',price:0.60,age:'new',blurb:'Surabaya to Banjarmasin, the backbone of the eastern islands.',pairs:[['sby','bjm',[[113.0,-6.5],[114.0,-5.0],[114.5,-3.8]]]]},
@@ -3642,6 +3683,26 @@ const IDN_NEW_CABLES=[
  {id:'matrix',name:'Matrix Cable System',price:0.50,age:'mid',blurb:'Batam to Jakarta.',pairs:[['btm','jkt']]},
  {id:'igg',name:'Indonesia Global Gateway',price:0.60,age:'new',blurb:'Balikpapan to Jakarta, Batam and Makassar.',pairs:[['bpn','jkt'],['bpn','btm'],['upg','btm']]},
  {id:'acc1',name:'Asia-America Gateway-ish',price:0.60,age:'new',blurb:'Makassar and Manado to Jakarta.',pairs:[['upg','jkt'],['mdc','jkt']]},
+ /* Brief 7 §3.4: 17 cables so every new city has a wet path. Coarse pairs, refine in Tahap D. */
+ {id:'sumb',name:'Sumatra West Link',price:0.50,age:'new',blurb:'Padang to Jakarta.',pairs:[['pdg','jkt']]},
+ {id:'lamp',name:'Sunda Crossing',price:0.45,age:'new',blurb:'Lampung to Jakarta across the strait.',pairs:[['tkg','jkt']]},
+ {id:'aceh',name:'Aceh Spur',price:0.50,age:'new',blurb:'Banda Aceh to Medan.',pairs:[['btj','mdn']]},
+ {id:'jmb',name:'Jambi Link',price:0.45,age:'new',blurb:'Jambi to Palembang.',pairs:[['djb','plm']]},
+ {id:'bkl',name:'Bengkulu Link',price:0.45,age:'new',blurb:'Bengkulu to Palembang.',pairs:[['bks','plm']]},
+ {id:'kalt',name:'Central Kalimantan Link',price:0.55,age:'new',blurb:'Palangkaraya to Banjarmasin.',pairs:[['pky','bjm']]},
+ {id:'ktim',name:'East Kalimantan Link',price:0.55,age:'new',blurb:'Samarinda to Balikpapan.',pairs:[['sri','bpn']]},
+ {id:'kepr',name:'Kepri Hop',price:0.35,age:'new',blurb:'Bintan to Batam.',pairs:[['tnj','btm']]},
+ {id:'ntt2',name:'Timor Link',price:0.60,age:'new',blurb:'Kupang to Denpasar.',pairs:[['koe','dps']]},
+ {id:'ntb2',name:'Lombok Link',price:0.50,age:'new',blurb:'Mataram to Denpasar.',pairs:[['ami','dps']]},
+ {id:'mlk2',name:'Banda Sea Link',price:0.60,age:'new',blurb:'Ambon to Makassar.',pairs:[['amb','upg']]},
+ {id:'mlk3',name:'Clove Link',price:0.55,age:'new',blurb:'Ternate to Ambon.',pairs:[['ttn','amb']]},
+ {id:'sult',name:'Kendari Link',price:0.55,age:'new',blurb:'Kendari to Makassar.',pairs:[['kdi','upg']]},
+ {id:'sult2',name:'Palu Link',price:0.60,age:'new',blurb:'Palu to Manado.',pairs:[['plw','mdc']]},
+ {id:'pap2',name:'Bird Head Link',price:0.70,age:'new',blurb:'Sorong to Jayapura.',pairs:[['soq','jay']]},
+ {id:'jawa',name:'Solo Spur',price:0.40,age:'new',blurb:'Solo to Semarang overland.',pairs:[['soc','smg']]},
+ {id:'jawa2',name:'Malang Spur',price:0.40,age:'new',blurb:'Malang to Surabaya overland.',pairs:[['mlg','sby']]},
+ /* pku lost its only SEA wet path when the region filter changed; a Riau strait hop keeps it connected. Refine in Tahap D. */
+ {id:'riau',name:'Riau Hop',price:0.40,age:'new',blurb:'Pekanbaru to Palembang.',pairs:[['pku','plm']]},
 ];
 /* Brief 17 §1–2: Waeve Rail Fibre — leased cores in the railway duct. Cheap to light,
    limited to the Java rail corridor, and cut whenever the track crew opens the duct.
