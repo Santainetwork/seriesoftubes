@@ -3703,6 +3703,18 @@ const IDN_NEW_CABLES=[
  {id:'jawa2',name:'Malang Spur',price:0.40,age:'new',blurb:'Malang to Surabaya overland.',pairs:[['mlg','sby']]},
  /* pku lost its only SEA wet path when the region filter changed; a Riau strait hop keeps it connected. Refine in Tahap D. */
  {id:'riau',name:'Riau Hop',price:0.40,age:'new',blurb:'Pekanbaru to Palembang.',pairs:[['pku','plm']]},
+ /* Brief 12 Tahap D: the 35 V2 routes that need the 33-city map. Grouped by real cable
+    (parody names kept from Stage A). No duplicate pair inside one entry. */
+ {id:'prm',name:'Palapa Ring Middle',price:0.40,age:'new',blurb:'Manado–Ternate–Kendari.',pairs:[['mdc','ttn'],['kdi','ttn']]},
+ {id:'smpcs1',name:'SMPCS Packet-1',price:0.55,age:'new',blurb:'Maluku–Papua mesh.',pairs:[['amb','soq'],['ttn','soq'],['amb','kdi'],['mdc','amb'],['mdc','soq'],['soq','kdi']]},
+ {id:'jasukaD',name:'JaSuKa East',price:0.45,age:'mid',blurb:'Java–Sumatra–Kepri mesh, eastern legs.',pairs:[['pnk','tnj'],['tkg','tnj'],['tkg','btm'],['tkg','pnk'],['jkt','tnj']]},
+ {id:'jakaladD',name:'JaKa2LaDeMa East',price:0.45,age:'mid',blurb:'Kalimantan–Lombok legs.',pairs:[['bjm','ami'],['pnk','ami']]},
+ {id:'iggD',name:'IGG Eastern Legs',price:0.60,age:'new',blurb:'Balikpapan–Manado east of Kalimantan.',pairs:[['bpn','ami'],['bpn','tnj'],['mdc','ami'],['mdc','btm']]},
+ {id:'hwn1',name:'Hawaiki Nui 1',price:0.65,age:'new',blurb:'Kepri–Java long hops.',pairs:[['jkt','tnj'],['jkt','ami'],['tnj','ami'],['btm','ami']]},
+ {id:'itcsD',name:'ITCS East',price:0.40,age:'new',blurb:'Makassar–Kendari–Bali legs.',pairs:[['kdi','ami'],['kdi','dps']]},
+ {id:'bti2D',name:'BTI-2 Kendari Mesh',price:0.55,age:'new',blurb:'Kendari and strait legs.',pairs:[['bjm','kdi'],['smg','tnj'],['bjm','tnj'],['smg','kdi'],['pnk','kdi'],['kdi','jkt'],['kdi','tnj'],['kdi','btm']]},
+ {id:'bti1D',name:'BTI-1 North',price:0.55,age:'new',blurb:'Surabaya–Bintan hop.',pairs:[['sby','tnj']]},
+ {id:'acc1D',name:'ACC-1 North',price:0.60,age:'new',blurb:'Makassar–Manado north to Bintan.',pairs:[['upg','tnj'],['mdc','tnj']]},
 ];
 /* Brief 17 §1–2: Waeve Rail Fibre — leased cores in the railway duct. Cheap to light,
    limited to the Java rail corridor, and cut whenever the track crew opens the duct.

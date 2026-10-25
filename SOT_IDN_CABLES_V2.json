@@ -1,0 +1,586 @@
+[
+ {
+  "a": "btm",
+  "b": "tnj",
+  "km": 52,
+  "name": "Hawaiki Nui 1",
+  "id": "hawaiki-nui-1",
+  "n": 19
+ },
+ {
+  "a": "tnj",
+  "b": "btm",
+  "km": 52,
+  "name": "Trans Global Cable System (TGCS)",
+  "id": "trans-global-cable-system-tgcs",
+  "n": 2
+ },
+ {
+  "a": "dps",
+  "b": "ami",
+  "km": 99,
+  "name": "JaKa2LaDeMa",
+  "id": "jaka2ladema",
+  "n": 4
+ },
+ {
+  "a": "tkg",
+  "b": "jkt",
+  "km": 194,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 1
+ },
+ {
+  "a": "mdc",
+  "b": "ttn",
+  "km": 293,
+  "name": "Palapa Ring Middle",
+  "id": "palapa-ring-middle",
+  "n": 1
+ },
+ {
+  "a": "ttn",
+  "b": "mdc",
+  "km": 293,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "amb",
+  "b": "soq",
+  "km": 463,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "ttn",
+  "b": "soq",
+  "km": 469,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "sby",
+  "b": "bjm",
+  "km": 482,
+  "name": "S-U-B Cable System",
+  "id": "s-u-b-cable-system",
+  "n": 1
+ },
+ {
+  "a": "bpn",
+  "b": "upg",
+  "km": 518,
+  "name": "Barat Timur Indonesia-1 (BTI-1)",
+  "id": "barat-timur-indonesia-1-bti-1",
+  "n": 2
+ },
+ {
+  "a": "upg",
+  "b": "ami",
+  "km": 527,
+  "name": "Indonesia Tengah Cable Systems",
+  "id": "indonesia-tengah-cable-systems",
+  "n": 2
+ },
+ {
+  "a": "pnk",
+  "b": "tnj",
+  "km": 553,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 3
+ },
+ {
+  "a": "upg",
+  "b": "bjm",
+  "km": 573,
+  "name": "S-U-B Cable System",
+  "id": "s-u-b-cable-system",
+  "n": 1
+ },
+ {
+  "a": "dps",
+  "b": "bjm",
+  "km": 597,
+  "name": "JaKa2LaDeMa",
+  "id": "jaka2ladema",
+  "n": 1
+ },
+ {
+  "a": "pnk",
+  "b": "btm",
+  "km": 603,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 2
+ },
+ {
+  "a": "btm",
+  "b": "pnk",
+  "km": 603,
+  "name": "JAKABARE",
+  "id": "jakabare",
+  "n": 1
+ },
+ {
+  "a": "upg",
+  "b": "dps",
+  "km": 605,
+  "name": "Indonesia Tengah Cable Systems",
+  "id": "indonesia-tengah-cable-systems",
+  "n": 1
+ },
+ {
+  "a": "bjm",
+  "b": "ami",
+  "km": 609,
+  "name": "JaKa2LaDeMa",
+  "id": "jaka2ladema",
+  "n": 1
+ },
+ {
+  "a": "bjm",
+  "b": "smg",
+  "km": 616,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "amb",
+  "b": "kdi",
+  "km": 621,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "mdc",
+  "b": "amb",
+  "km": 685,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "tkg",
+  "b": "tnj",
+  "km": 712,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 1
+ },
+ {
+  "a": "tkg",
+  "b": "btm",
+  "km": 741,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 1
+ },
+ {
+  "a": "pnk",
+  "b": "jkt",
+  "km": 742,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 2
+ },
+ {
+  "a": "tkg",
+  "b": "pnk",
+  "km": 752,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 1
+ },
+ {
+  "a": "kdi",
+  "b": "ttn",
+  "km": 753,
+  "name": "Palapa Ring Middle",
+  "id": "palapa-ring-middle",
+  "n": 1
+ },
+ {
+  "a": "ttn",
+  "b": "kdi",
+  "km": 753,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "mdc",
+  "b": "soq",
+  "km": 759,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "upg",
+  "b": "sby",
+  "km": 773,
+  "name": "Barat Timur Indonesia-1 (BTI-1)",
+  "id": "barat-timur-indonesia-1-bti-1",
+  "n": 1
+ },
+ {
+  "a": "sby",
+  "b": "upg",
+  "km": 773,
+  "name": "S-U-B Cable System",
+  "id": "s-u-b-cable-system",
+  "n": 2
+ },
+ {
+  "a": "pnk",
+  "b": "smg",
+  "km": 784,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "bpn",
+  "b": "sby",
+  "km": 804,
+  "name": "Barat Timur Indonesia-1 (BTI-1)",
+  "id": "barat-timur-indonesia-1-bti-1",
+  "n": 1
+ },
+ {
+  "a": "bpn",
+  "b": "ami",
+  "km": 817,
+  "name": "Indonesia Global Gateway (IGG) System",
+  "id": "indonesia-global-gateway-igg-system",
+  "n": 1
+ },
+ {
+  "a": "jkt",
+  "b": "tnj",
+  "km": 836,
+  "name": "JaSuKa",
+  "id": "jasuka",
+  "n": 9
+ },
+ {
+  "a": "tnj",
+  "b": "jkt",
+  "km": 836,
+  "name": "Hawaiki Nui 1",
+  "id": "hawaiki-nui-1",
+  "n": 1
+ },
+ {
+  "a": "btm",
+  "b": "jkt",
+  "km": 872,
+  "name": "Matrix Cable System",
+  "id": "matrix-cable-system",
+  "n": 7
+ },
+ {
+  "a": "jkt",
+  "b": "btm",
+  "km": 872,
+  "name": "Jakarta-Bangka-Batam-Singapore (B2JS)",
+  "id": "jakarta-bangka-batam-singapore-b2js",
+  "n": 5
+ },
+ {
+  "a": "kdi",
+  "b": "ami",
+  "km": 878,
+  "name": "Indonesia Tengah Cable Systems",
+  "id": "indonesia-tengah-cable-systems",
+  "n": 1
+ },
+ {
+  "a": "bjm",
+  "b": "kdi",
+  "km": 891,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "bjm",
+  "b": "jkt",
+  "km": 918,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "bpn",
+  "b": "mdc",
+  "km": 942,
+  "name": "Barat Timur Indonesia-1 (BTI-1)",
+  "id": "barat-timur-indonesia-1-bti-1",
+  "n": 2
+ },
+ {
+  "a": "kdi",
+  "b": "dps",
+  "km": 965,
+  "name": "Indonesia Tengah Cable Systems",
+  "id": "indonesia-tengah-cable-systems",
+  "n": 1
+ },
+ {
+  "a": "soq",
+  "b": "kdi",
+  "km": 1023,
+  "name": "SMPCS Packet-1",
+  "id": "smpcs-packet-1",
+  "n": 1
+ },
+ {
+  "a": "jkt",
+  "b": "ami",
+  "km": 1058,
+  "name": "Hawaiki Nui 1",
+  "id": "hawaiki-nui-1",
+  "n": 2
+ },
+ {
+  "a": "smg",
+  "b": "tnj",
+  "km": 1101,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "smg",
+  "b": "btm",
+  "km": 1147,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "dps",
+  "b": "pnk",
+  "km": 1160,
+  "name": "JaKa2LaDeMa",
+  "id": "jaka2ladema",
+  "n": 1
+ },
+ {
+  "a": "pnk",
+  "b": "ami",
+  "km": 1213,
+  "name": "JaKa2LaDeMa",
+  "id": "jaka2ladema",
+  "n": 1
+ },
+ {
+  "a": "bjm",
+  "b": "tnj",
+  "km": 1222,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "bpn",
+  "b": "jkt",
+  "km": 1238,
+  "name": "Indonesia Global Gateway (IGG) System",
+  "id": "indonesia-global-gateway-igg-system",
+  "n": 1
+ },
+ {
+  "a": "mdc",
+  "b": "bjm",
+  "km": 1258,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "bjm",
+  "b": "btm",
+  "km": 1273,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "sby",
+  "b": "tnj",
+  "km": 1293,
+  "name": "Barat Timur Indonesia-1 (BTI-1)",
+  "id": "barat-timur-indonesia-1-bti-1",
+  "n": 1
+ },
+ {
+  "a": "btm",
+  "b": "sby",
+  "km": 1342,
+  "name": "Barat Timur Indonesia-1 (BTI-1)",
+  "id": "barat-timur-indonesia-1-bti-1",
+  "n": 1
+ },
+ {
+  "a": "smg",
+  "b": "kdi",
+  "km": 1387,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "bpn",
+  "b": "tnj",
+  "km": 1398,
+  "name": "Indonesia Global Gateway (IGG) System",
+  "id": "indonesia-global-gateway-igg-system",
+  "n": 2
+ },
+ {
+  "a": "upg",
+  "b": "jkt",
+  "km": 1398,
+  "name": "Asia Connect Cable-1 (ACC-1)",
+  "id": "asia-connect-cable-1-acc-1",
+  "n": 2
+ },
+ {
+  "a": "bpn",
+  "b": "btm",
+  "km": 1448,
+  "name": "Indonesia Global Gateway (IGG) System",
+  "id": "indonesia-global-gateway-igg-system",
+  "n": 2
+ },
+ {
+  "a": "mdc",
+  "b": "ami",
+  "km": 1478,
+  "name": "Indonesia Global Gateway (IGG) System",
+  "id": "indonesia-global-gateway-igg-system",
+  "n": 1
+ },
+ {
+  "a": "pnk",
+  "b": "kdi",
+  "km": 1538,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "mdc",
+  "b": "sby",
+  "km": 1656,
+  "name": "Barat Timur Indonesia-1 (BTI-1)",
+  "id": "barat-timur-indonesia-1-bti-1",
+  "n": 1
+ },
+ {
+  "a": "tnj",
+  "b": "ami",
+  "km": 1670,
+  "name": "Hawaiki Nui 1",
+  "id": "hawaiki-nui-1",
+  "n": 2
+ },
+ {
+  "a": "btm",
+  "b": "ami",
+  "km": 1720,
+  "name": "Hawaiki Nui 1",
+  "id": "hawaiki-nui-1",
+  "n": 2
+ },
+ {
+  "a": "mdc",
+  "b": "pnk",
+  "km": 1732,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "kdi",
+  "b": "jkt",
+  "km": 1763,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "upg",
+  "b": "tnj",
+  "km": 1794,
+  "name": "Asia Connect Cable-1 (ACC-1)",
+  "id": "asia-connect-cable-1-acc-1",
+  "n": 3
+ },
+ {
+  "a": "upg",
+  "b": "btm",
+  "km": 1846,
+  "name": "Indonesia Global Gateway (IGG) System",
+  "id": "indonesia-global-gateway-igg-system",
+  "n": 3
+ },
+ {
+  "a": "mdc",
+  "b": "smg",
+  "km": 1857,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "kdi",
+  "b": "tnj",
+  "km": 2089,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "kdi",
+  "b": "btm",
+  "km": 2140,
+  "name": "Barat Timur Indonesia-2 (BTI-2)",
+  "id": "barat-timur-indonesia-2-bti-2",
+  "n": 1
+ },
+ {
+  "a": "mdc",
+  "b": "jkt",
+  "km": 2175,
+  "name": "Asia Connect Cable-1 (ACC-1)",
+  "id": "asia-connect-cable-1-acc-1",
+  "n": 4
+ },
+ {
+  "a": "mdc",
+  "b": "tnj",
+  "km": 2268,
+  "name": "Asia Connect Cable-1 (ACC-1)",
+  "id": "asia-connect-cable-1-acc-1",
+  "n": 5
+ },
+ {
+  "a": "mdc",
+  "b": "btm",
+  "km": 2314,
+  "name": "Indonesia Global Gateway (IGG) System",
+  "id": "indonesia-global-gateway-igg-system",
+  "n": 5
+ }
+]
