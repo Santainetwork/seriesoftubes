@@ -1447,7 +1447,7 @@ const confCost=()=>CONF_COST*(S.role==='nap'?4:S.role==='hosting'?2:1);
 const confDay=(cf,y)=>y*360+cf.m*30+9;
 function confKey(cf,y){return cf.n+'@'+cf.c+'@'+y;}
 function upcomingConfs(within){const y0=Math.floor(S.day/360),out=[];for(const y of [y0,y0+1])for(const cf of CONFS){if(!CITY[cf.c])continue;const d=confDay(cf,y);if(d>=S.day&&d-S.day<=within)out.push({...cf,day:d,key:confKey(cf,y)});}return out.sort((a,b)=>a.day-b.day);}
-function confBoost(id){const cb=S.conf;if(!cb||!(cb.until>S.day))return 1;const n=NET[id];return n&&n.pops.some(c=>CITY[c]&&CITY[c].reg===cb.reg)?0.5:1;}
+function confBoost(id){const cb=S.conf;if(!cb||!(cb.until>S.day))return 1;const n=netOf(id);return n&&n.pops.some(c=>CITY[c]&&CITY[c].reg===cb.reg)?0.5:1;}
 function confTick(d){S.confReg=S.confReg||{};
   for(const cf of upcomingConfs(30)){if(cf.day-d===30&&!S.confReg[cf.key])toast(`<b>${esc(cf.n)} comes to ${esc(CITY[cf.c].name)} in 30 days.</b><br>Peering coordinators, hallway track, free stickers. Register in the Deals tab.`,'goal',[{l:'Show me',act:'leftTab',args:{t:'deals'}}]);}
   for(const cf of upcomingConfs(0)){if(cf.day!==d||!S.confReg[cf.key])continue;const reg=CITY[cf.c].reg;S.conf={until:d+CONF_DAYS,reg,name:cf.n};S.stats.confs=(S.stats.confs||0)+1;
@@ -1535,10 +1535,10 @@ function trPaths(src){const live=S.links.filter(l=>!linkDown(l)),rem=remoteCitie
   const dist={[src]:0},prev={},done=new Set();for(;;){let u=null,ud=Infinity;for(const k in dist)if(!done.has(k)&&dist[k]<ud){u=k;ud=dist[k];}if(u===null)break;done.add(u);for(const [v,l,w] of adj[u]||[]){const nd=ud+w;if(nd<(dist[v]??Infinity)){dist[v]=nd;prev[v]=l;}}}
   const path=dst=>{if(dist[dst]===undefined)return null;const out=[];let v=dst;while(v!==src){const l=prev[v];out.unshift({l,from:l.a===v?l.b:l.a,to:v});v=l.a===v?l.b:l.a;}return out;};return {dist,path};}
 function trExits(net){const day=S.day,ev=S.ev,leak=ev.leak&&ev.leak.until>day?ev.leak.net:null,out=[];
-  for(const x of S.caches)if(x.net===net&&popUp(x.city)&&!siteDown(x.city,'a'))out.push({k:'c',rank:0,city:x.city,pref:'normal',lab:NET[net].cache.name+' cache',used:R.useCache[x.id]||0,cap:CACHE_CAP});
+  for(const x of S.caches)if(x.net===net&&popUp(x.city)&&!siteDown(x.city,'a'))out.push({k:'c',rank:0,city:x.city,pref:'normal',lab:(netOf(net)||{cache:{name:net}}).cache.name+' cache',used:R.useCache[x.id]||0,cap:CACHE_CAP});
   for(const p of S.pni)if(p.net===net&&popUp(p.city)&&liveN(p.city,p.site,p.n)){const pn=netOf(net);out.push({k:'p',rank:1,city:p.city,pref:p.pref||'normal',lab:'PNI with '+(pn?pn.name:net),used:R.usePni[p.id]||0,cap:liveCap(PORT[p.tier].g,p.city,p.site,p.n)});}
   for(const c in S.ixp)if(ixSessions(c).has(net)&&(popUp(ixCity(c))||remoteCities().includes(ixCity(c)))&&!(ev.ixdown&&ev.ixdown[c]>day))out.push({k:'ix',rank:2,city:ixCity(c),id:c,pref:(S.ixPref&&S.ixPref[c])||'normal',lab:ixName(c)+' peering',used:R.useIx[c]||0,cap:ixCap(c)});
-  for(const t of S.transit)if(popUp(t.city)&&!(t.down>day)&&liveN(t.city,t.site,t.n)&&net!==leak&&!((ev.depeer>day||scnRule('spat'))&&t.net==='cog'&&net==='ggl'))out.push({k:'t',rank:3,city:t.city,pref:t.pref||'normal',lab:NET[t.net].name+' transit',tnet:t.net,used:R.useT[t.id]||0,cap:liveCap(PORT[t.tier].g,t.city,t.site,t.n)});
+  for(const t of S.transit)if(popUp(t.city)&&!(t.down>day)&&liveN(t.city,t.site,t.n)&&net!==leak&&!((ev.depeer>day||scnRule('spat'))&&t.net==='cog'&&net==='ggl'))out.push({k:'t',rank:3,city:t.city,pref:t.pref||'normal',lab:netName(t.net)+' transit',tnet:t.net,used:R.useT[t.id]||0,cap:liveCap(PORT[t.tier].g,t.city,t.site,t.n)});
   return out;}
 /* Where an Indonesian network's traffic actually leaves the country. Singapore is the default:
    almost every content network without an Indonesian POP is only reachable from there. */
@@ -1579,7 +1579,7 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
   ex.sort((a,b)=>(a.pref==='low'?4:a.rank)-(b.pref==='low'?4:b.rank)||(a.pref==='high'?0:1)-(b.pref==='high'?0:1)||P.dist[a.city]-P.dist[b.city]);
   const e=ex.find(x=>x.used<x.cap*0.999)||ex[0];walk(P.path(e.city));
   let asPath=[S.asn];
-  if(e.k==='t'){const T=NET[e.tnet];asPath.push(T.asn);hop(`be-${S.asn}.${e.city}.${slug(T.name)}.net`,`203.0.113.${hstr(e.city)%250}`,0.4,`hand-off to ${T.name}`);
+  if(e.k==='t'){const T=netOf(e.tnet);if(!T)return;asPath.push(T.asn);hop(`be-${S.asn}.${e.city}.${slug(T.name)}.net`,`203.0.113.${hstr(e.city)%250}`,0.4,`hand-off to ${T.name}`);
     if(T.id!==N.id){
       /* Indonesian networks still depend on Singapore: a content network without a POP in the
          country is only reachable through the regional hub, which is why a traceroute from
@@ -1871,6 +1871,8 @@ function snubWhy(sn){const d=Math.max(1,sn.until-S.day);return `${sn.why} They w
 let NETS_BY_ID={};
 function rebuildNetIndex(){NETS_BY_ID=Object.fromEntries(NETS.map(n=>[n.id,n]));}
 function netOf(id){return NET[id]||NETS_BY_ID[id]||null;}
+/* Safe name: never throws on an id the region does not carry (stale save, other map). */
+function netName(id){const n=netOf(id);return n?n.name:id;}
 function peerOk(id,via,city){
   const n=netOf(id),dem=R.demTo[id]||0;
   if(!n)return {ok:false,why:'This network is not present in this region.'};
@@ -1905,10 +1907,10 @@ function reachReport(){
     else if(depeer&&n.id==='ggl'&&S.transit.some(t=>t.net==='cog')){g.kind='wait';g.why='Cogentle and Goggle are not speaking, so Cogentle transit cannot carry Goggle.';g.eta=until(ev.depeer);g.fix='Peer with Goggle directly, or buy a second upstream.';}
     else{
       // 2. A port you own that should carry it, but is down.
-      const deadT=S.transit.find(t=>t.down>day&&(NET[t.net].type==='t1'||NET[t.net].type==='t2'));
+      const deadT=S.transit.find(t=>t.down>day&&((netOf(t.net)||{}).type==='t1'||(netOf(t.net)||{}).type==='t2'));
       const deadIx=Object.keys(S.ixp).find(c=>ev.ixdown&&ev.ixdown[c]>day&&ixMembers(c).includes(n.id));
       const deadP=S.pni.find(p=>p.net===n.id&&!hasPop(p.city));
-      if(deadT||deadIx||deadP){g.kind='down';g.why=deadT?`${NET[deadT.net].name} transit in ${CITY[deadT.city].name} is down.`:`${ixName(deadIx)} is down.`;g.fix='Rush the repair, or make sure a second exit can carry it.';}
+      if(deadT||deadIx||deadP){g.kind='down';g.why=deadT?`${netName(deadT.net)} transit in ${CITY[deadT.city].name} is down.`:`${ixName(deadIx)} is down.`;g.fix='Rush the repair, or make sure a second exit can carry it.';}
       else{
         // 3. You are on an IX with them but have no session: policy, size or a snub.
         let best=null;
@@ -1980,7 +1982,7 @@ function reachHTML(){
       const list=groups[k],[lab,col]=REACH_KIND[k]||['Missing','#55608A'];
       h+=`<section><h3 style="font-size:16px"><span class="dot" style="background:${col}"></span>${lab} <span class="meta" style="font-weight:800">${list.length} · ${pct(list.reduce((a,g)=>a+g.share,0))}</span></h3>`;
       for(const g of list.slice(0,6)){
-        h+=`<div class="reachrow">${logo(NET[g.id])}<div class="grow"><div class="nm">${esc(g.name)} <span class="meta">AS${g.asn} · ${pct(g.share)} of traffic</span></div><div class="why">${esc(g.why)}</div><div class="meta"><b>Do this:</b> ${esc(g.fix)}${g.eta?` · about ${g.eta} day${g.eta===1?'':'s'}`:''}</div></div>
+        h+=`<div class="reachrow">${logo(netOf(g.id)||{col:'#888'})}<div class="grow"><div class="nm">${esc(g.name)} <span class="meta">AS${g.asn} · ${pct(g.share)} of traffic</span></div><div class="why">${esc(g.why)}</div><div class="meta"><b>Do this:</b> ${esc(g.fix)}${g.eta?` · about ${g.eta} day${g.eta===1?'':'s'}`:''}</div></div>
         ${g.act==='fixRpki'?btn('Fix now','reachGo',{act:'fixRpki'},'pink sm'):g.act==='peer'?btn('Request','reachGo',{act:'peer',city:g.city,net:g.id},'pink sm'):g.act?btn('Open','reachGo',{act:g.act,city:g.city,net:g.id},'sm'):''}</div>`;
       }
       if(list.length>6)h+=`<p class="note">and ${list.length-6} more, each a sliver of traffic.</p>`;
@@ -1991,11 +1993,11 @@ function reachHTML(){
   return h;
 }
 function hotPorts(){const out=[];if(!R||!S)return out;
-  for(const t of S.transit){if(t.down>S.day)continue;const cap=lagCap(PORT[t.tier].g,t.n),u=(R.useT[t.id]||0)/cap;if(u>=HOT)out.push({k:'t',city:t.city,lab:`${NET[t.net].name} transit · ${lagName(t.tier,t.n)}`,u,tip:'Add a LAG member, upgrade the port or buy a second upstream.'});}
+  for(const t of S.transit){if(t.down>S.day)continue;const cap=lagCap(PORT[t.tier].g,t.n),u=(R.useT[t.id]||0)/cap;if(u>=HOT)out.push({k:'t',city:t.city,lab:`${netName(t.net)} transit · ${lagName(t.tier,t.n)}`,u,tip:'Add a LAG member, upgrade the port or buy a second upstream.'});}
   for(const c in S.ixp){const cap=ixCap(c);if(!cap)continue;const u=(R.useIx[c]||0)/cap;if(u>=HOT)out.push({k:'ix',city:ixCity(c),lab:`${ixName(c)} port`,u,tip:'Upgrade the IX port or add a LAG member.'});}
-  for(const p of S.pni){const cap=lagCap(PORT[p.tier].g,p.n),u=(R.usePni[p.id]||0)/cap;if(u>=HOT)out.push({k:'p',city:p.city,lab:`PNI with ${NET[p.net].name}`,u,tip:'Add a LAG member or upgrade the PNI.'});}
+  for(const p of S.pni){const cap=lagCap(PORT[p.tier].g,p.n),u=(R.usePni[p.id]||0)/cap;if(u>=HOT)out.push({k:'p',city:p.city,lab:`PNI with ${netName(p.net)}`,u,tip:'Add a LAG member or upgrade the PNI.'});}
   const cc={};for(const x of S.caches){const k=x.city+'|'+x.net;(cc[k]=cc[k]||{city:x.city,net:x.net,used:0,cap:0});cc[k].used+=R.useCache[x.id]||0;cc[k].cap+=CACHE_CAP;}
-  for(const k in cc){const x=cc[k],u=x.used/x.cap;if(u>=HOT)out.push({k:'c',city:x.city,lab:`${NET[x.net].cache.name} cache${x.cap>CACHE_CAP?'s':''}`,u,tip:'Ask for another box. The overflow goes out over peering or transit.'});}
+  for(const k in cc){const x=cc[k],u=x.used/x.cap;if(u>=HOT)out.push({k:'c',city:x.city,lab:`${(netOf(x.net)||{cache:{name:x.net}}).cache.name} cache${x.cap>CACHE_CAP?'s':''}`,u,tip:'Ask for another box. The overflow goes out over peering or transit.'});}
   for(const c in S.pops){const cap=R.nodeCap[c];if(!cap)continue;const u=(R.nodeLoad[c]||0)/cap;if(u>=HOT)out.push({k:'r',city:c,lab:'Routers',u,tip:'Upgrade the router or add a second one in the Infra tab.'});}
   return out.sort((a,b)=>b.u-a.u);}
 function hotByCity(){const m={};for(const h of hotPorts())(m[h.city]=m[h.city]||{})[h.k]=Math.max((m[h.city]||{})[h.k]||0,h.u);return m;}
@@ -2072,13 +2074,13 @@ function compute(){
   const E=[], ev=S.ev;
   const depeer=ev.depeer>day||scnRule('spat'), leak=ev.leak&&ev.leak.until>day?ev.leak.net:null;
   for(const t of S.transit){if(!popUp(t.city)||t.down>day||!liveN(t.city,t.site,t.n))continue;
-    E.push({k:'t',prem:!!t.premium&&t.city==='hkg',pref:t.pref||'normal',lab:NET[t.net].name+' transit',id:t.id,city:t.city,cap:Math.min(liveCap(PORT[t.tier].g,t.city,t.site,t.n),TRX&&TRX.cap[t.net]!==undefined?TRX.cap[t.net]:Infinity),used:0,rank:3,ok:n=>!(depeer&&t.net==='cog'&&n==='ggl')&&n!==leak});}
+    E.push({k:'t',prem:!!t.premium&&t.city==='hkg',pref:t.pref||'normal',lab:netName(t.net)+' transit',id:t.id,city:t.city,cap:Math.min(liveCap(PORT[t.tier].g,t.city,t.site,t.n),TRX&&TRX.cap[t.net]!==undefined?TRX.cap[t.net]:Infinity),used:0,rank:3,ok:n=>!(depeer&&t.net==='cog'&&n==='ggl')&&n!==leak});}
   for(const c in S.ixp){const ct=ixCity(c);if(!(popUp(ct)||remote.includes(ct))||(S.ev.ixdown&&S.ev.ixdown[c]>day)||!liveN(ct,(S.ixSite||{})[c],(S.ixn||{})[c]))continue;const set=ixSessions(c);R2.sessions+=set.size;
     E.push({k:'ix',pref:(S.ixPref&&S.ixPref[c])||'normal',lab:ixName(c)+' peering',id:c,city:ct,cap:ixCap(c),used:0,rank:2,ok:n=>set.has(n)});}
   /* Brief 18 §G: a PNI can point at a global Tier 1 that has no POP in the region, so it is not
      in the live NET subset. Resolve through netOf() instead of NET. */
   for(const p of S.pni){if(!popUp(p.city)||!liveN(p.city,p.site,p.n))continue;const pn=netOf(p.net);if(!pn)continue;R2.sessions++;E.push({k:'p',pnc:!!pn.cn,pref:p.pref||'normal',lab:'PNI with '+pn.name,id:p.id,city:p.city,cap:liveCap(PORT[p.tier].g,p.city,p.site,p.n),used:0,rank:1,ok:n=>n===p.net});}
-  for(const c of S.caches){if(!popUp(c.city)||siteDown(c.city,'a'))continue;E.push({k:'c',pref:'normal',lab:NET[c.net].cache.name+' cache',id:c.id,city:c.city,cap:CACHE_CAP,used:0,rank:0,ok:n=>n===c.net});}
+  for(const c of S.caches){if(!popUp(c.city)||siteDown(c.city,'a'))continue;E.push({k:'c',pref:'normal',lab:(netOf(c.net)||{cache:{name:c.net}}).cache.name+' cache',id:c.id,city:c.city,cap:CACHE_CAP,used:0,rank:0,ok:n=>n===c.net});}
   {const rp=ev.rpki&&ev.rpki.until>day?new Set(ev.rpki.nets):null;if(rp)for(const e of E){if(e.k==='c')continue;const o=e.ok;e.ok=n=>!rp.has(n)&&o(n);}}
   /* Reach is a property of the internet, not of one POP. When every POP in a city is down
      there are no exits left to evaluate, and scoring that as "nothing is reachable" turned a
@@ -2171,7 +2173,7 @@ function compute(){
         const ek=e.k+':'+e.id;R2.egDesc[ek]={lab:e.lab,city:e.city,k:e.k};
         for(const l of path){res[l.id]-=amt;eload[l.id]=(eload[l.id]||0)+amt;const rec=R2.ef[l.id]||(R2.ef[l.id]={eg:{},net:{},dst:{}});rec.eg[ek]=(rec.eg[ek]||0)+amt;const nk=f.junk?'junk':f.n;rec.net[nk]=(rec.net[nk]||0)+amt;rec.dst[f.c]=(rec.dst[f.c]||0)+amt;}
         e.used+=amt;f.rem-=amt;
-        if(!f.junk){let ok=amt;const fc=cnCity(f.c),ec=cnCity(e.city),nc=!!NET[f.n].cn;
+        if(!f.junk){let ok=amt;const fc=cnCity(f.c),ec=cnCity(e.city),nc=!!(netOf(f.n)||{}).cn;
           if(fc!==ec||(fc&&!nc)||(!fc&&nc&&e.k==='t')){const prem=(e.k==='t'&&e.prem)||(e.k==='p'&&e.pnc)||path.some(x=>x.links&&x.links.some(y=>y.premium));const loss=prem?0.03:(ev.gfw>day?0.35:0.2);R2.gfwLost+=amt*loss;R2.gfwCross+=amt;ok=amt*(1-loss);}
           if(f.n==='ggl'&&ruCity(f.c))ok*=0.5;
           R2.citySrv[f.c]+=ok;R2.served+=ok;if(e.rank<=2)R2.peered+=ok;if(e.k==='t'){const m=R2.tNet[e.id]||(R2.tNet[e.id]={});m[f.n]=(m[f.n]||0)+ok;}R2.egT[e.k]=(R2.egT[e.k]||0)+ok;const ne=R2.netEg[f.n]||(R2.netEg[f.n]={c:0,p:0,ix:0,t:0});ne[e.k]+=ok;}
@@ -2204,7 +2206,7 @@ function compute(){
   C.optical=S.links.filter(l=>l.kind==='df').reduce((a,l)=>a+(l.ready>S.day?0:ampCount(l.km)*AMP_MO)+(l.spares?Math.round(150+(l.ch||[]).length*80):0),0);
   C.links=S.links.reduce((a,l)=>a+(l.mo||0),0);
   C.nni=(S.nni||[]).reduce((a,x)=>a+NNI[x.tier].mo,0);
-  C.transit=S.transit.reduce((a,t)=>{const q=p95(t,R2.useT[t.id]||0);R2.p95[t.id]=q;const n=t.n||1;return a+Math.max(q,PORT[t.tier].g*n*0.2)*NET[t.net].price*(t.premium&&t.city==='hkg'?NET[t.net].premium:1)*pm*regionMult(t.city)+PORT[t.tier].tmo*n;},0);
+  C.transit=S.transit.reduce((a,t)=>{const q=p95(t,R2.useT[t.id]||0);R2.p95[t.id]=q;const n=t.n||1;const NN=netOf(t.net);if(!NN)return a;return a+Math.max(q,PORT[t.tier].g*n*0.2)*NN.price*(t.premium&&t.city==='hkg'?NN.premium:1)*pm*regionMult(t.city)+PORT[t.tier].tmo*n;},0);
   C.ix=Object.keys(S.ixp).reduce((a,c)=>a+(S.myIx[c]?myFab(c).mo:ixPortMo(c,S.ixp[c])*((S.ixn||{})[c]||1)+dkAddonMo(c)),0);
   C.pni=S.pni.reduce((a,p)=>{const pn=netOf(p.net);if(!pn)return a;return a+PORT[p.tier].pni*(p.n||1)+(pn.pol==='paid'?pn.paidFee:0)+(pn.perG?Math.round(pn.perG*(R2.usePni[p.id]||0)):0);},0);
   C.caches=S.caches.length*CACHE_MO;
@@ -2264,7 +2266,7 @@ function sanitize(s){
   s.links=s.links.filter(l=>l&&isCity(l.a)&&isCity(l.b)&&l.a!==l.b).map(l=>{l.id=sid(l.id);l.km=num(l.km,kmBetween(l.a,l.b));l.mo=num(l.mo,0);l.cut=num(l.cut,0);if(l.kind!=='df'&&l.kind!=='vxc')l.kind='wave';if(l.kind==='wave')l.tier=int(l.tier,0,LT.length-1,0);if(l.cable&&!own(CAB,l.cable))l.cable=null;if(l.kind==='vxc'&&!own(VXC,l.vt))l.vt=0;if(l.kind==='df'){if(!own(DF_SYS,l.sys))l.sys='lite';l.ch=Array.isArray(l.ch)?l.ch.filter(o=>own(OPT,o)):[];l.ready=num(l.ready,0);}if(l.metric&&!own(MET,l.metric))l.metric='normal';return l;});
   s.transit=s.transit.filter(t=>t&&isCity(t.city)&&isNet(t.net)).map(t=>(t.site=['a','b','ab'].includes(t.site)?t.site:'a',t.id=sid(t.id),t.tier=tier(t.tier),t.n=lag(t.n),t.down=num(t.down,0),t));
   s.pni=s.pni.filter(x=>x&&isCity(x.city)&&isNet(x.net)).map(x=>(x.site=['a','b','ab'].includes(x.site)?x.site:'a',x.id=sid(x.id),x.tier=tier(x.tier),x.n=lag(x.n),x));
-  s.caches=s.caches.filter(x=>x&&isCity(x.city)&&isNet(x.net)&&NET[x.net].cache).map(x=>(x.id=sid(x.id),x));
+  s.caches=s.caches.filter(x=>x&&isCity(x.city)&&isNet(x.net)&&(netOf(x.net)||{}).cache).map(x=>(x.id=sid(x.id),x));
   for(const c of Object.keys(s.ixp)){if(!isIx(c))delete s.ixp[c];else s.ixp[c]=tier(s.ixp[c]);}
   for(const k of ['rs','ixn','ixPref','ixSite'])for(const c of Object.keys(s[k]))if(!isIx(c))delete s[k][c];if(s.ixCut&&typeof s.ixCut==='object'){for(const c of Object.keys(s.ixCut))if(!isIx(c))delete s.ixCut[c];else s.ixCut[c]=Math.min(1,Math.max(0.6,num(s.ixCut[c],1)));}else delete s.ixCut;
   for(const c of Object.keys(s.ixn))s.ixn[c]=lag(s.ixn[c]);for(const c of Object.keys(s.ixSite))if(!['a','b','ab'].includes(s.ixSite[c]))s.ixSite[c]='a';
@@ -2299,7 +2301,7 @@ const REQS={
  local:{l:'Local breakout: transit or an IX port in their own city',bonus:.2,ip:true,ok:b=>S.transit.some(t=>t.city===b.city)||hasIxAt(b.city)},
  metro:{l:'Two data centers in every metro they touch',bonus:.2,only:true,ok:b=>[b.city,b.city2].filter(Boolean).every(c=>S.pops[c]&&S.pops[c].site2)},
  twoup:{l:'Wants two different transit providers (or none at all)',bonus:.15,ip:true,ok:()=>new Set(S.transit.map(t=>t.net)).size>=2||S.transit.length===0},
- china:{l:'Needs low-loss reach into China',bonus:.3,ip:true,ok:()=>S.transit.some(t=>t.premium&&t.city==='hkg')||S.links.some(l=>l.premium)||S.pni.some(p=>NET[p.net].cn)},
+ china:{l:'Needs low-loss reach into China',bonus:.3,ip:true,ok:()=>S.transit.some(t=>t.premium&&t.city==='hkg')||S.links.some(l=>l.premium)||S.pni.some(p=>(netOf(p.net)||{}).cn)},
  scrubbed:{l:'Will only sign with a network that runs a DDoS scrubbing center',bonus:.15,ok:()=>!!S.scrubAt},
  puns:{l:'Their CEO hates puns. Please do not mention the network names.',bonus:.05,ok:()=>true},
 };
@@ -2444,9 +2446,9 @@ function sfOf(r,c){const d=r.cityDem[c]||0;return d<=1e-6?1:clamp(r.citySrv[c]/d
 /* ---------- failures & events ---------- */
 function addInc(o){o.id=uid();o.start=S.day;S.inc.push(o);S.stats.incidents++;S.stats.by=S.stats.by||{};S.stats.by[o.type]=(S.stats.by[o.type]||0)+1;if(/shark/i.test(o.msg||''))S.stats.sharks=(S.stats.sharks||0)+1;const f=S.stats.f=S.stats.f||{};if(/anchor/i.test(o.msg||''))f.anchor=1;if(/crocodile/i.test(o.msg||''))f.croc=1;if(/llama/i.test(o.msg||''))f.llama=1;}
 function ddosEntry(c){const o=[];
-  for(const t of S.transit)if(t.city===c&&!(t.down>S.day))o.push({k:'t',lab:NET[t.net].name+' transit'});
+  for(const t of S.transit)if(t.city===c&&!(t.down>S.day))o.push({k:'t',lab:netName(t.net)+' transit'});
   for(const x of ixIdsIn(c))if(S.ixp[x]!==undefined)o.push({k:'ix',lab:ixName(x)+' peering'});
-  for(const p of S.pni)if(p.city===c)o.push({k:'p',lab:'PNI with '+NET[p.net].name});
+  for(const p of S.pni)if(p.city===c)o.push({k:'p',lab:'PNI with '+netName(p.net)});
   return o.length?pick(o):{k:'edge',lab:''};}
 // Flowspec capability of the router in a city: 0 none, 1 basic, 2 full. The flood is filtered where the
 // victim POP's own router has the TCAM for it.
@@ -2533,7 +2535,7 @@ function fireFailure(){
     const c=pick(Object.keys(S.ixp));S.ev.ixdown=S.ev.ixdown||{};S.ev.ixdown[c]=Math.max(S.ev.ixdown[c]||0,S.day+1+Math.floor(Math.random()*2));
     addInc({type,ref:c,until:S.ev.ixdown[c],msg:`A member at ${ixName(c)} leaked the full routing table into the route server. Max-prefix limits tripped everywhere. Peering in ${CITY[c].name} is down.`,cost:0});
   }else if(type==='prepend'){
-    const t=pick(S.transit);t.down=Math.max(t.down||0,S.day+2);addInc({type,ref:t.id,until:t.down,msg:`${NET[t.net].name} fat-fingered a route-map and prepended your AS ${30+Math.floor(Math.random()*60)} times in ${CITY[t.city].name}. Nobody wants that path.`,cost:0});
+    const t=pick(S.transit);t.down=Math.max(t.down||0,S.day+2);addInc({type,ref:t.id,until:t.down,msg:`${netName(t.net)} fat-fingered a route-map and prepended your AS ${30+Math.floor(Math.random()*60)} times in ${CITY[t.city].name}. Nobody wants that path.`,cost:0});
   }else if(type==='rpki'){
     S.ev.rpki={until:S.day+3,nets:NETS.map(n=>n.id).filter(()=>Math.random()<0.5)};addInc({type,ref:'rpki',until:S.day+3,msg:'Your ROA expired over the weekend. Your prefixes are RPKI-invalid and about half the internet is dropping them.',cost:1000,fix:'Renew the ROA'});
   }else if(type==='amp'||type==='roadmff'){
@@ -2560,13 +2562,13 @@ function fireFailure(){
     addInc({type,ref:c,until:S.pops[c].down,msg,slow:type==='crash'&&slow,cost:type==='crash'?2500:7000,fix:type==='crash'?(slow?'Turn it off and on again (it will take a while)':'Turn it off and on again'):'Rent a generator'});
   }else if(type==='transit'){
     const t=pick(S.transit.filter(t=>!(t.down>S.day)));t.down=S.day+3+Math.floor(Math.random()*3);
-    addInc({type,ref:t.id,until:t.down,msg:`${NET[t.net].name} is having an outage in ${CITY[t.city].name}. Your transit port there is dark.`,cost:0});
+    addInc({type,ref:t.id,until:t.down,msg:`${netName(t.net)} is having an outage in ${CITY[t.city].name}. Your transit port there is dark.`,cost:0});
   }else if(type==='ixloop'){
     const c=pick(Object.keys(S.ixp));S.ev.ixdown=S.ev.ixdown||{};S.ev.ixdown[c]=Math.max(S.ev.ixdown[c]||0,S.day+2+Math.floor(Math.random()*2));
     addInc({type,ref:c,until:S.ev.ixdown[c],msg:`Someone plugged a loop into the ${ixName(c)} fabric. Broadcast storm! All peering there is down.`,cost:0});
   }else if(type==='leak'){
     const n=pick(['nfx','ggl','fbk','amz','msf']);S.ev.leak={net:n,until:S.day+4};
-    addInc({type,ref:n,until:S.day+4,msg:`BGP route leak: a small ISP is announcing ${NET[n].name}'s prefixes. Traffic to them over transit is black-holed. Direct peering still works.`,cost:0});
+    addInc({type,ref:n,until:S.day+4,msg:`BGP route leak: a small ISP is announcing ${netName(n)}'s prefixes. Traffic to them over transit is black-holed. Direct peering still works.`,cost:0});
   }else if(type==='fabric'){
     const f=pick(fabsUsed);S.ev.fab=S.ev.fab||{};S.ev.fab[f]=S.day+2+Math.floor(Math.random()*3);
     addInc({type,ref:f,until:S.ev.fab[f],msg:`${FAB[f].name} is having a bad day. Every virtual circuit on their fabric is down.`,cost:0});
@@ -2665,7 +2667,7 @@ function dayTick(){
   if(R&&R.demand>0)S.stats.clean=R.served/R.demand>=0.995?(S.stats.clean||0)+1:0;
   if(S.ev.php===d)toast('<b>The internet is back.</b><br>Half of it, anyway. Everything was patched in a hurry and nobody learned anything.','good');
   for(const k in S.peers){const [id,c]=k.split('@'),sn=snub(id,c);if(!sn)continue;delete S.peers[k];S.stats.depeered=(S.stats.depeered||0)+1;
-    toast(`<b>${esc(NET[id].name)} de-peered you in ${esc(CITY[c].name)}.</b><br>${esc(sn.why)} Traffic falls back to your next best path.`,'bad');}
+    toast(`<b>${esc(netName(id))} de-peered you in ${esc(CITY[c].name)}.</b><br>${esc(sn.why)} Traffic falls back to your next best path.`,'bad');}
   if(S.cnLic&&S.cnLic.state==='pending'&&d>=S.cnLic.ready){S.cnLic.state='ok';toast('<b>License granted!</b><br>Your joint venture can now build POPs in mainland China.','goal');sfx('coin');}
   // resolve incidents
   for(const i of S.inc.slice())if(i.until<=d){clearInc(i);toast(`<b>Resolved:</b> ${incTitle(i.type).toLowerCase()} is fixed.`,'good');}
@@ -2988,11 +2990,11 @@ const ACT={
    const made=forceOfferAt(city);
    toast(`<b>Campaign live in ${esc(CITY[city].name)}.</b><br>${made?`A prospect walked in the same week.`:`The sales team is working the phones.`} For ${PROMO_DAYS} days, leads here come three times as often.`,'goal');
    sfx('coin');after();},
- buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}if(!S.pops[city]||!NET[net]||!sellsTransit(NET[net])||!NET[net].pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;/* Brief 18 (R&D, NAP first): a carrier hotel sells rack space and a patch, so the
+ buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}const NN0=netOf(net);if(!S.pops[city]||!NN0||!sellsTransit(NN0)||!NN0.pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;/* Brief 18 (R&D, NAP first): a carrier hotel sells rack space and a patch, so the
      cross-connect is its own line item. Other roles keep the single charge for now. */
   const xc=S.role==='nap'?xcCost(tier,'transit'):0;
-  if(!spend((PORT[tier].setup+xc)*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.transit.push({id:uid(),city,net,tier,down:0});toast(`<b>${esc(NET[net].name)} transit is live in ${CITY[city].name}.</b><br>Full table received: ~1,000,000 routes.`,'good');after();},
- lagT:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const t=S.transit.find(x=>x.id===id);if(!t)return;const n=(t.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0){if(!portOk(t.city,t.tier)||!portGate(t.city,PORT_SLOT(t.tier)))return;if(!spend(PORT[t.tier].setup))return;}t.n=n;if(n<2&&t.site==='ab')t.site='a';toast(+d>0?`<b>LAG member added.</b><br>${esc(NET[t.net].name)} in ${CITY[t.city].name} is now ${lagName(t.tier,n)}.`:`<b>LAG member removed.</b>`,'good');after();},
+  if(!spend((PORT[tier].setup+xc)*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.transit.push({id:uid(),city,net,tier,down:0});toast(`<b>${esc(netName(net))} transit is live in ${CITY[city].name}.</b><br>Full table received: ~1,000,000 routes.`,'good');after();},
+ lagT:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const t=S.transit.find(x=>x.id===id);if(!t)return;const n=(t.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0){if(!portOk(t.city,t.tier)||!portGate(t.city,PORT_SLOT(t.tier)))return;if(!spend(PORT[t.tier].setup))return;}t.n=n;if(n<2&&t.site==='ab')t.site='a';toast(+d>0?`<b>LAG member added.</b><br>${esc(netName(t.net))} in ${CITY[t.city].name} is now ${lagName(t.tier,n)}.`:`<b>LAG member removed.</b>`,'good');after();},
  lagP:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const p=S.pni.find(x=>x.id===id);if(!p)return;const n=(p.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0&&(!portGate(p.city,PORT_SLOT(p.tier))||!spend(1500+PORT[p.tier].setup/2)))return;p.n=n;if(n<2&&p.site==='ab')p.site='a';sfx('build');after();},
  lagIx:({city,d})=>{d=+d;if(d!==1&&d!==-1)return;if(!isIx(city)||S.ixp[city]===undefined||S.myIx[city]||!S.pops[ixCity(city)])return;S.ixn=S.ixn||{};const n=(S.ixn[city]||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0&&(!portGate(ixCity(city),PORT_SLOT(S.ixp[city]))||!spend(ixPortMo(city,S.ixp[city]))))return;S.ixn[city]=n;if(n<2&&S.ixSite&&S.ixSite[city]==='ab')S.ixSite[city]='a';sfx('build');after();},
  cancelTransit:({id})=>{if(UI.confirm!==id){UI.confirm=id;renderPanel();return;}S.transit=S.transit.filter(t=>t.id!==id);UI.confirm=null;after();},
@@ -3052,16 +3054,16 @@ const ACT={
    const n=()=>k==='ix'?((S.ixn||{})[id]||1):(o.n||1);
    if(s==='ab'&&n()<2){const before=n();if(k==='t')ACT.lagT({id,d:1});else if(k==='p')ACT.lagP({id,d:1});else ACT.lagIx({city:id,d:1});if(n()<2||n()===before)return;toast(`<b>Second LAG member added.</b><br>One member in each building now, so a dark building only takes out half the port.`,'good');}
    if(k==='ix'){S.ixSite=S.ixSite||{};S.ixSite[id]=s;}else o.site=s;after();},
- peer:({city,net})=>{if(!isIx(city)||!isNet(net)||S.ixp[city]===undefined||!ixMembers(city).includes(net))return;const r=peerOk(net,'ix',city);if(!r.ok){toast(`<b>${esc(NET[net].name)} declined.</b><br>${esc(r.why)}`,'bad');sfx('err');return;}S.peers[net+'@'+city]=true;
-   toast(`<b>${esc(NET[net].name)} accepted!</b><br>${NET[net].pol==='selective'?'They checked your PearingDB page and liked the traffic numbers.':'BGP session established.'}`,'good');sfx('build');after();},
+ peer:({city,net})=>{if(!isIx(city)||!isNet(net)||S.ixp[city]===undefined||!ixMembers(city).includes(net))return;const r=peerOk(net,'ix',city);if(!r.ok){toast(`<b>${esc(netName(net))} declined.</b><br>${esc(r.why)}`,'bad');sfx('err');return;}S.peers[net+'@'+city]=true;
+   toast(`<b>${esc(netName(net))} accepted!</b><br>${(netOf(net)||{}).pol==='selective'?'They checked your PearingDB page and liked the traffic numbers.':'BGP session established.'}`,'good');sfx('build');after();},
  unpeer:({city,net})=>{delete S.peers[net+'@'+city];after();},
  peerAll:({city})=>{if(!isIx(city)||S.ixp[city]===undefined)return;const set=ixSessions(city);let n=0;for(const id of ixMembers(city))if(!set.has(id)&&peerOk(id,'ix',city).ok){S.peers[id+'@'+city]=true;n++;}if(!n)return;toast(`<b>${n} new session${n===1?'':'s'} at ${esc(ixName(city))}.</b><br>Small networks, but they add up, and they all count towards the club.`,'good');sfx('build');after();},
  tailTog:()=>{UI.tailOpen=!UI.tailOpen;renderLeft();},
- pni:({city,net,tier})=>{tier=+tier;if(!S.pops[city]||!NET[net]||!NET[net].pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const r=peerOk(net,'pni',city);if(!r.ok){toast(`<b>${esc(NET[net].name)} declined the PNI.</b><br>${esc(r.why)}`,'bad');sfx('err');return;}if(S.conf&&S.conf.until>S.day)S.stats.beerPni=1;
+ pni:({city,net,tier})=>{tier=+tier;const NN=netOf(net);if(!S.pops[city]||!NN||!NN.pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const r=peerOk(net,'pni',city);if(!r.ok){toast(`<b>${esc(netName(net))} declined the PNI.</b><br>${esc(r.why)}`,'bad');sfx('err');return;}if(S.conf&&S.conf.until>S.day)S.stats.beerPni=1;
    const ex=S.pni.find(p=>p.city===city&&p.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;if(!spend((1500+PORT[tier].setup/2)*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.pni.push({id:uid(),city,net,tier});
-   toast(`<b>PNI with ${esc(NET[net].name)} is up.</b><br>A cross-connect in ${esc(CITY[city].dc)}. Private and fast.`,'good');after();},
+   toast(`<b>PNI with ${esc(netName(net))} is up.</b><br>A cross-connect in ${esc(CITY[city].dc)}. Private and fast.`,'good');after();},
  cancelPni:({id})=>{if(UI.confirm!==id){UI.confirm=id;renderPanel();return;}S.pni=S.pni.filter(p=>p.id!==id);UI.confirm=null;after();},
- cache:({city,net})=>{const n=NET[net];if(!n||!n.cache||!S.pops[city]||S.caches.filter(x=>x.city===city&&x.net===net).length>=4)return;
+ cache:({city,net})=>{const n=netOf(net);if(!n||!n.cache||!S.pops[city]||S.caches.filter(x=>x.city===city&&x.net===net).length>=4)return;
    /* GGC scarcity (brief 2 §1.2): some regions only let the big CDNs deploy in cities where
       several ISPs already peer, and ask for more traffic before shipping a box. */
    const rr=REGION[curRegion].rules||{};
@@ -3552,7 +3554,7 @@ function cityPanel(c){
     for(const n of prov){const t=S.transit.find(x=>x.city===c&&x.net===n.id);const pr=n.price*S.priceMul*(t&&t.premium&&c==='hkg'?n.premium:1)*regionMult(c);
       h+=`<div class="row">${logo(n)}<div class="grow"><div class="nm">${esc(n.name)} <span class="tag ${n.type}">${TYPE_L[n.type]}</span></div><div class="meta">$${pr.toFixed(2)} per Gbps / month · billed on 95th percentile</div>`;
       if(t){const u=R.useT[t.id]||0,cap=lagCap(PORT[t.tier].g,t.n),tdown=t.down>S.day;
-        h+=`<div class="kv"><span>${lagName(t.tier,t.n)}${tdown?' · <b style="color:var(--bad)">OUTAGE</b>':''}</span><b>${fmtG(u)}</b></div><div class="bar ${barCls(u/cap)}"><i style="width:${u/cap*100}%"></i></div>${prefCtl('t',t.id,t.pref)}${siteCtl('t',t.id,c,t.site)}${n.premium&&c==='hkg'?`<div class="btns">${btn(t.premium?'CN-Too premium on ✓':`Switch to CN-Too premium <small>${n.premium}× price · ~3% loss into China</small>`,'togglePrem',{id:t.id},t.premium?'green sm':'sm')}</div>`:''}${(()=>{const top=transitTop([t.id],4);return top.length?`<div class="ttop"><div class="meta"><b>Top destinations on this port</b></div>${top.map(([id,v])=>`<div class="meta">${esc(NET[id].name)} · ${fmtG(v)} · <i>${esc(offTransitHint(id,c))}</i></div>`).join('')}</div>`:'';})()}<div class="meta">95th pct ${fmtG(R.p95[t.id]||0)} · commit ${fmtG(cap*.2)} · bill ${fmt$(Math.max(R.p95[t.id]||0,PORT[t.tier].g*(t.n||1)*.2)*pr+PORT[t.tier].tmo*(t.n||1))}/mo</div>
+        h+=`<div class="kv"><span>${lagName(t.tier,t.n)}${tdown?' · <b style="color:var(--bad)">OUTAGE</b>':''}</span><b>${fmtG(u)}</b></div><div class="bar ${barCls(u/cap)}"><i style="width:${u/cap*100}%"></i></div>${prefCtl('t',t.id,t.pref)}${siteCtl('t',t.id,c,t.site)}${n.premium&&c==='hkg'?`<div class="btns">${btn(t.premium?'CN-Too premium on ✓':`Switch to CN-Too premium <small>${n.premium}× price · ~3% loss into China</small>`,'togglePrem',{id:t.id},t.premium?'green sm':'sm')}</div>`:''}${(()=>{const top=transitTop([t.id],4);return top.length?`<div class="ttop"><div class="meta"><b>Top destinations on this port</b></div>${top.map(([id,v])=>`<div class="meta">${esc(netName(id))} · ${fmtG(v)} · <i>${esc(offTransitHint(id,c))}</i></div>`).join('')}</div>`:'';})()}<div class="meta">95th pct ${fmtG(R.p95[t.id]||0)} · commit ${fmtG(cap*.2)} · bill ${fmt$(Math.max(R.p95[t.id]||0,PORT[t.tier].g*(t.n||1)*.2)*pr+PORT[t.tier].tmo*(t.n||1))}/mo</div>
         <div class="btns">${PORT.map((P2,i)=>i>t.tier?btn(`Upgrade ${(t.n||1)>1?'all to ':''}${P2.n} <small>${fmt$(P2.setup*(t.n||1))} + ${fmt$(P2.tmo*(t.n||1))}/mo</small>`,'buyTransit',{city:c,net:n.id,tier:i},'sm',S.cash<P2.setup*(t.n||1)||!portOk(c,i)):'').join('')}${(t.n||1)<LAG_MAX?btn(`+ LAG member <small>${fmt$(PORT[t.tier].setup)} + ${fmt$(PORT[t.tier].tmo)}/mo</small>`,'lagT',{id:t.id,d:1},'sm',S.cash<PORT[t.tier].setup||!portOk(c,t.tier)):''}${(t.n||1)>1?btn('− member','lagT',{id:t.id,d:-1},'ghost sm'):''}${btn(UI.confirm===t.id?'Really cancel?':'Cancel','cancelTransit',{id:t.id},'ghost sm')}</div>`;}
       else h+=`<div class="btns">${PORT.map((P2,i)=>btn(`${P2.n} <small>${fmt$(P2.setup)} + ${fmt$(P2.tmo)}/mo</small>`,'buyTransit',{city:c,net:n.id,tier:i},'sm',S.cash<P2.setup||!portOk(c,i))).join('')}</div>`;
       h+=`</div></div>`;}
@@ -3587,7 +3589,7 @@ function cityPanel(c){
     ${UI.models?routerModels(c):''}
     ${N||UI.models?`<p class="note">${rt>1?'Rolling upgrade: one router at a time, no downtime.':'With one router, the upgrade needs a maintenance window: this POP goes dark for a day.'}</p>`:''}
     <p class="note">${rt>=2?'A crash here only costs one router’s capacity for a few days.':'One router is a single point of failure.'}</p></section>
-    <section><h3>Metro diversity</h3>${p.site2?(()=>{const up=s=>[...S.transit.filter(t=>t.city===c&&onSite(t.site,s)).map(t=>NET[t.net].name+' transit'+(t.site==='ab'?' (split)':'')),...S.pni.filter(x=>x.city===c&&onSite(x.site,s)).map(x=>'PNI '+NET[x.net].name+(x.site==='ab'?' (split)':'')),...ixIdsIn(c).filter(x=>S.ixp[x]!==undefined&&!S.myIx[x]&&onSite((S.ixSite||{})[x],s)).map(x=>ixName(x)+' port'+((S.ixSite||{})[x]==='ab'?' (split)':'')),...(s==='a'?S.caches.filter(x=>x.city===c).map(x=>NET[x.net].cache.name):[])];
+    <section><h3>Metro diversity</h3>${p.site2?(()=>{const up=s=>[...S.transit.filter(t=>t.city===c&&onSite(t.site,s)).map(t=>netName(t.net)+' transit'+(t.site==='ab'?' (split)':'')),...S.pni.filter(x=>x.city===c&&onSite(x.site,s)).map(x=>'PNI '+netName(x.net)+(x.site==='ab'?' (split)':'')),...ixIdsIn(c).filter(x=>S.ixp[x]!==undefined&&!S.myIx[x]&&onSite((S.ixSite||{})[x],s)).map(x=>ixName(x)+' port'+((S.ixSite||{})[x]==='ab'?' (split)':'')),...(s==='a'?S.caches.filter(x=>x.city===c).map(x=>(netOf(x.net)||{cache:{name:x.net}}).cache.name):[])];
       const row=s=>{const dn=siteDown(c,s),u=up(s);return `<div class="row"><span class="logo" style="--c:${s==='a'?'#FF4F9A':'#7B61FF'}">${s.toUpperCase()}</span><div class="grow"><div class="nm">${esc(siteName(c,s))}${dn?' <span class="tag restrictive">DOWN</span>':''}</div><div class="meta">${u.length?esc(u.join(', ')):'Nothing plugged in here yet'}</div></div></div>`;};
       return `<p class="lead">Two buildings joined by your own metro ring. A power cut or cleaner in one leaves the other running at half capacity. Uplinks only work while their site is up, unless you split them: choose <b>Both</b> on a port to put LAG members in each building.</p>${row('a')}${row('b')}${up('b').length&&up('a').length?'':`<p class="why">Everything is in one building. Move some uplinks to the other site from the Transit and Peering tabs.</p>`}<div class="kv"><span>Second site and metro ring</span><b>${fmt$(SITE2_MO)}/mo</b></div><div class="btns">${btn(UI.confirm==='site'+c?'Really close it?':'Close site B','rmSite',{city:c},'ghost sm')}</div>`;})()
     :`<p class="lead">Right now ${esc(CITY[c].name)} is one building. A power cut, an A/C failure or a cleaner with a vacuum takes the whole city dark, and a second router does not help with that. A second data center across town, joined by your own metro ring, keeps half the POP up.</p><div class="btns">${btn(`Add a second site <small>${fmt$(SITE2_COST)} + ${fmt$(SITE2_MO)}/mo</small>`,'addSite',{city:c},'pink',S.cash<SITE2_COST)}</div>`}</section>
@@ -3639,7 +3641,7 @@ function ixBlock(c,multi){const city=ixCity(c),C=CITY[city],ix=ixName(c),X=XIXM[
     h+=`<section><h3>${multi?esc(ix)+(X?' <span class="tag st">challenger</span>':' <span class="tag st">incumbent</span>'):'Internet Exchange'}</h3>`;
     if(!ix&&C.cn){h+=`<p class="lead">Running an exchange in mainland China takes a different license entirely. Peer with Chinese networks over PNIs, or meet them in Hong Kong.</p>`;}
     else if(!ix){h+=`<p class="lead">There's no IX in ${C.name} yet. Found one: networks join over time, pay you for ports, and peer with you for free.</p>${S.pops[city]?btn(`Found your own IX <small>${fmt$(MYIX_COST)} + ${fmt$(MYIX_MO)}/mo</small>`,'foundIx',{city:c},'pink',S.cash<MYIX_COST):'<p class="note">Build a POP here first.</p>'}`;}
-    else if(S.ixp[c]===undefined){h+=`<p class="lead">${esc(ix)} is a shared switch. One port lets you peer with every member for free. Members: ${(()=>{const m=ixMembers(c),lookup=id=>NET[id]||NETS.find(n=>n.id===id),big=m.filter(id=>{const n=lookup(id);return n&&!n.tail;}),t=m.length-big.length;return (big.map(id=>esc(lookup(id).name)).join(', ')||'nobody yet')+(t?`, plus ${t} small network${t===1?'':'s'}`:'');})()}.</p>${S.pops[city]?'':REMOTE_WARN}${X?`<p class="note">${esc(X.blurb)} Ports at ${Math.round(ixMul(c)*100)}% of the usual price.</p>`:''}${CITY[city].ixCheap?`<p class="note"><b>Run by a nonprofit.</b> Public prices at a fraction of what other exchanges charge, and almost everyone is here.</p>`:''}${isDk(c)?`<p class="note"><b>Run by DE-KICKS Group.</b> No public price list. Ask sales for a personalised quote and bring your haggling face.</p>`:''}<div class="btns">${PORT.map((P2,i)=>btn(`${P2.n} port <small>${isDk(c)?'Price on request ☎':fmt$(ixPortMo(c,i))+'/mo'}</small>`,'buyIx',{city:c,tier:i},'',(!isDk(c)&&S.cash<ixPortMo(c,i))||(!!S.pops[city]&&!portOk(city,i))||(!S.pops[city]&&i>1))).join('')}</div>`;}
+    else if(S.ixp[c]===undefined){h+=`<p class="lead">${esc(ix)} is a shared switch. One port lets you peer with every member for free. Members: ${(()=>{const m=ixMembers(c),lookup=id=>netOf(id),big=m.filter(id=>{const n=lookup(id);return n&&!n.tail;}),t=m.length-big.length;return (big.map(id=>esc(lookup(id).name)).join(', ')||'nobody yet')+(t?`, plus ${t} small network${t===1?'':'s'}`:'');})()}.</p>${S.pops[city]?'':REMOTE_WARN}${X?`<p class="note">${esc(X.blurb)} Ports at ${Math.round(ixMul(c)*100)}% of the usual price.</p>`:''}${CITY[city].ixCheap?`<p class="note"><b>Run by a nonprofit.</b> Public prices at a fraction of what other exchanges charge, and almost everyone is here.</p>`:''}${isDk(c)?`<p class="note"><b>Run by DE-KICKS Group.</b> No public price list. Ask sales for a personalised quote and bring your haggling face.</p>`:''}<div class="btns">${PORT.map((P2,i)=>btn(`${P2.n} port <small>${isDk(c)?'Price on request ☎':fmt$(ixPortMo(c,i))+'/mo'}</small>`,'buyIx',{city:c,tier:i},'',(!isDk(c)&&S.cash<ixPortMo(c,i))||(!!S.pops[city]&&!portOk(city,i))||(!S.pops[city]&&i>1))).join('')}</div>`;}
     else{const mine=!!S.myIx[c],u=R.useIx[c]||0,cap=ixCap(c),set=ixSessions(c),xdown=S.ev.ixdown&&S.ev.ixdown[c]>S.day;
       h+=`<div class="kv"><span>${mine?`Your own fabric · ${myFab(c).n}`:lagName(S.ixp[c],(S.ixn||{})[c])}${xdown?' · <b style="color:var(--bad)">FABRIC DOWN</b>':''}</span><b>${fmtG(u)}</b></div><div class="bar ${barCls(u/cap)}"><i style="width:${u/cap*100}%"></i></div>${prefCtl('ix',c,S.ixPref&&S.ixPref[c])}${S.pops[city]?siteCtl('ix',c,city,(S.ixSite||{})[c]):''}`;
       if(isDk(c)&&S.dk){const ad=S.dk.add[c]||[],rt=S.dk.ret[c];h+=`<p class="note">DE-KICKS personalised pricing: ${Math.round(dkMult(c)*100)}% of what a normal IX would charge${rt&&rt>S.day?` (promo, ${rt-S.day} days left)`:''}.</p>`;
@@ -3743,7 +3745,7 @@ function svgChart(rows,stackKeys,lines,fmtY){
   g+=`<text x="${L}" y="${H-5}" font-size="10" fill="#55608A" font-weight="700">${dateStr(rows[0].d)}</text><text x="${W-Rr}" y="${H-5}" text-anchor="end" font-size="10" fill="#55608A" font-weight="700">${dateStr(rows[rows.length-1].d)}</text>`;
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;}
 // For a network you currently reach over transit: the cheapest way to move it to peering.
-function offTransitHint(id,city){const n=NET[id];if(n.type==='t1')return 'Tier 1: only a PNI, and only once you are big enough for the Tier 1 club';
+function offTransitHint(id,city){const n=netOf(id);if(!n)return 'Not present in this region.';if(n.type==='t1')return 'Tier 1: only a PNI, and only once you are big enough for the Tier 1 club';
   const ixc=Object.keys(S.pops).flatMap(ixIdsIn).filter(x=>ixMembers(x).includes(id)),here=city&&ixIdsIn(city).find(x=>ixMembers(x).includes(id))||null,pick1=here||ixc.find(x=>S.ixp[x]!==undefined)||ixc[0];
   if(n.pol==='open')return pick1?`Open peer: join the route server at ${ixName(pick1)}${here?'':' ('+CITY[ixCity(pick1)].name+')'}`:'Open peer, but not on any IX where you have a POP';
   if(n.pol==='paid')return n.perG?`Sender pays: a PNI costs ${fmt$(n.paidFee)}/mo plus ${fmt$(n.perG)} per Gbps you send it`:`Paid peering only: a PNI costs ${fmt$(n.paidFee)}/mo`;
@@ -3771,7 +3773,7 @@ function renderDash(){
   {const k=UI.dashSort||'traffic',dir=UI.dashDir||-1,val=x=>k==='name'?x.n.name.toLowerCase():k==='asn'?x.n.asn:k==='type'?x.n.type:k==='cost'?x.cost:k==='lost'?x.lost:x.t;nets.sort((a,b)=>{const A=val(a),B=val(b);return (A<B?-1:A>B?1:0)*dir||b.t-a.t;});}
   h+=`<div class="panel2" style="margin-top:12px"><h3>Traffic by network (ASN)</h3><p class="note" style="margin-top:0">Where your users' traffic comes from, and how it gets to you. Transit is the only part you pay per gigabit; caches, PNIs and IX peering are free or flat-rate. Tap a column to sort.</p><div class="legend" style="margin:0 0 6px">${['c','p','ix','t'].map(k=>`<span><i style="background:${EGC[k][1]}"></i>${EGC[k][0]}</span>`).join('')}</div><div class="tscroll"><table class="tbl"><thead><tr>${[['name','Network',''],['asn','AS',''],['type','Type',''],['traffic','Traffic','r'],['mix','How it arrives',''],['cost','Transit cost','r'],['lost','Lost','r']].map(([k,l,c])=>`<th class="${c}">${k==='mix'?l:`<button class="thb" data-act="dashSort" data-args="${esc(JSON.stringify({k}))}">${l}${UI.dashSort===k?(UI.dashDir>0?' ▲':' ▼'):''}</button>`}</th>`).join('')}</tr></thead><tbody>
   ${nets.map(({n,e,t,want})=>{return `<tr><td><span style="display:inline-flex;align-items:center;gap:6px">${logo(n)}<b>${esc(n.name)}</b></span></td><td>${n.asn}</td><td><span class="tag ${n.type}">${TYPE_L[n.type]}</span></td><td class="r">${fmtG(t)}</td><td><div class="mix" title="${['c','p','ix','t'].filter(k=>e[k]>0.01).map(k=>EGC[k][0]+' '+fmtG(e[k])).join(' · ')||'nothing yet'}">${['c','p','ix','t'].map(k=>`<i style="width:${t?e[k]/t*100:0}%;background:${EGC[k][1]}"></i>`).join('')}</div></td><td class="r">${e.t>0.01?fmt$((R.cost.transit||0)*e.t/tT)+'/mo':'—'}</td><td class="r" style="color:${want-t>want*0.05?'var(--bad)':'inherit'}">${want>0.01?pct(Math.max(0,1-t/want)):'—'}</td></tr>`;}).join('')}</tbody></table></div></div>`;
-  {const top=transitTop(S.transit.map(t=>t.id),8);if(top.length)h+=`<div class="panel2" style="margin-top:12px"><h3>Who your transit carries</h3><p class="note" style="margin-top:0">The networks you pay transit to reach, biggest first, and the cheapest way to move each one to peering. This is your to-do list on the way to Tier 1.</p>${top.map(([id,v])=>`<div class="row">${logo(NET[id])}<div class="grow"><div class="nm">${esc(NET[id].name)} <span class="meta">AS${NET[id].asn} · ${fmtG(v)} · about ${fmt$((R.cost.transit||0)*v/tT)}/mo</span></div><div class="meta">${esc(offTransitHint(id))}</div></div></div>`).join('')}</div>`;}
+  {const top=transitTop(S.transit.map(t=>t.id),8);if(top.length)h+=`<div class="panel2" style="margin-top:12px"><h3>Who your transit carries</h3><p class="note" style="margin-top:0">The networks you pay transit to reach, biggest first, and the cheapest way to move each one to peering. This is your to-do list on the way to Tier 1.</p>${top.map(([id,v])=>`<div class="row">${logo(netOf(id)||{col:'#888'})}<div class="grow"><div class="nm">${esc(netName(id))} <span class="meta">AS${(netOf(id)||{}).asn||'?'} · ${fmtG(v)} · about ${fmt$((R.cost.transit||0)*v/tT)}/mo</span></div><div class="meta">${esc(offTransitHint(id))}</div></div></div>`).join('')}</div>`;}
   const ls=S.links.filter(l=>capOf(l)>0).map(l=>({l,u:(R.load[l.id]||0)/capOf(l)})).sort((a,b)=>b.u-a.u).slice(0,8);
   const rs=Object.keys(S.pops).map(c=>({c,u:(R.nodeLoad[c]||0)/(R.nodeCap[c]||1)})).sort((a,b)=>b.u-a.u).slice(0,6);
   h+=`<div class="dcols" style="margin-top:12px"><div class="panel2"><h3>Busiest links</h3>${ls.length?ls.map(({l,u})=>`<div class="row"><div class="grow"><div class="nm">${CITY[l.a].name} ⇄ ${CITY[l.b].name} <span class="meta">${capName(l)} · ${linkLat(l).toFixed(1)} ms</span></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div></div><b class="num" style="min-width:42px;text-align:right">${pct(u)}</b>${btn('Open','dashLink',{id:l.id},'ghost sm')}</div>`).join(''):'<p class="empty">No links yet.</p>'}</div>
