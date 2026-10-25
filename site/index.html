@@ -1424,7 +1424,7 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
   if(to.city){const path=P.path(to.city);lines.unshift(`traceroute to ${to.city}.${me} (${CITY[to.city].name}), 30 hops max`);if(!path){lines.push(' 2  * * *   ← no working path between these POPs');return {text:lines.join('\n'),why:'No path: every route between these cities is down or missing.'};}walk(path);return {text:lines.join('\n'),why:`Internal path over ${path.length} link${path.length===1?'':'s'}, chosen by distance and link metrics${S.te&&S.te.on?'. Auto-TE may move overflow elsewhere when this is full':''}.`};}
   const N=NET[to.net],ex=trExits(to.net).filter(e=>P.dist[e.city]!==undefined);
   lines.unshift(`traceroute to www.${slug(N.name)}.example (${N.name}, AS${N.asn}) from ${CITY[src].name}, 30 hops max`);
-  if(!ex.length){lines.push(' 2  * * *\n 3  * * *   ← !N network unreachable');return {text:lines.join('\n'),why:`Nothing on your network reaches ${N.name}: no transit, IX session, PNI or cache with a working path from ${CITY[src].name}.`,asPath:null};}
+  if(!ex.length){lines.push(' 2  * * *\n 3  * * *   ← '+N.name+' unreachable');return {text:lines.join('\n'),why:`Nothing on your network reaches ${N.name}: no transit, IX session, PNI or cache with a working path from ${CITY[src].name}.`,asPath:null};}
   ex.sort((a,b)=>(a.pref==='low'?4:a.rank)-(b.pref==='low'?4:b.rank)||(a.pref==='high'?0:1)-(b.pref==='high'?0:1)||P.dist[a.city]-P.dist[b.city]);
   const e=ex.find(x=>x.used<x.cap*0.999)||ex[0];walk(P.path(e.city));
   let asPath=[S.asn];
@@ -1440,7 +1440,10 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
   const cn=cnCity(src)!==!!N.cn?` Crossing the Great Firewall here loses about ${S.ev.gfw>S.day?35:20}% of packets.`:'';
   return {text:lines.join('\n'),why:`Exit: ${e.lab} in ${CITY[e.city].name}. ${order[0].toUpperCase()+order.slice(1)}, and closer exits win ties${e.pref!=='normal'?`; this one is set to ${e.pref==='high'?'Prefer':'Backup only'}`:''}.${e.used>=e.cap*0.999?' It is full, so some traffic overflows to the next exit.':''}${cn}`,asPath};}
 function traceModal(src,to){const pops=Object.keys(S.pops).sort((a,b)=>CITY[a].name.localeCompare(CITY[b].name));src=src&&S.pops[src]?src:UI.trFrom&&S.pops[UI.trFrom]?UI.trFrom:S.home&&S.pops[S.home]?S.home:pops[0];
-  const nets=NETS.slice().sort((a,b)=>b.share-a.share),t=to||UI.trTo||'net:ggl';UI.trFrom=src;UI.trTo=t;
+  /* The dropdown must offer only networks that exist in this region. NETS still carries all
+     125 for the Global baseline, while NET/NSH are filtered per region — offering the full
+     list let a player pick a network the map has never heard of. */
+  const nets=NETS.filter(n=>NET[n.id]).slice().sort((a,b)=>b.share-a.share),t=to||UI.trTo||'net:ggl';UI.trFrom=src;UI.trTo=t;
   const r=t.startsWith('net:')?traceroute(src,{net:t.slice(4)}):traceroute(src,{city:t.slice(5)});
   openModal(`<div style="display:flex;align-items:center"><div><div class="eyebrow">Looking glass</div><h2 style="font-size:26px">Traceroute</h2></div><button class="x" data-act="closeModal" aria-label="Close">×</button></div>
   <div class="trsel"><label>From <select id="trFrom">${pops.map(c=>`<option value="${c}"${c===src?' selected':''}>${esc(CITY[c].name)}</option>`).join('')}</select></label>

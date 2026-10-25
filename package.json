@@ -9,7 +9,7 @@
     "url": "git+https://github.com/fjaeckel/seriesoftubes.git"
   },
   "scripts": {
-    "test": "node --test --test-concurrency=1 tests/game.test.js tests/build.test.js tests/persist.test.js tests/services.test.js tests/peering.test.js tests/issues.test.js tests/regions.test.js tests/modes.test.js tests/prd-baseline.test.js tests/prd-m1-global.test.js tests/prd-m2.test.js tests/prd-m3.test.js tests/prd-roles.test.js tests/prd-roles5.test.js tests/prd-t1club.test.js tests/prd-roleladder.test.js tests/prd-topo.test.js tests/prd-events.test.js tests/prd-save.test.js tests/prd-brief7a.test.js tests/prd-promo.test.js tests/prd-xix.test.js tests/prd-conflead.test.js tests/prd-idr.test.js",
+    "test": "node --test --test-concurrency=1 tests/game.test.js tests/build.test.js tests/persist.test.js tests/services.test.js tests/peering.test.js tests/issues.test.js tests/regions.test.js tests/modes.test.js tests/prd-baseline.test.js tests/prd-m1-global.test.js tests/prd-m2.test.js tests/prd-m3.test.js tests/prd-roles.test.js tests/prd-roles5.test.js tests/prd-t1club.test.js tests/prd-roleladder.test.js tests/prd-topo.test.js tests/prd-events.test.js tests/prd-save.test.js tests/prd-brief7a.test.js tests/prd-promo.test.js tests/prd-xix.test.js tests/prd-conflead.test.js tests/prd-idr.test.js tests/prd-trace.test.js",
     "build": "bash scripts/build.sh",
     "serve": "npm run build && npx --yes serve@14.2.4 _site"
   },
