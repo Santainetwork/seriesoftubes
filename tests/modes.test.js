@@ -6,7 +6,7 @@ test('sandbox: endless money, every unlock, nothing breaks, no badges', () => {
   const { ev, errors } = load();
   ev("ACT.modeSet({m:'sandbox'});ACT.start({})");
   assert.equal(ev("S.mode"), 'sandbox');
-  assert.equal(ev("S.lvl"), 4);
+  assert.equal(ev("S.lvl"), ev("LEVELS.length"));
   ev("S.cash=5;for(let i=0;i<120;i++)dayTick()");
   assert.ok(ev("S.cash") >= 1e8, 'money refills');
   assert.equal(ev("S.stats.incidents"), 0, 'no failures');
