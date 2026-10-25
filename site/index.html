@@ -1317,7 +1317,7 @@ let CONFS=CONFS_GLOBAL;
 const CONF_COST=8000,CONF_DAYS=45;
 /* Brief 13: active B2B tenant acquisition for NAP/hosting. Separate from ACT.ad (broadband):
    a longer sales cycle, a longer campaign, and a hard cap on how many cities run at once. */
-const PROMO_COST=12000,PROMO_DAYS=45,PROMO_MULT=3,PROMO_CAP=3;
+const PROMO_COST=12000,PROMO_DAYS=45,PROMO_MULT=3;
 /* Brief 10 §2.4: CONF_COST itself is the Global invariant; NAP and hosting send more
    people (and a booth), so they pay a multiple at the point of registration. */
 const confCost=()=>CONF_COST*(S.role==='nap'?4:S.role==='hosting'?2:1);
@@ -1514,7 +1514,8 @@ function fmtNum(n){
 function fmt$(v){
   const c=curInfo(),s=v<0?'-':'';
   if(c.code==='IDR'){
-    const n=Math.abs(v)*c.rate/1000;        // rupiah -> thousands
+    /* Brief 15 revisi K: one unit only — thousands of rupiah, suffix k. No jt/M/T. */
+    const n=Math.abs(v)*c.rate/1000;
     return s+'Rp '+fmtNum(n)+'k';
   }
   const a=Math.abs(v);
@@ -2571,7 +2572,6 @@ const ACT={
    if(S.role!=='nap'&&S.role!=='hosting'){toast('<b>B2B campaigns are for carriers.</b><br>ISPs and RT/RW nets use the broadband ad campaign instead.','bad');sfx('err');return;}
    S.promo=S.promo||{};
    const active=Object.keys(S.promo).filter(c=>S.promo[c]>S.day);
-   if(active.length>=PROMO_CAP&&!(S.promo[city]>S.day)){toast(`<b>Three campaigns is the limit.</b><br>Your sales team is only human.`,'bad');sfx('err');return;}
    if(S.promo[city]>S.day)return;
    if(!spend(PROMO_COST))return;
    S.promo[city]=S.day+PROMO_DAYS;
@@ -3012,8 +3012,8 @@ function cityPanel(c){
       const promo=S.promo||{},active=Object.keys(promo).filter(x=>promo[x]>S.day);
       h+=`<section><h3>Marketing</h3><p class="lead">Tenant acquisition. A campaign books one guaranteed meeting and triples the leads in that city for ${PROMO_DAYS} days.</p>`;
       if(promo[c]>S.day)h+=`<div class="kv"><span>Campaign running in ${esc(C.name)}</span><b>${promo[c]-S.day} days left</b></div>`;
-      else h+=`<div class="btns">${btn(`Run campaign <small>${fmt$(PROMO_COST)} · ${PROMO_DAYS}d · 3× leads</small>`,'promo',{city:c},'pink big',S.cash<PROMO_COST||active.length>=PROMO_CAP)}</div>`;
-      if(active.length)h+=`<div class="meta" style="margin-top:8px">Active: ${active.map(x=>`${esc(CITY[x].name)} (${promo[x]-S.day}d)`).join(' · ')} &nbsp; ${active.length}/${PROMO_CAP}</div>`;
+      else h+=`<div class="btns">${btn(`Run campaign <small>${fmt$(PROMO_COST)} · ${PROMO_DAYS}d · 3× leads</small>`,'promo',{city:c},'pink big',S.cash<PROMO_COST)}</div>`;
+      if(active.length)h+=`<div class="meta" style="margin-top:8px">Active: ${active.map(x=>`${esc(CITY[x].name)} (${promo[x]-S.day}d)`).join(' · ')} &nbsp; ${active.length}</div>`;
       h+=`</section>`;
     }
     h+=`<section><h3>Business customers</h3>`;

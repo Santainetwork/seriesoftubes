@@ -23,14 +23,15 @@ test('nap: promo produces a guaranteed offer', () => {
   assert.ok(ev('S.promo.fra') > ev('S.day'), 'campaign is running');
 });
 
-test('nap: promo is capped at three cities', () => {
+test('nap: campaigns are not capped — every POP can run one', () => {
   const { ev } = load();
   ev("beginGame('N','fra',{region:'global',role:'nap'})");
   ev('S.cash=1e9');
-  for (const c of ['ams','lon','par']) ev(`ACT.buildPop({city:'${c}'})`);
-  for (const c of ['fra','ams','lon']) ev(`ACT.promo({city:'${c}'})`);
-  ev("ACT.promo({city:'par'})");
-  assert.equal(ev('S.promo.par'), undefined, 'the fourth campaign is refused');
+  const cities = ['ams','lon','par','nyc','mil'];
+  for (const c of cities) ev(`ACT.buildPop({city:'${c}'})`);
+  for (const c of ['fra',...cities]) ev(`ACT.promo({city:'${c}'})`);
+  assert.equal(ev('Object.keys(S.promo).length'), 6, 'six campaigns, one per POP');
+  for (const c of ['fra',...cities]) assert.ok(ev(`S.promo['${c}'] > S.day`), `${c} is running`);
 });
 
 test('nap: promo raises the spawn rate in that city', () => {
