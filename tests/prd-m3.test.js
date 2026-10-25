@@ -183,7 +183,7 @@ test('M3: region rules and start cash match brief 3 §3–§4', () => {
     '{"t1Served":400,"t1Pops":8,"t1Continents":2,"cacheCities":null,"cacheMinMul":1.2,"startCash":300000}');
   assert.equal(ev('REGION.sea.startCash'), 300000);
   assert.equal(JSON.stringify(ev('REGION.idn.rules')),
-    '{"indonesianRules":true,"t1Served":250,"t1Pops":6,"t1Continents":1,"cacheCities":["jkt","sby","sin"],"cacheMinMul":1.6}');
+    '{"indonesianRules":true,"t1Served":250,"t1Pops":6,"t1Continents":1,"cacheCities":["jkt","sby","btm"],"cacheMinMul":1.6}');
   assert.equal(ev('REGION.idn.startCash'), 250000);
 });
 

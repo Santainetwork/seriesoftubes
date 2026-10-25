@@ -1024,8 +1024,8 @@ function custLevel(){const pops=Object.keys(S.pops).length,pk=S.stats.peak;if(pk
 const ROLES={
  hosting:{l:'Hosting',cash:90000,maxPops:3,bb:false,types:['host','gpu','onramp','ai'],
    blurb:'Colo and AI hosting. Hosting, GPU, cloud on-ramp and AI deals only. Max 3 POPs, no home broadband.'},
- nap:{l:'NAP',cash:2000000,minPops:5,bb:false,types:['isp','hyper','ai'],
-   blurb:'Carrier hotel. Sells to ISPs, hyperscalers and AI. No profit-relevant offers until you run 5 POPs.'},
+ nap:{l:'NAP',cash:2000000,minPops:3,bb:false,types:['isp','hyper','ai'],
+   blurb:'Carrier hotel. Sells to ISPs, hyperscalers and AI. Small ISP deals from day one; wholesale contracts need 3 POPs.'},
  isp:{l:'ISP',cash:START_CASH,all:true,bb:true,
    blurb:'The classic all-rounder: home broadband, DIA, downstream ISPs, streaming, education and GPU deals. No extra limits.'},
  rtnet:{l:'RT/RW net',cash:45000,maxPops:2,bb:false,types:['dia'],bwMax:2,
@@ -1088,7 +1088,9 @@ function roleUpOffer(){
     return {...u, ok:!miss.length, missing:miss, pending, items};
   });
 }
-function roleBlockOffers(){const R=roleDef();return !!(R.minPops&&Object.keys(S.pops).length<R.minPops);}
+/* Brief 7 §4.1c: a NAP below its POP threshold still gets small ISP jobs, so the role can
+   fund its way up. Every other gated role is blocked outright until it meets minPops. */
+function roleBlockOffers(){const R=roleDef();if(!R.minPops)return false;if(Object.keys(S.pops).length>=R.minPops)return false;return S.role!=='nap';}
 /* An offer is only real for this role: the right customer type, the role's POP threshold met,
    and (for RT/RW nets) a transit port already bought from another ISP. */
 function roleOfferOk(o){if(!o||!roleAllowsType(o.type))return false;if(roleBlockOffers())return false;if(S.role==='rtnet'&&!S.transit.length)return false;return true;}
@@ -1482,7 +1484,7 @@ function newGame(name,home,region,role){
   S={v:1,name,region:region||curRegion,role,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:startCash,
     roleUp:null,
     ltv:2,pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},
-    done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
+    done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0,offersSeen:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
 }
 
 /* ================= HELPERS ================= */
@@ -2296,7 +2298,10 @@ function dayTick(){
   if(S.mode==='sandbox'&&S.cash<1e8)S.cash=1e9;
   // offers
   S.offers=S.offers.filter(o=>o.exp>d);
-  if(S.offers.length<5&&Math.random()<0.05+0.01*(S.lvl||1))spawnOffer();
+  /* Brief 7 §4.1a: a NAP is hungry for jobs, so its offer rate is higher than everyone else's.
+     Without this the role saw ~2 offers in 200 days (see brief 7 §4). */
+  const offerRate=0.05+0.01*(S.lvl||1)+(S.role==='nap'?0.06:0);
+  if(S.offers.length<5&&Math.random()<offerRate)spawnOffer();
   // failures & events
   let dirty=false;
   if(d>=S.nextFail){dirty=true;fireFailure();const size=S.links.length+Object.keys(S.pops).length;S.nextFail=d+Math.round((Math.max(22,50-size*1.5)+Math.floor(Math.random()*25))*(scnRule('chaos')?0.5:1));}
@@ -2314,7 +2319,10 @@ function dayTick(){
   if(d%360===0&&[1,2,4].includes(d/360))track('game_year_'+(d/360+1),true);
   if(d%10===0)save();
 }
-function spawnOffer(){
+/* Brief 7 §4.3: S.offers is pruned when offers expire, so it cannot be used to count how many
+   offers a role actually saw. Wrap the spawner and bump a monotonic counter instead. */
+function spawnOffer(){const n=S.offers.length;_spawnOffer();if(S.offers.length>n)S.stats.offersSeen=(S.stats.offersSeen||0)+1;}
+function _spawnOffer(){
   const mine=Object.keys(S.pops),lv=S.lvl||1;
   const types=['dia','dia','game','host'];if(mine.length>=2)types.push('l2vpn','l2vpn');if(S.day>60)types.push('scrub');
   if(lv>=2)types.push('isp','stream','edu','host','hft','bulk','event','event');if(mine.length>=3&&lv>=2)types.push('sdwan','sdwan');
@@ -2330,11 +2338,14 @@ function spawnOffer(){
      sells to ISPs from day one, a hosting outfit sells hosting from day one. */
   const allowed=RD.all?types:RD.types.slice();
   if(!allowed.length)return;
-  const t=pick(allowed),T=BIZ_T[t];
+  /* Brief 7 §4.1c: below its minPops a NAP still gets work, but only small downstream-ISP
+     jobs — enough to pay for the next POP, not a hyperscale contract. */
+  const napSmall=S.role==='nap'&&Object.keys(S.pops).length<RD.minPops;
+  const t=napSmall?'isp':pick(allowed),T=BIZ_T[t];
   if(T.event||T.sdwan||T.fiber||T.mega){spawnSpecial(t);return;}
   let city=(Math.random()<0.65&&mine.length)?pick(mine):pick(ALLC.concat(cnOk()?['pek','sha']:[])),city2=null;
   if(T.l2){city=pick(mine);const pool=(Math.random()<(T.lv>=3?0.8:0.6)?mine:ALLC).filter(c=>c!==city);city2=pick(pool.length?pool:ALLC.filter(c=>c!==city));}
-  const bw=T.lv>=2?pick(T.opts):pick(T.opts.slice(0,mine.length>=4?4:3));
+  const bw=napSmall?T.opts[0]:(T.lv>=2?pick(T.opts):pick(T.opts.slice(0,mine.length>=4?4:3)));
   /* Brief 6 §3: an RT/RW net sells DIA sizes up to its region's bwMax (2G global, 5G SEA,
      10G IDN). Without an override this is exactly the brief-5 [1,2] behaviour. */
   const bwCap=RD.bwMax;
@@ -3450,7 +3461,7 @@ function seaRegion(){
   rules:{t1Served:400,t1Pops:8,t1Continents:2,cacheCities:null,cacheMinMul:1.2,startCash:300000},
   roles:{
     hosting:{cash:120000,maxPops:4},
-    nap:{cash:900000,minPops:4},
+    nap:{cash:900000,minPops:3},
     isp:{cash:300000},
     rtnet:{cash:60000,maxPops:3,bwMax:5},
   },
@@ -3467,10 +3478,10 @@ function idnRegion(){
   startCities:['jkt','sby','upg'],
   startCash:250000,
   regionMult:{AS:2.5,AF:2,OC:1.4,SA:1.6,EU:1},
-  rules:{indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','sin'],cacheMinMul:1.6},
+  rules:{indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','btm'],cacheMinMul:1.6},
   roles:{
     hosting:{cash:150000,maxPops:5},
-    nap:{cash:600000,minPops:3},
+    nap:{cash:600000,minPops:2},
     isp:{cash:250000},
     rtnet:{cash:75000,maxPops:4,bwMax:10},
   },

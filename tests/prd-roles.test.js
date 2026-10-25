@@ -115,18 +115,23 @@ test('ROLES: RT/RW net takes small DIA only, keeps a 2-POP footprint, needs tran
   assert.deepEqual(errors, []);
 });
 
-test('ROLES: NAP gates all offers until 5 POPs, then only ISP/hyperscaler/AI', () => {
+test('ROLES: NAP gets small ISP jobs below 3 POPs, then only ISP/hyperscaler/AI', () => {
   const { ev, errors } = load();
   ev("UI.role='nap';ACT.start({});S.cash=1e7");
   assert.equal(ev('S.cash'), 10000000);
   assert.equal(ev("ROLES.nap.cash"), 2000000, 'PRD starting cash for NAP is $2M');
 
-  ev("for(let i=0;i<300;i++){S.offers=[];spawnOffer()}");
-  assert.equal(ev('S.offers.length'), 0, 'under 5 POPs there are no profit-relevant offers');
-  assert.equal(ev('roleBlockOffers()'), true);
+  // Brief 7 §4.1c: below minPops a NAP is not blocked outright — it gets small ISP jobs.
+  const small = JSON.parse(ev("JSON.stringify((()=>{const a=[];for(let i=0;i<300;i++){S.offers=[];spawnOffer();for(const o of S.offers)a.push([o.type,o.bw])}return a})())"));
+  assert.ok(small.length > 0, 'a NAP below its threshold still gets small jobs');
+  for (const [t, bw] of small) {
+    assert.equal(t, 'isp', 'only downstream ISP work below minPops');
+    assert.equal(bw, 100, 'and only the smallest scale');
+  }
+  assert.equal(ev('roleBlockOffers()'), false, 'NAP is never blocked outright');
 
-  ev("for(const c of ['ams','lon','par','nyc'])ACT.buildPop({city:c})");
-  assert.equal(ev('Object.keys(S.pops).length'), 5);
+  ev("for(const c of ['ams','lon'])ACT.buildPop({city:c})");
+  assert.equal(ev('Object.keys(S.pops).length'), 3);
   assert.equal(ev('roleBlockOffers()'), false);
 
   const seen = JSON.parse(ev("JSON.stringify((()=>{const s=new Set();for(let i=0;i<400;i++){S.offers=[];spawnOffer();for(const o of S.offers)s.add(o.type)}return [...s]})())"));
