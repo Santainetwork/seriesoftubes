@@ -513,6 +513,9 @@ const PLAY_MARKS=[1,5,15,30,60,120];
 /* ================= CONSTANTS ================= */
 let W=2000, H=1000, KM=14;
 const POP_COST=20000, POP_MO=1500, EYE_RATE=150, CACHE_CAP=100, CACHE_MO=400;
+/* How much of a CDN's traffic a cache in your own rack actually absorbs. The rest still has to
+   reach the origin, so a cache is a saving, never a substitute for transit or peering. */
+const CACHE_HIT=0.85;
 const DAY_MS=2500, ROUTER_COST=15000, ROUTER_MO=1500, GEN_COST=12000, GEN_MO=600, DIVERSE=1.4;
 const RU_BOX=40000, RU_BOX_MO=2000;
 const UAE_LIC=15000,KSA_LIC=25000;
@@ -1506,27 +1509,77 @@ function trPaths(src){const live=S.links.filter(l=>!linkDown(l)),rem=remoteCitie
   const path=dst=>{if(dist[dst]===undefined)return null;const out=[];let v=dst;while(v!==src){const l=prev[v];out.unshift({l,from:l.a===v?l.b:l.a,to:v});v=l.a===v?l.b:l.a;}return out;};return {dist,path};}
 function trExits(net){const day=S.day,ev=S.ev,leak=ev.leak&&ev.leak.until>day?ev.leak.net:null,out=[];
   for(const x of S.caches)if(x.net===net&&popUp(x.city)&&!siteDown(x.city,'a'))out.push({k:'c',rank:0,city:x.city,pref:'normal',lab:NET[net].cache.name+' cache',used:R.useCache[x.id]||0,cap:CACHE_CAP});
-  for(const p of S.pni)if(p.net===net&&popUp(p.city)&&liveN(p.city,p.site,p.n))out.push({k:'p',rank:1,city:p.city,pref:p.pref||'normal',lab:'PNI with '+NET[net].name,used:R.usePni[p.id]||0,cap:liveCap(PORT[p.tier].g,p.city,p.site,p.n)});
+  for(const p of S.pni)if(p.net===net&&popUp(p.city)&&liveN(p.city,p.site,p.n)){const pn=netOf(net);out.push({k:'p',rank:1,city:p.city,pref:p.pref||'normal',lab:'PNI with '+(pn?pn.name:net),used:R.usePni[p.id]||0,cap:liveCap(PORT[p.tier].g,p.city,p.site,p.n)});}
   for(const c in S.ixp)if(ixSessions(c).has(net)&&(popUp(ixCity(c))||remoteCities().includes(ixCity(c)))&&!(ev.ixdown&&ev.ixdown[c]>day))out.push({k:'ix',rank:2,city:ixCity(c),id:c,pref:(S.ixPref&&S.ixPref[c])||'normal',lab:ixName(c)+' peering',used:R.useIx[c]||0,cap:ixCap(c)});
   for(const t of S.transit)if(popUp(t.city)&&!(t.down>day)&&liveN(t.city,t.site,t.n)&&net!==leak&&!((ev.depeer>day||scnRule('spat'))&&t.net==='cog'&&net==='ggl'))out.push({k:'t',rank:3,city:t.city,pref:t.pref||'normal',lab:NET[t.net].name+' transit',tnet:t.net,used:R.useT[t.id]||0,cap:liveCap(PORT[t.tier].g,t.city,t.site,t.n)});
   return out;}
+/* Where an Indonesian network's traffic actually leaves the country. Singapore is the default:
+   almost every content network without an Indonesian POP is only reachable from there. */
+/* Content that physically sits in Jakarta. In practice only the Meta group has real Indonesian
+   infrastructure — the rest serve the country out of Singapore and only cache locally. So a PNI
+   to anything else still rides to Singapore and back; what it buys you is bandwidth efficiency,
+   not latency. */
+const IDN_LOCAL_CONTENT=new Set(['fbk']);
+function idnHub(city,net){
+  if(curRegion!=='idn')return null;
+  if(!CITY[city])return null;
+  if(net&&IDN_LOCAL_CONTENT.has(net.id))return null;
+  return 'sin';
+}
 function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[],ip=(a,b)=>`100.64.${a%250}.${b%250}`;let rtt=0.3,n=1;
   const hop=(host,addr,extra,note)=>{rtt+=extra;lines.push(`${String(n++).padStart(2)}  ${host} (${addr})  ${rtt.toFixed(1)} ms${note?'   ← '+note:''}`);};
   hop(`lo0.cr1.${src}.${me}`,ip(hstr(src),1),0,`${CITY[src].name}, your router`);
   const walk=path=>{for(const h of path){const l=h.l,lat=linkLat(l)*2+0.15;hop(`ae${1+hstr(l.id)%9}.cr1.${h.to}.${me}`,ip(hstr(h.to),2),lat,`${CITY[h.to].name} · ${l.kind==='df'?'own dark fiber':l.kind==='vxc'?'fabric circuit':l.cable?CAB[l.cable].name:'terrestrial wave'} · ${capName(l)}`);}};
   if(to.city){const path=P.path(to.city);lines.unshift(`traceroute to ${to.city}.${me} (${CITY[to.city].name}), 30 hops max`);if(!path){lines.push(' 2  * * *   ← no working path between these POPs');return {text:lines.join('\n'),why:'No path: every route between these cities is down or missing.'};}walk(path);return {text:lines.join('\n'),why:`Internal path over ${path.length} link${path.length===1?'':'s'}, chosen by distance and link metrics${S.te&&S.te.on?'. Auto-TE may move overflow elsewhere when this is full':''}.`};}
-  const N=NET[to.net],ex=trExits(to.net).filter(e=>P.dist[e.city]!==undefined);
+  const N=netOf(to.net);if(!N)return {text:'',why:'That network is not present in this region.',asPath:null};const ex=trExits(to.net).filter(e=>P.dist[e.city]!==undefined);
   lines.unshift(`traceroute to www.${slug(N.name)}.example (${N.name}, AS${N.asn}) from ${CITY[src].name}, 30 hops max`);
   if(!ex.length){lines.push(' 2  * * *\n 3  * * *   ← '+N.name+' unreachable');return {text:lines.join('\n'),why:`Nothing on your network reaches ${N.name}: no transit, IX session, PNI or cache with a working path from ${CITY[src].name}.`,asPath:null};}
   ex.sort((a,b)=>(a.pref==='low'?4:a.rank)-(b.pref==='low'?4:b.rank)||(a.pref==='high'?0:1)-(b.pref==='high'?0:1)||P.dist[a.city]-P.dist[b.city]);
   const e=ex.find(x=>x.used<x.cap*0.999)||ex[0];walk(P.path(e.city));
   let asPath=[S.asn];
   if(e.k==='t'){const T=NET[e.tnet];asPath.push(T.asn);hop(`be-${S.asn}.${e.city}.${slug(T.name)}.net`,`203.0.113.${hstr(e.city)%250}`,0.4,`hand-off to ${T.name}`);
-    if(T.id!==N.id){const far=(N.pops&&N.pops.length?N.pops:[e.city]).reduce((a,c)=>kmBetween(e.city,c)<kmBetween(e.city,a)?c:a,(N.pops||[e.city])[0]);const km=CITY[far]?kmBetween(e.city,far):0;
-      hop(`ae-2.core.${far}.${slug(T.name)}.net`,`203.0.113.${(hstr(far)+7)%250}`,km*1.3/100+0.3,CITY[far]?`${T.name} carries it to ${CITY[far].name}`:'');
+    if(T.id!==N.id){
+      /* Indonesian networks still depend on Singapore: a content network without a POP in the
+         country is only reachable through the regional hub, which is why a traceroute from
+         Jakarta to it shows two-digit latency and a hop in Singapore. Only a direct PNI makes
+         it a single-digit local path. */
+      const hub=idnHub(e.city,N);
+      /* N.pops lists the network's POPs worldwide; most are not on the map the player is looking
+         at, so only cities this region actually has can be measured. */
+      const known=(N.pops||[]).filter(c=>CITY[c]);
+      const far=known.length?known.reduce((a,c)=>kmBetween(e.city,c)<kmBetween(e.city,a)?c:a,known[0]):e.city;
+      if(hub){
+        hop(`ae-2.core.sin.${slug(T.name)}.net`,`203.0.113.${(hstr('sin')+7)%250}`,1.6,`${T.name} hands it off in Singapore`);
+        /* The hand-off above is the last hop that belongs to the transit provider; the target
+           network picks it up in Singapore, not in Jakarta. */
+      }else{
+        const km=CITY[far]?kmBetween(e.city,far):0;
+        hop(`ae-2.core.${far}.${slug(T.name)}.net`,`203.0.113.${(hstr(far)+7)%250}`,km*1.3/100+0.3,CITY[far]?`${T.name} carries it to ${CITY[far].name}`:'');
+      }
       hop(`${slug(N.name)}-peer.${far}.${slug(T.name)}.net`,`198.51.100.${hstr(N.id)%250}`,0.4,`${T.name} hands it to ${N.name}`);}}
   else if(e.k==='ix'){hop(`${slug(ixName(e.city))}.peering.${e.city}`,`185.0.${hstr(e.city)%250}.${hstr(N.id)%250}`,0.3,`across the ${ixName(e.city)} switch`);}
-  else if(e.k==='p'){hop(`pni-${slug(N.name)}.${e.city}.${me}`,ip(hstr(N.id),3),0.2,'private cross-connect');}
+  else if(e.k==='p'){
+    /* A PNI only buys a cross-connect to the nearest edge of that network. Where the network
+       itself lives decides the latency, not the cross-connect:
+         · Meta has real infrastructure in Jakarta, so the path stays local.
+         · Any other content network serves Indonesia from Singapore, so the packet still
+           travels there and back — the PNI saves transit capacity, not distance.
+         · A Tier 1 has no Indonesian presence at all, so the path runs over a cable to their
+           nearest landing, which is where the 9-13 ms comes from. */
+    const hub=idnHub(e.city,N);
+    hop(`pni-${slug(N.name)}.${e.city}.${me}`,ip(hstr(N.id),3),0.2,'private cross-connect');
+    if(hub){
+      /* A Tier 1 has no landing in Indonesia, so the path runs over a subsea cable to its
+         nearest POP. Singapore is ~350 km from Jakarta but the cable route is longer, and the
+         provider's own backbone adds another hop or two: 9-13 ms is what this actually measures
+         in the field, so that is the range the model uses. */
+      const isT1=N.type==='t1'||N.type==='t2';
+      const rtt=isT1?9+Math.random()*4:Math.max(0.6,400*0.005);
+      hop(`${slug(N.name)}-edge.${isT1?'sin':'sin'}.${me}`,ip(hstr(N.id),5),rtt,
+        isT1?`${N.name} has no Indonesian landing — the path runs over the cable to its nearest POP`
+            :`${N.name} serves Indonesia from Singapore — the PNI saves transit capacity, not distance`);
+    }
+  }
   else{hop(`cache-${slug(N.name)}.${e.city}.${me}`,ip(hstr(N.id),4),0.1,'embedded cache in your rack');}
   asPath.push(N.asn);if(e.k!=='c')hop(`www.${slug(N.name)}.example`,`198.51.100.${(hstr(N.id)+1)%250}`,0.5+(e.k==='t'?1:0.2),`${N.name}`);
   const order={c:'caches beat PNIs',p:'PNIs beat IX peering',ix:'IX peering beats transit',t:'transit is the last resort'}[e.k];
@@ -1958,7 +2011,9 @@ function compute(){
     E.push({k:'t',prem:!!t.premium&&t.city==='hkg',pref:t.pref||'normal',lab:NET[t.net].name+' transit',id:t.id,city:t.city,cap:Math.min(liveCap(PORT[t.tier].g,t.city,t.site,t.n),TRX&&TRX.cap[t.net]!==undefined?TRX.cap[t.net]:Infinity),used:0,rank:3,ok:n=>!(depeer&&t.net==='cog'&&n==='ggl')&&n!==leak});}
   for(const c in S.ixp){const ct=ixCity(c);if(!(popUp(ct)||remote.includes(ct))||(S.ev.ixdown&&S.ev.ixdown[c]>day)||!liveN(ct,(S.ixSite||{})[c],(S.ixn||{})[c]))continue;const set=ixSessions(c);R2.sessions+=set.size;
     E.push({k:'ix',pref:(S.ixPref&&S.ixPref[c])||'normal',lab:ixName(c)+' peering',id:c,city:ct,cap:ixCap(c),used:0,rank:2,ok:n=>set.has(n)});}
-  for(const p of S.pni){if(!popUp(p.city)||!liveN(p.city,p.site,p.n))continue;R2.sessions++;E.push({k:'p',pnc:!!NET[p.net].cn,pref:p.pref||'normal',lab:'PNI with '+NET[p.net].name,id:p.id,city:p.city,cap:liveCap(PORT[p.tier].g,p.city,p.site,p.n),used:0,rank:1,ok:n=>n===p.net});}
+  /* Brief 18 §G: a PNI can point at a global Tier 1 that has no POP in the region, so it is not
+     in the live NET subset. Resolve through netOf() instead of NET. */
+  for(const p of S.pni){if(!popUp(p.city)||!liveN(p.city,p.site,p.n))continue;const pn=netOf(p.net);if(!pn)continue;R2.sessions++;E.push({k:'p',pnc:!!pn.cn,pref:p.pref||'normal',lab:'PNI with '+pn.name,id:p.id,city:p.city,cap:liveCap(PORT[p.tier].g,p.city,p.site,p.n),used:0,rank:1,ok:n=>n===p.net});}
   for(const c of S.caches){if(!popUp(c.city)||siteDown(c.city,'a'))continue;E.push({k:'c',pref:'normal',lab:NET[c.net].cache.name+' cache',id:c.id,city:c.city,cap:CACHE_CAP,used:0,rank:0,ok:n=>n===c.net});}
   {const rp=ev.rpki&&ev.rpki.until>day?new Set(ev.rpki.nets):null;if(rp)for(const e of E){if(e.k==='c')continue;const o=e.ok;e.ok=n=>!rp.has(n)&&o(n);}}
   /* Reach is a property of the internet, not of one POP. When every POP in a city is down
@@ -1972,7 +2027,11 @@ function compute(){
      Indonesia has 142 entries against 29 live ones). Adding an undefined share poisoned reach
      with NaN, and a NaN reach made every customer read as unserved — which is why happiness
      collapsed while transit and peering were plentiful. */
-    for(const n of NETS){R2.reachable[n.id]=E.some(e=>e.rank>0&&e.ok(n.id));if(R2.reachable[n.id])R2.reach+=(NSH[n.id]||0);}
+    /* A cache is not a path. Google's cache in your rack serves YouTube and search assets, but it
+       does not make google.com reachable — the same way a Netflix Open Connect box is not
+       netflix.com. Reach counts transit, IX sessions and PNIs only; caches cut traffic (below)
+       and are never an exit. */
+    for(const n of NETS){R2.reachable[n.id]=E.some(e=>e.rank>0&&e.k!=='c'&&e.ok(n.id));if(R2.reachable[n.id])R2.reach+=(NSH[n.id]||0);}
   }else{
     R2.reach=typeof R.reach==='number'?R.reach:1;
     for(const n of NETS)R2.reachable[n.id]=R2.reach>0.999;
@@ -1997,7 +2056,10 @@ function compute(){
     if(edge)R2.teBlack+=atk.gbps*0.15+d*0.1;if(rtbh)R2.teBlack+=atk.gbps+d;
     R2.cityBlocked=R2.cityBlocked||{};
     for(const n of NETS){const a=d*(SH[n.id]||0)*(rtbh?0:edge?0.9:1);if(a<=0)continue;
-      if(cacheNets.has(n.id)){flows.push({c,n:n.id,rem:a*0.85,cache:true});flows.push({c,n:n.id,rem:a*0.15});}
+/* Cached traffic is served locally, so most of it never touches transit. The rest — API calls,
+         logins, anything not cached — still needs a real path, which is why a cache does not
+         substitute for one. */
+      if(cacheNets.has(n.id)){flows.push({c,n:n.id,rem:a*CACHE_HIT,cache:true});flows.push({c,n:n.id,rem:a*(1-CACHE_HIT)});}
       else flows.push({c,n:n.id,rem:a});}
   }
   const res={},eload={},nres={};for(const k in edges)res[k]=edges[k].cap;for(const c of pops){nres[c]=nodeCap(c);R2.nodeCap[c]=nres[c];}
@@ -2068,13 +2130,15 @@ function compute(){
   for(const e of E){if(e.k==='t')R2.useT[e.id]=e.used;else if(e.k==='ix')R2.useIx[e.id]=e.used;else if(e.k==='p')R2.usePni[e.id]=e.used;else R2.useCache[e.id]=e.used;}
   // money
   const C=R2.cost,V=R2.rev,pm=S.priceMul;
-  C.pops=Object.values(S.pops).reduce((a,p)=>a+POP_MO+((p.routers||1)-1)*ROUTER_MO+(p.routers||1)*RG[p.rgen||0].mo+(p.gen?GEN_MO:0),0);
+/* Brief 18 §J: a router is bought once, not rented. The purchase price already covers the
+     hardware; there is no monthly line for it, only the POP's own rent and the extra routers. */
+  C.pops=Object.values(S.pops).reduce((a,p)=>a+POP_MO+((p.routers||1)-1)*ROUTER_MO+(p.gen?GEN_MO:0),0);
   C.optical=S.links.filter(l=>l.kind==='df').reduce((a,l)=>a+(l.ready>S.day?0:ampCount(l.km)*AMP_MO)+(l.spares?Math.round(150+(l.ch||[]).length*80):0),0);
   C.links=S.links.reduce((a,l)=>a+(l.mo||0),0);
   C.nni=(S.nni||[]).reduce((a,x)=>a+NNI[x.tier].mo,0);
   C.transit=S.transit.reduce((a,t)=>{const q=p95(t,R2.useT[t.id]||0);R2.p95[t.id]=q;const n=t.n||1;return a+Math.max(q,PORT[t.tier].g*n*0.2)*NET[t.net].price*(t.premium&&t.city==='hkg'?NET[t.net].premium:1)*pm*regionMult(t.city)+PORT[t.tier].tmo*n;},0);
   C.ix=Object.keys(S.ixp).reduce((a,c)=>a+(S.myIx[c]?myFab(c).mo:ixPortMo(c,S.ixp[c])*((S.ixn||{})[c]||1)+dkAddonMo(c)),0);
-  C.pni=S.pni.reduce((a,p)=>a+PORT[p.tier].pni*(p.n||1)+(NET[p.net].pol==='paid'?NET[p.net].paidFee:0)+(NET[p.net].perG?Math.round(NET[p.net].perG*(R2.usePni[p.id]||0)):0),0);
+  C.pni=S.pni.reduce((a,p)=>{const pn=netOf(p.net);if(!pn)return a;return a+PORT[p.tier].pni*(p.n||1)+(pn.pol==='paid'?pn.paidFee:0)+(pn.perG?Math.round(pn.perG*(R2.usePni[p.id]||0)):0);},0);
   C.caches=S.caches.length*CACHE_MO;
   C.loans=(S.loans||[]).reduce((a,l)=>a+(BANKS[l.bank].equity?0:l.pay),0);
   C.extras=(S.cnLic&&S.cnLic.state==='ok'?CN_JV_MO:0)+(S.scrubAt?SCRUB_MO:0)+Object.keys(S.pops).filter(ruCity).length*RU_BOX_MO+Object.values(S.pops).filter(p=>p.site2).length*SITE2_MO+(S.te?TE_MO:0);
@@ -3384,7 +3448,7 @@ function cityPanel(c){
       if(pn){const u=R.usePni[pn.id]||0,cap=lagCap(PORT[pn.tier].g,pn.n);h+=`<div class="kv"><span>${(pn.n||1)>1?`${pn.n}×${PORT[pn.tier].n} LAG`:PORT[pn.tier].n} PNI</span><b>${fmtG(u)}</b></div><div class="bar ${barCls(u/cap)}"><i style="width:${u/cap*100}%"></i></div>${prefCtl('p',pn.id,pn.pref)}${siteCtl('p',pn.id,c,pn.site)}<div class="btns">${PORT.map((P2,i)=>i>pn.tier?btn(`Upgrade ${(pn.n||1)>1?'all to ':''}${P2.n} <small>${fmt$((1500+P2.setup/2)*(pn.n||1))}</small>`,'pni',{city:c,net:n.id,tier:i},'sm',!portOk(c,i)||S.cash<(1500+P2.setup/2)*(pn.n||1)):'').join('')}${(pn.n||1)<LAG_MAX?btn(`+ LAG member <small>${fmt$(1500+PORT[pn.tier].setup/2)} + ${fmt$(PORT[pn.tier].pni)}/mo</small>`,'lagP',{id:pn.id,d:1},'sm',S.cash<1500+PORT[pn.tier].setup/2):''}${(pn.n||1)>1?btn('− member','lagP',{id:pn.id,d:-1},'ghost sm'):''}${btn(UI.confirm===pn.id?'Really remove?':'Remove','cancelPni',{id:pn.id},'ghost sm')}</div>`;}
       else{h+=chk.ok?`<div class="btns">${PORT.map((P2,i)=>btn(`${P2.n} <small>${fmt$(1500+P2.setup/2)}</small>`,'pni',{city:c,net:n.id,tier:i},'sm',S.cash<1500+P2.setup/2||!portOk(c,i))).join('')}</div>${chk.fee?`<div class="meta">Paid peering: ${fmt$(chk.fee)}/mo on top</div>`:''}`:`<div class="why">${esc(chk.why)}</div>`;}
       h+=`</div></div>`;}
-    h+=`</section><section><h3>Embedded caches</h3><p class="lead">CDNs put free cache servers inside your POP. Most of their traffic is then served right here, with no transit and no IX port.</p>`;
+    h+=`</section><section><h3>Embedded caches</h3><p class="lead">CDNs put free cache servers inside your POP. Cached traffic is served right here instead of over transit — but a cache is not a path to the network: it holds their popular content, not their whole service, so you still need transit or peering to reach the origin.</p>`;
     const crules=REGION[curRegion].rules||{};
     for(const n of NETS.filter(n=>n.cache)){const have=S.caches.filter(x=>x.city===c&&x.net===n.id),dem=R.demTo[n.id]||0,need=Math.ceil(n.cache.min*(crules.cacheMinMul||1)),ok=dem>=need;
       const banned=crules.cacheCities&&!crules.cacheCities.includes(c);
@@ -3400,7 +3464,7 @@ function cityPanel(c){
     <div class="kv"><span>Forwarding chip</span><b>${esc(G.chip)}</b></div><div class="kv"><span>Boot time</span><b>${slowBoot(c)?`<span style="color:var(--bad)">~${bootMin(c)} min · a slow one</span>`:`~${bootMin(c)} min`}</b></div>${slowBoot(c)?`<p class="note">This chassis takes forever to boot: crashes last longer, and swapping the only router here takes 3 days. A second router hides it.</p>`:''}
     <div class="kv"><span>Forwarding load</span><b>${fmtG(nl)} / ${fmtG(nc)}</b></div><div class="bar ${barCls(nl/nc)}"><i style="width:${Math.min(100,nl/nc*100)}%"></i></div>
     ${nl>=nc*0.95?`<p class="why">Maxed out. Traffic here is being dropped.</p>`:''}
-    <div class="btns">${N?btn(N.lvl>lvl()?`${esc(N.n)} <small>level ${N.lvl}</small>`:`Upgrade to ${esc(N.n)} <small>${fmt$(N.cost*rt)} + ${fmt$(N.mo*rt)}/mo</small>`,'upRouter',{city:c,g:Ni},'pink',N.lvl>lvl()||S.cash<N.cost*rt):''}${btn(UI.models?'Hide other models':'Other models','models',{},'ghost sm')}${rt<RMAX?btn(`Add router <small>${fmt$(routerCost(g))} + ${fmt$(ROUTER_MO+G.mo)}/mo</small>`,'addRouter',{city:c},'',S.cash<routerCost(g)):''}${rt>1?btn('Remove one','rmRouter',{city:c},'ghost sm'):''}</div>
+    <div class="btns">${N?btn(N.lvl>lvl()?`${esc(N.n)} <small>level ${N.lvl}</small>`:`Upgrade to ${esc(N.n)} <small>${fmt$(N.cost*rt)} once</small>`,'upRouter',{city:c,g:Ni},'pink',N.lvl>lvl()||S.cash<N.cost*rt):''}${btn(UI.models?'Hide other models':'Other models','models',{},'ghost sm')}${rt<RMAX?btn(`Add router <small>${fmt$(routerCost(g))} + ${fmt$(ROUTER_MO+G.mo)}/mo</small>`,'addRouter',{city:c},'',S.cash<routerCost(g)):''}${rt>1?btn('Remove one','rmRouter',{city:c},'ghost sm'):''}</div>
     ${UI.models?routerModels(c):''}
     ${N||UI.models?`<p class="note">${rt>1?'Rolling upgrade: one router at a time, no downtime.':'With one router, the upgrade needs a maintenance window: this POP goes dark for a day.'}</p>`:''}
     <p class="note">${rt>=2?'A crash here only costs one router’s capacity for a few days.':'One router is a single point of failure.'}</p></section>
@@ -3814,31 +3878,31 @@ let CLOUDS=Array.from({length:7},(_,i)=>({x:R1()*W,y:60+R1()*(H-120),s:.7+R1()*.
    `sg` and `pen` exist as their own small polygons so Singapore–KL and Penang–KL
    get the right answer (island vs peninsula). */
 const SEA_LANDS=[
- {id:'sum',ll:[[95.0,5.7],[97.3,5.4],[98.6,4.1],[100.1,2.3],[101.2,1.0],[102.4,0.1],[103.4,-0.9],[104.6,-1.9],[105.6,-3.4],[105.9,-5.6],[104.6,-5.9],[102.6,-4.2],[100.6,-2.0],[98.9,0.4],[97.1,2.4],[94.9,4.0]]},
- {id:'kal',ll:[[108.8,1.0],[109.4,2.1],[110.6,3.6],[112.0,4.6],[113.6,5.0],[114.6,5.2],[115.2,4.6],[115.9,4.4],[116.6,5.4],[117.6,5.6],[118.6,4.6],[119.3,3.5],[118.6,2.0],[117.6,0.5],[117.0,-1.0],[116.5,-2.5],[116.0,-3.5],[115.0,-4.2],[114.0,-4.0],[113.0,-3.5],[111.5,-3.2],[110.0,-2.0],[109.0,-1.0],[108.5,0.0],[108.5,0.6]]},
- {id:'sul',ll:[[125.3,1.8],[124.5,1.6],[123.6,1.1],[122.4,0.8],[121.2,0.9],[120.4,0.7],[119.6,0.0],[119.2,-1.0],[119.0,-2.2],[119.3,-3.4],[119.0,-4.4],[119.4,-5.4],[120.2,-5.7],[121.0,-5.3],[121.8,-4.9],[122.6,-4.6],[123.0,-3.8],[122.6,-3.0],[122.2,-2.2],[122.8,-1.4],[123.4,-0.6],[124.0,0.2],[124.8,0.8],[125.5,1.2]]},
- {id:'bal',ll:[[114.5,-8.1],[115.0,-8.1],[115.7,-8.2],[115.7,-8.8],[115.2,-9.0],[114.7,-8.9],[114.4,-8.6],[114.4,-8.3]]},
- {id:'pap',ll:[[130.8,-1.2],[132.0,-0.5],[134.0,-0.8],[136.0,-1.5],[138.0,-1.6],[140.0,-2.2],[141.5,-2.6],[143.5,-3.5],[145.0,-4.5],[147.0,-6.0],[148.0,-8.0],[146.0,-8.5],[143.5,-9.0],[141.0,-9.2],[139.0,-8.5],[137.5,-8.0],[136.0,-5.5],[134.0,-4.0],[132.0,-2.8],[130.8,-2.0]]},
+ {id:'sum',ll:[[95.3,5.6],[97.5,5.2],[98.7,4.1],[100.3,3.3],[101.5,2.8],[103.0,1.6],[103.6,1.3],[104.5,1.4],[104.7,0.6],[104.2,-1.0],[105.9,-2.2],[105.8,-3.3],[105.9,-4.5],[105.5,-5.8],[104.6,-5.9],[103.5,-5.0],[102.3,-4.3],[101.3,-3.3],[100.4,-2.2],[99.4,-1.1],[98.6,0.1],[98.0,1.5],[96.8,2.6],[95.7,3.5],[95.2,4.5]]},
+ {id:'kal',ll:[[109.0,1.6],[109.7,2.0],[111.0,2.5],[112.5,3.0],[114.5,4.1],[115.5,4.9],[117.0,4.2],[117.6,3.5],[117.9,2.2],[118.0,1.0],[117.8,-0.3],[117.6,-1.6],[117.4,-2.8],[117.0,-3.9],[116.0,-4.2],[115.0,-4.3],[114.5,-3.6],[114.0,-3.3],[113.0,-3.2],[112.0,-3.4],[111.0,-3.1],[110.5,-2.8],[110.0,-2.0],[109.5,-1.0],[109.0,0.2],[108.9,1.0]]},
+ {id:'sul',ll:[[119.3,-5.7],[119.8,-5.4],[120.4,-5.6],[120.6,-5.7],[121.0,-4.8],[121.5,-4.1],[122.2,-3.7],[122.9,-3.1],[123.4,-2.4],[123.6,-1.6],[123.2,-0.9],[122.4,-0.4],[121.6,-0.6],[121.2,-1.1],[119.4,-1.05],[119.2,-1.15],[120.2,0.0],[120.0,0.9],[120.6,1.3],[121.6,1.3],[122.6,1.4],[123.6,1.2],[124.6,1.4],[125.3,1.7],[125.2,1.0],[124.6,0.3],[123.6,0.2],[122.6,0.1],[121.6,-0.3],[121.0,-0.9],[120.4,-1.6],[119.9,-2.6],[119.5,-3.6],[123.2,-3.8],[123.4,-4.3],[122.4,-4.4],[121.4,-4.3],[120.4,-4.5],[119.6,-4.9],[119.0,-4.6],[118.8,-5.0]]},
+ {id:'bal',ll:[[114.5,-8.1],[115.0,-8.05],[115.3,-8.15],[115.6,-8.3],[115.65,-8.5],[115.5,-8.75],[115.2,-8.85],[114.9,-8.8],[114.6,-8.7],[114.45,-8.5],[114.45,-8.3]]},
+ {id:'pap',ll:[[131.0,-1.0],[132.5,-0.5],[134.0,-0.8],[135.5,-1.5],[137.0,-1.8],[138.5,-2.2],[140.0,-2.5],[141.0,-3.0],[141.0,-9.0],[139.0,-8.5],[137.5,-8.2],[136.0,-7.5],[134.5,-6.5],[133.5,-5.0],[133.0,-4.0],[132.5,-3.0],[132.0,-2.2],[131.2,-1.6]]},
  {id:'btm',ll:[[103.3,0.85],[104.6,0.85],[104.75,1.15],[104.6,1.6],[103.5,1.62],[103.25,1.3]]},
  {id:'sg',ll:[[103.62,1.20],[103.95,1.20],[104.02,1.30],[103.98,1.42],[103.70,1.45],[103.60,1.35]]},
- {id:'tha',ll:[[98.0,8.0],[98.5,12.0],[99.5,15.0],[98.5,18.0],[97.4,20.5],[99.5,20.5],[101.0,19.6],[101.8,19.2],[102.3,18.3],[103.2,16.5],[104.6,15.5],[104.9,14.0],[103.2,12.0],[102.3,9.0],[101.6,6.5],[102.0,5.8],[103.0,4.5],[103.6,2.6],[103.9,1.65],[102.9,1.6],[101.6,2.4],[100.4,4.0],[100.1,5.5],[99.5,6.5],[98.6,7.8]]},
+ {id:'tha',ll:[[97.9,20.4],[98.9,19.9],[99.9,20.4],[100.5,20.0],[100.9,19.5],[101.3,19.1],[101.8,18.2],[102.3,17.6],[102.9,17.0],[103.6,16.5],[104.4,16.4],[104.8,15.6],[105.2,14.9],[105.5,14.5],[105.6,14.15],[105.0,14.15],[104.4,14.15],[103.9,14.15],[103.5,14.15],[103.0,14.15],[102.5,14.15],[101.9,9.8],[101.2,9.1],[100.5,8.4],[100.2,7.6],[100.4,6.9],[101.0,6.5],[101.8,6.4],[102.4,14.15],[102.8,14.15],[102.5,14.15],[101.8,5.2],[101.2,5.6],[100.8,6.0],[100.4,6.4],[99.9,6.8],[99.4,7.4],[98.9,8.0],[98.4,8.7],[98.2,9.7],[98.4,10.7],[98.6,11.7],[98.5,12.7],[98.3,13.7],[98.2,14.7],[98.4,15.7],[98.5,16.7],[98.3,17.7],[97.8,18.7],[97.6,19.7]]},
  {id:'vnm',ll:[[102.0,22.5],[104.0,23.3],[106.5,22.8],[108.0,21.5],[108.5,19.0],[109.5,16.0],[109.2,13.0],[107.6,11.2],[106.4,10.4],[105.4,9.2],[104.9,9.2],[105.3,10.6],[105.9,11.4],[106.4,12.2],[106.6,14.0],[106.6,17.0],[105.6,19.0],[104.0,21.0]]},
- {id:'khm',ll:[[102.4,10.4],[103.4,11.0],[104.9,11.9],[105.9,11.4],[106.3,10.6],[105.7,9.6],[104.4,9.5],[103.4,9.8],[102.8,10.0],[102.3,10.1]]},
- {id:'lao',ll:[[100.5,20.0],[102.0,22.5],[103.5,22.5],[104.6,20.0],[105.0,17.5],[104.0,15.0],[102.5,16.0],[101.0,18.0]]},
- {id:'mmr',ll:[[92.5,20.5],[94.0,23.0],[96.0,24.0],[98.0,23.0],[99.0,21.0],[99.6,18.2],[98.6,15.0],[98.1,12.0],[97.6,10.0],[96.0,9.5],[94.5,10.5],[94.0,13.0],[93.0,16.0],[92.3,18.5]]},
- {id:'mla',ll:[[100.1,6.5],[101.0,6.7],[102.2,6.2],[103.5,5.5],[104.2,4.0],[104.5,2.5],[104.3,1.5],[103.5,1.3],[102.5,1.8],[101.3,2.8],[100.3,4.5],[99.8,5.5]]},
+ {id:'khm',ll:[[102.4,14.1],[103.2,14.0],[104.0,13.9],[104.8,13.4],[105.4,12.9],[105.9,12.3],[106.3,11.6],[106.5,10.9],[106.2,10.4],[105.5,10.1],[104.8,10.3],[104.0,10.4],[103.4,10.6],[102.9,11.3],[102.5,12.1],[102.3,12.9],[102.3,13.6]]},
+ {id:'lao',ll:[[101.1,22.4],[102.1,22.4],[103.0,22.5],[103.9,22.5],[104.6,21.9],[104.7,21.0],[104.9,20.0],[105.0,19.0],[104.9,18.0],[105.3,17.0],[105.9,16.5],[106.4,16.0],[106.6,15.0],[106.2,14.4],[105.6,14.2],[105.2,14.9],[104.8,15.6],[104.4,16.4],[103.6,16.5],[102.9,17.0],[102.3,17.6],[101.8,18.2],[101.3,19.1],[100.9,19.5],[100.6,20.4],[100.9,21.2]]},
+ {id:'mmr',ll:[[92.4,21.4],[93.0,22.5],[93.6,23.6],[94.5,24.6],[95.5,25.6],[96.5,26.5],[97.5,27.5],[98.5,27.9],[98.8,27.0],[98.6,26.0],[98.4,25.0],[98.6,24.0],[99.1,23.2],[99.6,22.0],[99.9,21.4],[99.7,20.4],[99.1,19.9],[98.6,19.5],[98.0,18.5],[97.6,17.5],[97.5,16.5],[97.7,15.5],[98.0,14.5],[98.2,13.5],[98.1,12.5],[98.4,11.5],[98.3,10.5],[98.2,9.5],[98.1,8.5],[98.5,7.9],[97.9,8.6],[97.4,9.5],[96.9,10.5],[96.4,11.5],[95.9,12.5],[95.4,13.5],[94.9,14.5],[94.5,15.5],[94.2,16.5],[93.9,17.5],[93.5,18.5],[92.9,19.5],[92.6,20.5]]},
+ {id:'mla',ll:[[100.2,6.6],[100.6,6.4],[101.2,6.2],[101.8,6.0],[102.4,5.8],[103.0,5.2],[103.5,4.5],[103.8,3.8],[104.2,3.0],[104.3,2.2],[104.0,1.6],[103.6,1.4],[103.2,1.6],[102.8,2.0],[102.2,2.6],[101.6,3.2],[101.2,3.9],[100.8,4.6],[100.5,5.3],[100.2,5.9]]},
  {id:'pen',ll:[[100.15,5.25],[100.45,5.25],[100.50,5.50],[100.35,5.65],[100.15,5.55]]},
  {id:'brn',ll:[[114.20,4.60],[114.50,4.50],[115.00,4.60],[115.30,4.90],[115.20,5.20],[114.80,5.10],[114.40,4.90]]},
- {id:'tls',ll:[[124.00,-8.90],[124.50,-8.40],[125.20,-8.30],[125.60,-8.50],[126.00,-8.40],[126.30,-8.70],[126.00,-9.00],[125.00,-9.00],[124.50,-9.10]]},
+ {id:'tls',ll:[[124.0,-9.2],[124.8,-9.0],[125.3,-8.75],[125.6,-8.5],[126.0,-8.4],[126.5,-8.35],[127.0,-8.3],[127.3,-8.5],[127.1,-9.0],[126.4,-9.2],[125.6,-9.4],[124.7,-9.45],[124.0,-9.4]]},
  /* Brief 7 §3.3: coarse boxes around the new cities. Rough on purpose;
     calibrate later. Each must contain its city so onLand passes. */
- {id:'ntt',ll:[[122.9,-9.6],[124.3,-9.6],[124.3,-8.4],[122.9,-8.4]]},
- {id:'ntb',ll:[[115.4,-9.1],[117.0,-9.1],[117.0,-8.1],[115.4,-8.1]]},
- {id:'mlk',ll:[[127.3,-4.6],[129.2,-4.6],[129.2,1.5],[127.3,1.5]]},
- {id:'kep',ll:[[103.8,0.4],[105.0,0.4],[105.0,1.7],[103.8,1.7]]},
+ {id:'ntt',ll:[[119.5,-8.3],[120.5,-8.2],[121.5,-8.3],[122.5,-8.4],[123.5,-8.6],[124.5,-8.9],[125.5,-9.2],[126.5,-9.3],[127.5,-8.9],[128.5,-8.5],[129.5,-8.2],[130.5,-8.1],[131.0,-8.5],[130.0,-9.0],[128.5,-9.2],[127.0,-9.5],[125.5,-9.7],[124.0,-9.6],[122.5,-9.5],[121.0,-9.4],[120.0,-9.2],[119.3,-8.8]]},
+ {id:'ntb',ll:[[115.8,-8.3],[116.5,-8.2],[117.5,-8.1],[118.5,-8.2],[119.0,-8.5],[119.2,-8.9],[118.5,-9.1],[117.5,-9.0],[116.5,-8.9],[115.9,-8.8],[115.7,-8.5]]},
+ {id:'mlk',ll:[[126.0,-4.6],[127.0,-4.2],[128.2,-4.1],[129.0,-3.6],[130.0,-3.0],[130.6,-1.8],[130.0,-0.5],[129.0,0.5],[128.0,1.6],[127.0,2.1],[126.0,1.6],[125.4,0.6],[125.7,-0.5],[126.0,-1.6],[126.2,-2.7],[125.9,-3.6]]},
+ {id:'kep',ll:[[103.7,1.2],[104.2,1.15],[104.7,1.0],[104.9,0.7],[104.8,0.3],[104.5,-0.2],[104.2,-0.6],[103.9,-0.5],[103.7,0.0],[103.6,0.5],[103.6,0.9]]},
  /* soq sits on the Bird's Head tip west of the pap polygon; a nub box, refine later. */
  {id:'papw',ll:[[130.9,-1.2],[131.7,-1.2],[131.7,-0.5],[130.9,-0.5]]},
- {id:'jav',ll:[[105.2,-6.4],[106.8,-5.4],[108.5,-5.5],[110.5,-5.9],[112.6,-6.3],[114.6,-7.4],[114.4,-8.8],[111,-8.5],[108,-7.9],[105.5,-7.0]]},
+ {id:'jav',ll:[[105.1,-5.7],[106.0,-5.75],[106.9,-5.95],[107.8,-6.05],[108.8,-6.25],[109.8,-6.4],[110.8,-6.5],[111.8,-6.6],[112.8,-6.8],[113.8,-7.1],[114.4,-7.7],[114.5,-8.4],[113.5,-8.6],[112.5,-8.5],[111.5,-8.4],[110.5,-8.3],[109.5,-8.2],[108.5,-8.0],[107.5,-7.9],[106.5,-7.7],[105.7,-7.3],[105.1,-6.8]]},
  {id:'ph',ll:[[119.5,18.8],[121.0,18.8],[122.5,18.5],[122.5,16.0],[124.0,14.0],[125.0,11.5],[126.8,9.5],[126.8,5.5],[125.0,5.2],[124.0,6.5],[123.0,7.5],[121.5,7.0],[121.0,10.0],[120.0,13.0],[119.4,16.0]]},
  {id:'tw',ll:[[121.5,25.35],[122.05,25.0],[121.85,24.3],[121.4,23.0],[120.85,21.9],[120.6,22.3],[120.15,22.9],[120.1,23.6],[120.55,24.5],[121.0,25.1]]},
  {id:'hkg',ll:[[113.8,22.1],[114.0,22.6],[114.5,22.7],[114.6,22.3],[114.4,22.1],[114.0,22.0]]},
@@ -3920,7 +3984,9 @@ const SEA_CITIES=[
  {id:'dil',name:'Dili',x:0,y:0,land:'tls',reg:'AS',P:10,ix:'',dc:'Timor Landing DC'},
 ];
 const SEA_NUDGE={jkt:[0,-6],bdg:[-10,6],sby:[8,-4],smg:[0,-10],jog:[-10,8],sin:[8,-6],btm:[-8,8],kul:[6,-6],hkg:[-6,-8],mnl:[6,-6],ceb:[6,-4],dvo:[6,-4],tpe:[0,-6],bkk:[0,-6],dps:[6,-6],upg:[0,-6],pen:[0,-6],rgn:[0,-6]};
-const SEA_IDN_LANDS=new Set(['jav','sum','kal','sul','bal','pap','papw','btm','ntt','ntb','mlk','kep']);
+/* Singapore is not Indonesian, but every Indonesian network cross-connects to content there, so
+   it belongs on the Indonesia map as an unlockable POP (brief 8). */
+const SEA_IDN_LANDS=new Set(['jav','sum','kal','sul','bal','pap','papw','btm','ntt','ntb','mlk','kep','sg']);
 /* Region entries exist from module load. SEA is the calibrated 32-city map;
    Indonesia is that same map filtered to the seven Indonesian landmasses. */
 const SEA_IDS=new Set(SEA_CITIES.map(c=>c.id));
@@ -4182,6 +4248,8 @@ function idnRegion(){
   confs:CONFS_IDN,
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
+  /* Cables whose both ends are on the Indonesia map, which now includes Singapore. A cable that
+     lands in Singapore and Jakarta is exactly the cross-connect path the player needs. */
   cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))).concat(IDN_NEW_CABLES,WEAVE_CABLES),
   /* Brief 18 §G: the Indonesia map buys transit from Indonesian carriers. The global T1/T2 list
      is a parody of the international carriers, and on a domestic map it made no sense to sell

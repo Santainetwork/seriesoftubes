@@ -5,18 +5,20 @@ const assert = require('node:assert/strict');
 const { load } = require('./harness');
 
 /* ---------- §3.5 33 cities, all on land, none isolated ---------- */
-test('idn: 33 cities, all on land, none isolated', () => {
+test('idn: 34 cities including Singapore, all on land, none isolated', () => {
   const { ev } = load();
   ev("applyRegion('idn')");
-  assert.equal(ev('CITIES.length'), 33);
+  /* Brief 18 §I: Singapore joined the Indonesia map so a player can build a POP there for
+     content cross-connects — that is where the country's traffic actually meets the internet. */
+  assert.equal(ev('CITIES.length'), 34);
   const atSea = JSON.parse(ev(`JSON.stringify(CITIES.filter(function(c){
     return !onLand(CITY[c.id].x, CITY[c.id].y); }).map(function(c){return c.id;}))`));
   assert.deepEqual(atSea, [], `in the sea: ${atSea}`);
 });
-test('idn: P total is 3577', () => {
+test('idn: P total is 4027 (3577 Indonesian plus Singapore 450)', () => {
   const { ev } = load();
   ev("applyRegion('idn')");
-  assert.equal(ev('CITIES.reduce(function(a,c){return a+c.P;},0)'), 3577);
+  assert.equal(ev('CITIES.reduce(function(a,c){return a+c.P;},0)'), 4027);
 });
 test('idn: every city is reachable', () => {
   const { ev } = load();

@@ -112,14 +112,15 @@ test('M3: SEA eyeball capacity matches (~476 Gbps = 340 + 136)', () => {
   assert.ok(Math.abs(eye - 476) < 2, `eyeball ${eye}`);
 });
 
-test('M3: IDN has exactly 33 cities and P total 3577 (brief 7 §3)', () => {
+test('M3: IDN has 34 cities (33 Indonesian plus Singapore) and P total 4027', () => {
   const ev = idn();
-  assert.equal(ev('CITIES.length'), 33);
-  assert.equal(ev('CITIES.reduce((a,c)=>a+c.P,0)'), 3577);
+  assert.equal(ev('CITIES.length'), 34);
+  assert.equal(ev('CITIES.reduce((a,c)=>a+c.P,0)'), 4027);
   const eye = ev('CITIES.reduce((a,c)=>a+Math.max(8,c.P*0.03),0)');
-  assert.ok(Math.abs(eye - 292) < 2, `eyeball ${eye}`);
+  /* 33 Indonesian cities start at 292 Gbps; Singapore adds its own 8 Gbps of starting broadband. */
+  assert.ok(Math.abs(eye - 305) < 3, `eyeball ${eye}`);
   const lands = [...new Set(JSON.parse(ev('JSON.stringify(CITIES.map(c=>c.land))')))].sort();
-  assert.deepEqual(lands, ['bal', 'btm', 'jav', 'kal', 'kep', 'mlk', 'ntb', 'ntt', 'pap', 'papw', 'sul', 'sum']);
+  assert.deepEqual(lands, ['bal', 'btm', 'jav', 'kal', 'kep', 'mlk', 'ntb', 'ntt', 'pap', 'papw', 'sg', 'sul', 'sum']);
 });
 
 test('M3: bwn is Brunei, not Kalimantan', () => {
