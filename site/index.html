@@ -1315,6 +1315,9 @@ const CONFS_IDN=[
 ];
 let CONFS=CONFS_GLOBAL;
 const CONF_COST=8000,CONF_DAYS=45;
+/* Brief 13: active B2B tenant acquisition for NAP/hosting. Separate from ACT.ad (broadband):
+   a longer sales cycle, a longer campaign, and a hard cap on how many cities run at once. */
+const PROMO_COST=12000,PROMO_DAYS=45,PROMO_MULT=3,PROMO_CAP=3;
 /* Brief 10 §2.4: CONF_COST itself is the Global invariant; NAP and hosting send more
    people (and a booth), so they pay a multiple at the point of registration. */
 const confCost=()=>CONF_COST*(S.role==='nap'?4:S.role==='hosting'?2:1);
@@ -1484,7 +1487,7 @@ function newGame(name,home,region,role){
   const startCash=(rov&&rov.cash)||ROLES[role].cash;
   S={v:1,name,region:region||curRegion,role,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:startCash,
     roleUp:null,
-    ltv:2,pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},
+    ltv:2,pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},promo:{},
     done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0,offersSeen:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
 }
 
@@ -1934,6 +1937,12 @@ function sanitize(s){
     if(u&&typeof u==='object'&&own(ROLES,u.from)&&own(ROLES,u.to))s.roleUp={from:u.from,to:u.to,day:int(u.day,0,1e7,0)};
     else s.roleUp=null;
   } else s.roleUp=null;
+  /* Brief 13 §1.5: keep running campaigns across reloads; expired or malformed entries go. */
+  if(s.promo&&typeof s.promo==='object'&&!Array.isArray(s.promo)){
+    const pr={};
+    for(const k in s.promo){const v=s.promo[k];if(isCity(k)&&typeof v==='number'&&isFinite(v)&&v>s.day)pr[k]=v;}
+    s.promo=pr;
+  } else s.promo={};
   const tier=v=>int(v,0,PORT.length-1,0),lag=v=>int(v,1,LAG_MAX,1),sid=v=>String(v==null?uid():v).slice(0,40);
   s.links=s.links.filter(l=>l&&isCity(l.a)&&isCity(l.b)&&l.a!==l.b).map(l=>{l.id=sid(l.id);l.km=num(l.km,kmBetween(l.a,l.b));l.mo=num(l.mo,0);l.cut=num(l.cut,0);if(l.kind!=='df'&&l.kind!=='vxc')l.kind='wave';if(l.kind==='wave')l.tier=int(l.tier,0,LT.length-1,0);if(l.cable&&!own(CAB,l.cable))l.cable=null;if(l.kind==='vxc'&&!own(VXC,l.vt))l.vt=0;if(l.kind==='df'){if(!own(DF_SYS,l.sys))l.sys='lite';l.ch=Array.isArray(l.ch)?l.ch.filter(o=>own(OPT,o)):[];l.ready=num(l.ready,0);}if(l.metric&&!own(MET,l.metric))l.metric='normal';return l;});
   s.transit=s.transit.filter(t=>t&&isCity(t.city)&&isNet(t.net)).map(t=>(t.site=['a','b','ab'].includes(t.site)?t.site:'a',t.id=sid(t.id),t.tier=tier(t.tier),t.n=lag(t.n),t.down=num(t.down,0),t));
@@ -2302,7 +2311,11 @@ function dayTick(){
   /* Brief 7 §4.1a: a NAP is hungry for jobs, so its offer rate is higher than everyone else's.
      Without this the role saw ~2 offers in 200 days (see brief 7 §4). */
   const offerRate=0.05+0.01*(S.lvl||1)+(S.role==='nap'?0.06:0);
-  if(S.offers.length<5&&Math.random()<offerRate)spawnOffer();
+  /* Brief 13 §1.3: an active campaign triples the lead rate, and the extra leads land in
+     the city you paid for. */
+  const promoCity=(S.promo?Object.keys(S.promo).find(c=>S.promo[c]>S.day):null);
+  const promoMul=promoCity?PROMO_MULT:1;
+  if(S.offers.length<5&&Math.random()<offerRate*promoMul)spawnOffer(promoCity);
   // failures & events
   let dirty=false;
   if(d>=S.nextFail){dirty=true;fireFailure();const size=S.links.length+Object.keys(S.pops).length;S.nextFail=d+Math.round((Math.max(22,50-size*1.5)+Math.floor(Math.random()*25))*(scnRule('chaos')?0.5:1));}
@@ -2322,8 +2335,24 @@ function dayTick(){
 }
 /* Brief 7 §4.3: S.offers is pruned when offers expire, so it cannot be used to count how many
    offers a role actually saw. Wrap the spawner and bump a monotonic counter instead. */
-function spawnOffer(){const n=S.offers.length;_spawnOffer();if(S.offers.length>n)S.stats.offersSeen=(S.stats.offersSeen||0)+1;}
-function _spawnOffer(){
+function spawnOffer(preferCity){const n=S.offers.length;_spawnOffer(preferCity);if(S.offers.length>n)S.stats.offersSeen=(S.stats.offersSeen||0)+1;}
+/* Brief 13 §1.2: a campaign books one meeting instead of rolling the dice. The prospect is
+   real, stands in the city you paid for, and pays a 15–40% premium because they came to you. */
+function forceOfferAt(city){
+  if(!S.pops[city])return false;
+  const RD=roleDef();
+  const allowed=RD.all?['dia','isp','hyper','ai']:RD.types.slice();
+  const pool=allowed.filter(x=>BIZ_T[x]&&!BIZ_T[x].event&&!BIZ_T[x].sdwan&&!BIZ_T[x].fiber&&!BIZ_T[x].mega);
+  if(!pool.length)return false;
+  const t=pick(pool),T=BIZ_T[t];
+  const bw=T.lv>=2?pick(T.opts):T.opts[0];
+  const rate=Math.round(T.rate*(1.15+Math.random()*0.25));
+  S.offers.push({id:uid(),city,city2:null,name:pick(BIZ_N),type:t,bw,rate,
+    reqs:['metro'],exp:S.day+21,fromPromo:true});
+  S.stats.offersSeen=(S.stats.offersSeen||0)+1;
+  return true;
+}
+function _spawnOffer(preferCity){
   const mine=Object.keys(S.pops),lv=S.lvl||1;
   const types=['dia','dia','game','host'];if(mine.length>=2)types.push('l2vpn','l2vpn');if(S.day>60)types.push('scrub');
   if(lv>=2)types.push('isp','stream','edu','host','hft','bulk','event','event');if(mine.length>=3&&lv>=2)types.push('sdwan','sdwan');
@@ -2345,7 +2374,10 @@ function _spawnOffer(){
   const napSmall=S.role==='nap'&&Object.keys(S.pops).length<RD.minPops;
   const t=napSmall?'isp':pick(allowed),T=BIZ_T[t];
   if(T.event||T.sdwan||T.fiber||T.mega){spawnSpecial(t);return;}
-  let city=(Math.random()<0.65&&mine.length)?pick(mine):pick(ALLC.concat(cnOk()?['pek','sha']:[])),city2=null;
+  /* Brief 13 §1.3: prefer the city handed in by dayTick; fall back to an active campaign
+     city when the spawner is called without an argument. */
+  const pref=(preferCity&&S.pops[preferCity])?preferCity:(S.promo?Object.keys(S.promo).find(c=>S.promo[c]>S.day&&S.pops[c]):null);
+  let city=pref||((Math.random()<0.65&&mine.length)?pick(mine):pick(ALLC.concat(cnOk()?['pek','sha']:[]))),city2=null;
   if(T.l2){city=pick(mine);const pool=(Math.random()<(T.lv>=3?0.8:0.6)?mine:ALLC).filter(c=>c!==city);city2=pick(pool.length?pool:ALLC.filter(c=>c!==city));}
   const bw=napSmall?T.opts[0]:(T.lv>=2?pick(T.opts):pick(T.opts.slice(0,mine.length>=4?4:3)));
   /* Brief 6 §3: an RT/RW net sells DIA sizes up to its region's bwMax (2G global, 5G SEA,
@@ -2504,6 +2536,19 @@ const ACT={
    if(!spend(cost))return;S.pops[city]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};floater(CITY[city].x,CITY[city].y-30,'New POP!','#FF4F9A');UI.tab='cust';after();},
  launchBB:({city})=>{const p=S.pops[city];if(!p||p.bb)return;if(!roleDef().bb){toast('<b>Home broadband is not part of your role.</b><br>Hosting, NAP and RT/RW networks sell to businesses instead.','bad');sfx('err');return;}const C=CITY[city];if(!spend(bbCost(city)))return;p.bb={d:Math.max(8,C.P*0.03)};floater(C.x,C.y-30,'Eyeballs online!','#16A866');after();},
  ad:({city})=>{const p=S.pops[city];if(!p||!p.bb)return;if(!spend(8000))return;p.boost=S.day+30;floater(CITY[city].x,CITY[city].y-30,'Ad campaign!','#FF8A3D');after();},
+ /* Brief 13 §1.1: B2B tenant acquisition. Deliberately separate from ACT.ad, which drives
+    consumer broadband demand. NAP and hosting only; three cities at a time. */
+ promo:({city})=>{const p=S.pops[city];if(!p)return;
+   if(S.role!=='nap'&&S.role!=='hosting'){toast('<b>B2B campaigns are for carriers.</b><br>ISPs and RT/RW nets use the broadband ad campaign instead.','bad');sfx('err');return;}
+   S.promo=S.promo||{};
+   const active=Object.keys(S.promo).filter(c=>S.promo[c]>S.day);
+   if(active.length>=PROMO_CAP&&!(S.promo[city]>S.day)){toast(`<b>Three campaigns is the limit.</b><br>Your sales team is only human.`,'bad');sfx('err');return;}
+   if(S.promo[city]>S.day)return;
+   if(!spend(PROMO_COST))return;
+   S.promo[city]=S.day+PROMO_DAYS;
+   const made=forceOfferAt(city);
+   toast(`<b>Campaign live in ${esc(CITY[city].name)}.</b><br>${made?`A prospect walked in the same week.`:`The sales team is working the phones.`} For ${PROMO_DAYS} days, leads here come three times as often.`,'goal');
+   sfx('coin');after();},
  buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}if(!S.pops[city]||!NET[net]||!NET[net].price||!NET[net].pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;if(!spend(PORT[tier].setup*(ex&&ex.n||1)))return;if(ex)ex.tier=tier;else S.transit.push({id:uid(),city,net,tier,down:0});toast(`<b>${esc(NET[net].name)} transit is live in ${CITY[city].name}.</b><br>Full table received: ~1,000,000 routes.`,'good');after();},
  lagT:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const t=S.transit.find(x=>x.id===id);if(!t)return;const n=(t.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0){if(!portOk(t.city,t.tier)||!portGate(t.city,PORT_SLOT(t.tier)))return;if(!spend(PORT[t.tier].setup))return;}t.n=n;if(n<2&&t.site==='ab')t.site='a';toast(+d>0?`<b>LAG member added.</b><br>${esc(NET[t.net].name)} in ${CITY[t.city].name} is now ${lagName(t.tier,n)}.`:`<b>LAG member removed.</b>`,'good');after();},
  lagP:({id,d})=>{d=+d;if(d!==1&&d!==-1)return;const p=S.pni.find(x=>x.id===id);if(!p)return;const n=(p.n||1)+(+d);if(n<1||n>LAG_MAX)return;if(+d>0&&(!portGate(p.city,PORT_SLOT(p.tier))||!spend(1500+PORT[p.tier].setup/2)))return;p.n=n;if(n<2&&p.site==='ab')p.site='a';sfx('build');after();},
@@ -2932,6 +2977,16 @@ function cityPanel(c){
       ${sf<0.9?`<p class="why">Customers are unhappy and leaving. Add upstream capacity, peering, or a bigger link.</p>`:''}
       <div class="btns">${p.boost>S.day?`<span class="tag st on">Ad campaign: ${p.boost-S.day}d left</span>`:btn('Run ad campaign <small>$8k · 2× growth 30d</small>','ad',{city:c},'',S.cash<8000)}</div>`;}
     h+=`</section>`;}
+    /* Brief 13 §1.4: NAP and hosting sell to tenants, not homes, so their city panel gets a
+       B2B marketing box instead of the broadband ad campaign. */
+    if(S.role==='nap'||S.role==='hosting'){
+      const promo=S.promo||{},active=Object.keys(promo).filter(x=>promo[x]>S.day);
+      h+=`<section><h3>Marketing</h3><p class="lead">Tenant acquisition. A campaign books one guaranteed meeting and triples the leads in that city for ${PROMO_DAYS} days.</p>`;
+      if(promo[c]>S.day)h+=`<div class="kv"><span>Campaign running in ${esc(C.name)}</span><b>${promo[c]-S.day} days left</b></div>`;
+      else h+=`<div class="btns">${btn(`Run campaign <small>${fmt$(PROMO_COST)} · ${PROMO_DAYS}d · 3× leads</small>`,'promo',{city:c},'pink big',S.cash<PROMO_COST||active.length>=PROMO_CAP)}</div>`;
+      if(active.length)h+=`<div class="meta" style="margin-top:8px">Active: ${active.map(x=>`${esc(CITY[x].name)} (${promo[x]-S.day}d)`).join(' · ')} &nbsp; ${active.length}/${PROMO_CAP}</div>`;
+      h+=`</section>`;
+    }
     h+=`<section><h3>Business customers</h3>`;
     const bz=S.biz.filter(b=>bCities(b).includes(c));
     if(!bz.length)h+=`<p class="empty">No businesses yet. Offers pop up as $ bubbles on the map.</p>`;
