@@ -889,7 +889,7 @@ NETS.push(
  {id:'tmx',name:'Tel-Mess',asn:8151,type:'eye',pol:'paid',paidFee:7000,share:.008,col:'#00A0DF',pops:['mex','dal','lax','mia'],ix:[],blurb:'Mexico’s giant. Paid peering only, and the pricing is a mess.'},
  {id:'bcd',name:'Bell Canad-eh',asn:577,type:'eye',pol:'selective',minIx:10,minPni:30,share:.01,col:'#00549A',pops:['tor','mtl','nyc','chi'],ix:['tor','mtl'],blurb:'Polite, enormous, and sorry about the bill.'});
 NETS.push(
- {id:'tsf',name:'Telkom-selfie',asn:7713,type:'eye',pol:'selective',minIx:10,minPni:30,share:.01,col:'#E4002B',pops:['jkt','sin'],ix:['jkt','sin'],blurb:'Indonesia’s mobile giant. Every packet poses for a photo first.'},
+ {id:'tsf',name:'Tele-Komedi Mobile',asn:7713,type:'eye',pol:'selective',minIx:10,minPni:30,share:.01,col:'#E4002B',pops:['jkt','sin'],ix:['jkt','sin'],blurb:'Indonesia’s mobile giant. Every packet poses for a photo first.'},
  {id:'pld',name:'PLDTea Time',asn:9299,type:'eye',pol:'selective',minIx:10,minPni:30,share:.008,col:'#D62027',pops:['mnl','hkg','sin'],ix:['hkg'],blurb:'Philippine giant. Peering requests are reviewed over a cup of tea.'},
  {id:'spk',name:'Spark-le',asn:4771,type:'eye',pol:'open',share:.005,col:'#6A2C91',pops:['akl','syd'],ix:['akl','syd'],blurb:'New Zealand’s shiniest ISP.'},
  {id:'tsy',name:'Telstraya',asn:1221,type:'t2',pol:'selective',minIx:15,minPni:40,share:.01,price:9,col:'#0099F8',pops:['syd','per','sin','hkg','lax','tpe','mel','bne','drw'],ix:['syd','sin','hkg','mel','bne'],blurb:'Australia’s big one. G’day, that will be nine dollars a megabit. Sorry, gigabit.'});
@@ -1659,7 +1659,10 @@ function lagName(tier,n){return (n||1)>1?`${n}×${PORT[tier].n} LAG`:`${PORT[tie
 function ixCap(c){return S.myIx[c]?myFab(c).g*(S.pops[c]&&(siteDown(c,'a'))?0:1):liveCap(PORT[S.ixp[c]].g,ixCity(c),(S.ixSite||{})[c],(S.ixn||{})[c])*(isRemote(c)?REMOTE_CAP:1);}
 function ixSessions(c){
   const s=new Set(); if(S.ixp[c]===undefined)return s;
-  for(const id of ixMembers(c)){const n=NET[id];
+  /* Brief 18 §G: members can be global carriers with no POP in Indonesia, so they exist only in
+     NETS. Reading .pol through NET alone threw on them, which is what froze the tab and left
+     "Request all" doing nothing. */
+  for(const id of ixMembers(c)){const n=netOf(id);if(!n)continue;
     if(S.peers[id+'@'+c]&&!snub(id,c)&&!(isRemote(c)&&noRemote(id)))s.add(id);
     else if(S.rs[c]&&n.pol==='open')s.add(id);
     else if(S.myIx[c]&&(n.pol==='open'||n.pol==='selective'))s.add(id);}
@@ -1689,7 +1692,7 @@ const SNUB_ALL=['Not accepting new peers in this region right now.','Region froz
 function hstr(t){let h=2166136261;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
 function bigPeer(n){return !!n&&n.pol==='selective'&&n.share>=0.03;}
 function snub(id,c){
-  const n=NET[id];if(!c||!bigPeer(n)||!S||S.myIx[c])return null;
+  const n=netOf(id);if(!c||!n||!bigPeer(n)||!S||S.myIx[c])return null;
   const off=hstr(id+c)%SNUB_WIN,ep=Math.floor((S.day+off)/SNUB_WIN),h=hstr(S.asn+'|'+id+'|'+c+'|'+ep);
   if(h%1000>=SNUB_P*1000)return null;
   const all=(h>>>10)%5<2,list=all?SNUB_ALL:SNUB_IX;
@@ -1701,7 +1704,7 @@ const REMOTE_FEE=1.5,REMOTE_CAP=0.8;
 const REMOTE_WARN=`<p class="note" style="color:var(--bad)"><b>Remote peering is a last resort.</b> Ports come through a reseller at 1.5× the price, only 80% of the port is really yours, latency rides the fabric, one fabric outage drops every session, and many selective networks refuse remote members. A POP here is better.</p>`;
 const REMOTE_WHY=['Policy: no remote peers. Be in the building or be in the transit bill.','Saw your session come in over a fabric and said "we can smell the VXC from here".','Only peers with members they can reach without a 1,500 km hairpin.','Their PearingDB entry says "Remote peering: No (we mean it)".','Tried a remote peer once. It flapped during a product launch. Never again.'];
 function isRemote(c){return S.ixp[c]!==undefined&&!S.pops[ixCity(c)]&&!S.myIx[c];}
-function noRemote(id){const n=NET[id];if(!n||n.pol!=='selective')return false;return hstr(id+'|remote')%100<(n.share>=0.03?60:30);}
+function noRemote(id){const n=netOf(id);if(!n||n.pol!=='selective')return false;return hstr(id+'|remote')%100<(n.share>=0.03?60:30);}
 /* Europe's peering market is crowded and competitive: ports are cheaper, and incumbents cut prices
    when a challenger in the same metro gets too popular. DE-KICKS harmonises instead. */
 const IX_REG={EU:0.8};
@@ -1748,7 +1751,9 @@ function snubWhy(sn){const d=Math.max(1,sn.until-S.day);return `${sn.why} They w
    that have no POP in the country, so they are absent from the region's NET subset. Resolve them
    from NETS instead of letting the lookup return undefined — reading .pol on undefined is what
    froze the Peering tab. */
-function netOf(id){return NET[id]||NETS.find(n=>n.id===id)||null;}
+let NETS_BY_ID={};
+function rebuildNetIndex(){NETS_BY_ID=Object.fromEntries(NETS.map(n=>[n.id,n]));}
+function netOf(id){return NET[id]||NETS_BY_ID[id]||null;}
 function peerOk(id,via,city){
   const n=netOf(id),dem=R.demTo[id]||0;
   if(!n)return {ok:false,why:'This network is not present in this region.'};
@@ -3486,7 +3491,7 @@ function trafficSection(l){
   if(!rec){return h+`<p class="empty">No traffic right now.</p></section>`;}
   const tot=Object.values(rec.net).reduce((a,b)=>a+b,0)||1;
   const nets=Object.entries(rec.net).sort((a,b)=>b[1]-a[1]);
-  const col=id=>id==='junk'?'#FF4D5E':id==='l2vpn'?'#7B61FF':NET[id].col,nm=id=>id==='junk'?'DDoS junk':id==='l2vpn'?'L2VPN customers':NET[id].name;
+  const col=id=>id==='junk'?'#FF4D5E':id==='l2vpn'?'#7B61FF':(netOf(id)||{}).col||'#8899AA',nm=id=>id==='junk'?'DDoS junk':id==='l2vpn'?'L2VPN customers':(netOf(id)||{}).name||id;
   h+=`${n>1?`<p class="note" style="margin-top:0">Totals for all ${n} links between these cities.</p>`:''}<div class="stack">${nets.map(([id,v])=>`<i style="width:${v/tot*100}%;background:${col(id)}" title="${esc(nm(id))}"></i>`).join('')}</div>`;
   h+=`<h4 class="sub4">Content from</h4>`+nets.slice(0,6).map(([id,v])=>`<div class="kv"><span><span class="dot" style="background:${col(id)}"></span>${esc(nm(id))}</span><b>${fmtG(v)} · ${pct(v/tot)}</b></div>`).join('');
   const egs=Object.entries(rec.eg).sort((a,b)=>b[1]-a[1]);
@@ -4117,38 +4122,38 @@ function seaRegion(){
    Indosat, XL and the rest. Every name is parodied so nothing here can be mistaken for the
    real company, and the list is only wired into the Indonesia map. */
 const IDN_TRANSIT=[
- {id:'ionx',transitOnly:true,name:'Ion-Net',asn:48000,type:'t2',pol:'restrictive',share:.16,price:7,col:'#E4572E',
+ {id:'ionx',transitOnly:true,name:'Ion-Kosong',asn:48000,type:'t2',pol:'restrictive',share:.16,price:7,col:'#E4572E',
   pops:['jkt','sby','bdg','smg','mdn','dps','btm'],ix:['jkt','sby'],
   blurb:'The new wholesale backbone. Sells capacity to everyone and undercuts the incumbents.'},
- {id:'tlkm',transitOnly:true,name:'Tel-Kom',asn:48001,type:'t2',pol:'restrictive',share:.15,price:9,col:'#E4002B',
+ {id:'tlkm',transitOnly:true,name:'Tele-Komedi',asn:48001,type:'t2',pol:'restrictive',share:.15,price:9,col:'#E4002B',
   pops:['jkt','sby','bdg','smg','mdn','dps','btm','upg','bjm','plm','pku','pdg','jog','bpn','mdc'],
   ix:['jkt','sby','smg','mdn','dps'],
   blurb:'The incumbent. Owns most of the ducts, the subsea landings and the patience of regulators.'},
- {id:'inds',transitOnly:true,name:'Indo-Sat',asn:48002,type:'t2',pol:'restrictive',share:.14,price:8,col:'#F5A623',
+ {id:'inds',transitOnly:true,name:'Indo-Sate',asn:48002,type:'t2',pol:'restrictive',share:.14,price:8,col:'#F5A623',
   pops:['jkt','sby','bdg','mdn','dps','btm','upg'],ix:['jkt','sby','mdn'],
   blurb:'The second incumbent. Satellites, mobile and a backbone that reaches most of the archipelago.'},
- {id:'xlnt',transitOnly:true,name:'Ex-L',asn:48003,type:'t2',pol:'restrictive',share:.12,price:7,col:'#0B5CAD',
+ {id:'xlnt',transitOnly:true,name:'Eks-Ell',asn:48003,type:'t2',pol:'restrictive',share:.12,price:7,col:'#0B5CAD',
   pops:['jkt','sby','bdg','smg','mdn','dps','btm','jog'],ix:['jkt','sby','smg'],
   blurb:'Mobile-first carrier with a growing fibre backbone. Aggressive on price.'},
- {id:'mtri',transitOnly:true,name:'Matriks',asn:48004,type:'t2',pol:'selective',minIx:6,minPni:20,share:.06,price:6,col:'#6A2C91',
+ {id:'mtri',transitOnly:true,name:'Matrik-Sih',asn:48004,type:'t2',pol:'selective',minIx:6,minPni:20,share:.06,price:6,col:'#6A2C91',
   pops:['jkt','sby','bdg','btm'],ix:['jkt','sby'],
   blurb:'Tower and fibre operator. Sells backhaul to whoever needs a mast connected.'},
- {id:'jlmx',transitOnly:true,name:'JLM-Net',asn:48005,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#2C7A7B',
+ {id:'jlmx',transitOnly:true,name:'Jelimut-Net',asn:48005,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#2C7A7B',
   pops:['jkt','sby','smg','jog'],ix:['jkt','sby'],
   blurb:'Java backbone specialist. Short routes, honest latency, no drama.'},
- {id:'sdix',transitOnly:true,name:'SD-I',asn:48006,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#1E90FF',
+ {id:'sdix',transitOnly:true,name:'Es-De-Ih',asn:48006,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#1E90FF',
   pops:['jkt','sby','bdg','dps'],ix:['jkt','sby'],
   blurb:'Enterprise networks and government links. Slow to quote, quick to deliver.'},
- {id:'mvnx',transitOnly:true,name:'MV-Net',asn:48007,type:'t2',pol:'open',share:.04,price:4,col:'#00843D',
+ {id:'mvnx',transitOnly:true,name:'Em-Ve-Net',asn:48007,type:'t2',pol:'open',share:.04,price:4,col:'#00843D',
   pops:['jkt','sby','bdg','smg','jog','dps','btm'],ix:['jkt','sby','smg'],
   blurb:'The open one. Peers with anyone and sells transit without a sales meeting.'},
- {id:'dgsx',transitOnly:true,name:'Digi-Sat',asn:48008,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#FF6A00',
+ {id:'dgsx',transitOnly:true,name:'Dugi-Sate',asn:48008,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#FF6A00',
   pops:['jkt','mdn','btm','pku','pnk'],ix:['jkt','mdn'],
   blurb:'Satellite and microwave for the places fibre has not reached. Sumatra specialist.'},
- {id:'dtmx',transitOnly:true,name:'Data-Utama',asn:48009,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#4B3FC4',
+ {id:'dtmx',transitOnly:true,name:'Data-Tamau',asn:48009,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#4B3FC4',
   pops:['jkt','sby','bdg','smg','upg','bjm'],ix:['jkt','sby'],
   blurb:'Data centre operator with a backbone bolted on. Sells racks and routes together.'},
- {id:'ntti',transitOnly:true,name:'NTT Indonesia-ish',asn:48010,type:'t2',pol:'restrictive',share:.08,price:9,col:'#00A0E9',
+ {id:'ntti',transitOnly:true,name:'En-Te-Te Nusantara',asn:48010,type:'t2',pol:'restrictive',share:.08,price:9,col:'#00A0E9',
   pops:['jkt','sby','bdg','btm'],ix:['jkt','sby'],
   blurb:'The local arm of a global carrier. Same logo, local pricing, better paperwork.'},
 ];
@@ -4210,6 +4215,9 @@ function rebuildDerived(){
  /* Filter the networks that actually have a POP in this region before deriving NET,
     NSH and the exchange member lists. `NETS` itself is never resized: REGION.global.nets
     aliases that very array, so splicing it here would corrupt Global (brief 4 §1). */
+ /* Index the full network list once, so netOf() is a hash lookup rather than a scan. Every
+    exchange member row, peerOk() call and peer-all loop runs through it. */
+ rebuildNetIndex();
  const regionCityIds=new Set(CITIES.map(c=>c.id));
  const liveNets=NETS.filter(n=>n.pops.some(c=>regionCityIds.has(c)));
  NET=Object.fromEntries(liveNets.map(n=>[n.id,n]));

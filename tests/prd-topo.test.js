@@ -102,7 +102,7 @@ test('live network counts match the brief (40 SEA, own IDN list)', () => {
   assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 5);
   ev("applyRegion('idn')");
   /* Brief 18 §G: the Indonesia map no longer inherits the global T1/T2 carriers — a domestic
-     NAP buys from Tel-Kom, Indo-Sat and friends. CDNs and eyeball networks stay. */
+     NAP buys from Tele-Komedi, Indo-Sate and friends. CDNs and eyeball networks stay. */
   const idnNets = JSON.parse(ev('JSON.stringify(Object.keys(NET))'));
   /* Only networks with a POP in an Indonesian city are live there — the 33-city map reaches
      far more of them than the old 16-city one did, but it is still a subset. */
