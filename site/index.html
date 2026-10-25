@@ -849,7 +849,7 @@ function cablesFor(a,b){return CABLE_PAIRS.filter(c=>(c.a===a&&c.b===b)||(c.a===
 function cablePair(cid,a,b){const c=CABLE_PAIRS.find(x=>x.cid===cid&&((x.a===a&&x.b===b)||(x.a===b&&x.b===a)));if(!c)return null;return c.a===a?c:{...c,pts:c.pts.slice().reverse()};}
 let ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
 const ruCity=c=>!!CITY[c].ru;
-const cnCity=c=>!!CITY[c].cn;
+const cnCity=c=>!!(CITY[c]&&CITY[c].cn);
 /* Korea runs a "sender pays" market. Kept beside the other city predicates so the CITIES
    table itself stays byte-identical to the baseline the region tests pin. */
 const KR_CITIES=new Set(['icn']);
@@ -1160,6 +1160,30 @@ const ROLE_UP=[
    why:'You already own the building. Selling broadband yourself is just a decision — but you need a terabit of eyeballs first.' },
 ];
 function roleAllowsType(t){const R=roleDef();return !!R.all||(R.types||[]).includes(t);}
+/* Brief 8 §2.2: Singapore unlock for the Indonesia map. Mirrors the roleUpOffer() checklist
+   pattern (items with ok flags, missing list). The APJII leg uses the 'APJII Conneck'
+   conference stamp because M5 licences do not exist yet. */
+function unlockOffer(city){
+  const rr=REGION[curRegion]&&REGION[curRegion].rules;
+  const u=rr&&rr.unlock&&rr.unlock[city];
+  if(!u) return null;
+  if(S.unlocked&&S.unlocked[city]) return {ok:true,done:true,...u,items:[],missing:[]};
+  const r=u.req, miss=[], items=[];
+  const chk=(ok,l)=>{items.push({l,ok:!!ok});if(!ok)miss.push(l);};
+  if(r.pops) chk(Object.keys(S.pops).length>=r.pops,`${r.pops} POPs`);
+  if(r.served) chk((R.served||0)>=r.served,`${r.served} Gbps served (${fmtG(R.served||0)})`);
+  if(r.apjii){
+    const stamp=S.confReg&&Object.keys(S.confReg).some(k=>k.indexOf('APJII Conneck')===0);
+    chk(!!stamp,'an APJII Conneck stamp (attend it in Deals)');
+  }
+  if(r.days) chk(S.day>=r.days,`${r.days} days of operation (day ${S.day})`);
+  if(u.cost!==undefined) chk(S.cash>=u.cost,`${fmt$(u.cost)} in the bank`);
+  return {...u, ok:!miss.length, missing:miss, items};
+}
+/* Cities that join the buildable set late. sin is the only one. */
+const UNLOCK_CITIES={
+  sin:{id:'sin',name:'Singapore'},
+};
 /* Brief 6 §2.2: what it would take to move one rung up. `missing` blocks the move; `pending`
    lists requirements whose mechanic has not shipped yet (M5 licences) and is shown as a note. */
 function roleUpOffer(){
@@ -1680,6 +1704,7 @@ function newGame(name,home,region,role){
   const startCash=(rov&&rov.cash)||ROLES[role].cash;
   S={v:1,name,region:region||curRegion,role,asn:200000+Math.floor(_rand()*15000),home,day:0,cash:startCash,
     roleUp:null,
+    unlocked:{},
     ltv:2,t1v:2,pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},promo:{},
     done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0,offersSeen:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
 }
@@ -2223,6 +2248,12 @@ function sanitize(s){
     if(u&&typeof u==='object'&&own(ROLES,u.from)&&own(ROLES,u.to))s.roleUp={from:u.from,to:u.to,day:int(u.day,0,1e7,0)};
     else s.roleUp=null;
   } else s.roleUp=null;
+  /* Brief 8 §2.2: keep the Singapore unlock across reloads; drop unknown cities. */
+  if(s.unlocked&&typeof s.unlocked==='object'&&!Array.isArray(s.unlocked)){
+    const un={};
+    for(const k in s.unlocked) if(UNLOCK_CITIES[k]&&typeof s.unlocked[k]==='number') un[k]=int(s.unlocked[k],0,1e7,0);
+    s.unlocked=un;
+  } else s.unlocked={};
   /* Brief 13 §1.5: keep running campaigns across reloads; expired or malformed entries go. */
   if(s.promo&&typeof s.promo==='object'&&!Array.isArray(s.promo)){
     const pr={};
@@ -2921,11 +2952,25 @@ const ACT={
    track('role_up_'+from+'_'+to); after(); closeModal();
  },
  tab:({t})=>{UI.tab=t;UI.confirm=null;renderPanel();},
+ /* Brief 8 §2.2: pay the cross-connect. The city, its island and its cables are already on
+    the map (34th city) — the unlock only lifts the build gate. */
+ unlockCity:({city,sure})=>{
+   const o=unlockOffer(city);
+   if(!o||!o.ok||o.done) return;
+   if(!sure){openModal(`<h2>Unlock ${esc(UNLOCK_CITIES[city]?UNLOCK_CITIES[city].name:city)}?</h2><p class="tagline">${esc(o.why)}</p>
+     <div class="btns">${btn('Pay '+esc(fmt$(o.cost)),'unlockCity',{city,sure:1},'pink big')}${btn('Not yet','closeModal',{},'ghost big')}</div>`);return;}
+   if(!spend(o.cost)) return;
+   S.unlocked=S.unlocked||{};S.unlocked[city]=S.day;
+   toast(`<b>${esc(CITY[city].name)} is open.</b><br>You can build a POP there now.`,'goal');
+   sfx('coin'); after(); closeModal();
+ },
  leftTab:({t})=>{UI.left=t;UI.leftOpen=true;renderLeft();},
  toggleLeft:()=>{UI.leftOpen=!UI.leftOpen;renderLeft();},
  focusCity:({city})=>{selectCity(city);const C=CITY[city];cam.x=C.x;cam.y=C.y;cam.z=Math.max(cam.z,1.2);if(innerWidth<760)UI.leftOpen=false;renderLeft();},
  selLink:({id})=>{UI.sel={type:'link',id};UI.confirm=null;renderPanel();},
  buildPop:({city})=>{if(S.pops[city])return;if(cnCity(city)&&!cnOk()){toast('<b>You need a license first.</b><br>Foreign networks need a joint venture to build in mainland China.','bad');sfx('err');return;}
+   /* Brief 8: Singapore on the Indonesia map is a paid unlock, not a day-one build. */
+   if(UNLOCK_CITIES[city]&&curRegion==='idn'&&!(S.unlocked&&S.unlocked[city])){const o=unlockOffer(city);toast(`<b>${esc(UNLOCK_CITIES[city].name)} is locked.</b><br>${esc(o?o.why:'Unlock it first.')} Build ${o&&o.req?o.req.pops:8} POPs, serve traffic, earn the stamp — then pay the cross-connect.`,'bad');sfx('err');return;}
    const n=Object.keys(S.pops).length,cap=popCap(),over=popOverMul(),cost=popCost(city)*over;
    if(n>=cap)toast(`<b>Beyond your role's footprint.</b><br>POP ${n+1} costs ${fmt$(cost)} — ${Math.round((over-1)*100)}% over the list price.`,'warn');
    if(!spend(cost))return;S.pops[city]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};floater(CITY[city].x,CITY[city].y-30,'New POP!','#FF4F9A');UI.tab='cust';after();},
@@ -3374,6 +3419,14 @@ function syncHud(){
 }
 /* Brief 6 §2.2 UI: the NEXT STEP card at the bottom of Goals. Shows every rung the current role
    can climb and ticks off each requirement, so the ladder is discoverable without a manual. */
+function unlockSection(){
+  if(curRegion!=='idn') return '';
+  const o=unlockOffer('sin');
+  if(!o) return '';
+  if(o.done) return `<h3 style="font-size:15px;margin:12px 0 4px">Singapore</h3><div class="inc" style="background:#EAF7EE"><div class="nm">Unlocked <span class="meta">cross-connect live</span></div></div>`;
+  const rows=o.items.map(it=>`<div class="meta">${it.ok?'✓':'✗'} ${esc(it.l)}</div>`).join('');
+  return `<h3 style="font-size:15px;margin:12px 0 4px">Singapore — locked</h3><div class="inc"><div class="nm">Cross-connect <span class="meta">${fmt$(o.cost)}</span></div><div class="meta">${esc(o.why)}</div>${rows}<div class="btns">${btn(o.ok?'Unlock':'Not yet','unlockCity',{city:'sin'},o.ok?'pink sm':'ghost sm',!o.ok)}</div></div>`;
+}
 function roleUpSection(){
   const offs=roleUpOffer();
   if(!offs||!offs.length) return '';
@@ -3397,6 +3450,7 @@ function renderLeft(){
     h+=myGoals.map(g=>{const d=S.done[g.id]!==undefined,c=g===cur;return `<div class="goal ${d?'done':''} ${c?'cur':''}"><div class="ck">${d?'✓':''}</div><div><div class="gt">${esc(g.t)}</div>${c||!d?`<div class="gd">${esc(g.d)}</div>`:''}${!d&&g.r?`<div class="gr">Reward ${fmt$(g.r)}</div>`:''}</div></div>`;}).join('');
     h+=badgeGrid();
     h+=roleUpSection();
+    h+=unlockSection();
   }else if(UI.left==='deals'){
     h+=confSection();
     {const lv=S.lvl||1,nx=LEVELS[lv];h+=`<div class="inc" style="background:#FFF6CF"><div class="nm">Customer level ${lv}: ${LEVELS[lv-1].n}</div><div class="meta">${nx?`Next: ${nx.req} unlocks ${nx.unlock.toLowerCase()}`:'Every customer type is unlocked. Go get those terabits.'}</div></div>`;}
@@ -4052,6 +4106,9 @@ const SEA_NUDGE={jkt:[0,-6],bdg:[-10,6],sby:[8,-4],smg:[0,-10],jog:[-10,8],sin:[
 /* Singapore is not Indonesian, but every Indonesian network cross-connects to content there, so
    it belongs on the Indonesia map as an unlockable POP (brief 8). */
 const SEA_IDN_LANDS=new Set(['jav','sum','kal','sul','bal','pap','papw','btm','ntt','ntb','mlk','kep','sg']);
+/* Brief 8: Singapore IS on the Indonesia map (34th city) so its cables and T1s render — but
+   ACT.buildPop refuses it until ACT.unlockCity wires the cross-connect. The gate is on the
+   build, not on the map. */
 /* Region entries exist from module load. SEA is the calibrated 32-city map;
    Indonesia is that same map filtered to the seven Indonesian landmasses. */
 const SEA_IDS=new Set(SEA_CITIES.map(c=>c.id));
@@ -4295,7 +4352,11 @@ function idnRegion(){
     /* Brief 18 §F: Indonesia is the densest eyeball market in the game. Jakarta alone is roughly
        a third of the country's traffic, and the multiplier lifts every city so a NAP selling
        transit is not starved by a ceiling calibrated for the global map. */
-    eyeMul:2.4,eyeBoost:{jkt:3.2,sby:2.0,btm:1.8,bdg:1.7,mdn:1.5,smg:1.4,jog:1.4,mks:1.4,dps:1.4,pku:1.3,pdg:1.3,plm:1.3,bjm:1.2,bpn:1.2,mdc:1.2,pnk:1.2,jay:1.2,tkg:1.2,btj:1.2,djb:1.2,bks:1.2,pky:1.2,sri:1.2,tnj:1.2,koe:1.2,ami:1.2,kdi:1.2,plw:1.2,amb:1.2,ttn:1.2,soq:1.2,soc:1.2,mlg:1.3}};
+    eyeMul:2.4,eyeBoost:{jkt:3.2,sby:2.0,btm:1.8,bdg:1.7,mdn:1.5,smg:1.4,jog:1.4,mks:1.4,dps:1.4,pku:1.3,pdg:1.3,plm:1.3,bjm:1.2,bpn:1.2,mdc:1.2,pnk:1.2,jay:1.2,tkg:1.2,btj:1.2,djb:1.2,bks:1.2,pky:1.2,sri:1.2,tnj:1.2,koe:1.2,ami:1.2,kdi:1.2,plw:1.2,amb:1.2,ttn:1.2,soq:1.2,soc:1.2,mlg:1.3},
+    /* Brief 8 §2.1: Singapore unlock. APJII leg = 'APJII Conneck' conference stamp (no M5
+       idLic yet). cost is internal USD; the IDR display converts it. */
+    unlock:{sin:{req:{pops:8,served:120,apjii:true,days:365},cost:250000,
+      why:'Eight POPs across Indonesia, 120 Gbps of paying traffic, an APJII Conneck stamp and a year of books. Then the Singapore carriers will give you a cross-connect.'}}};
  /* Brief 15 §1.1: the region's currency lives on its rules. Non-enumerable so the pinned
     JSON shape of the rules object (tests/prd-m3) stays byte-for-byte identical. */
  Object.defineProperty(rules,'currency',{value:{code:'IDR',symbol:'Rp',rate:16200,dec:0},enumerable:false});

@@ -201,6 +201,12 @@ test('M3: region rules and start cash match brief 3 §3–§4', () => {
   assert.equal(idnRules.cacheMinMul, 1.6);
   assert.ok(idnRules.eyeMul > seaRules.eyeMul, 'Indonesia carries more eyeballs than SEA');
   assert.ok(idnRules.eyeBoost.jkt > idnRules.eyeBoost.sby, 'Jakarta outweighs Surabaya');
+  /* Brief 8 §2.1: Singapore unlock lives on the IDN rules (pops/served/apjii/days + USD cost). */
+  assert.equal(idnRules.unlock.sin.req.pops, 8);
+  assert.equal(idnRules.unlock.sin.req.served, 120);
+  assert.equal(idnRules.unlock.sin.req.apjii, true);
+  assert.equal(idnRules.unlock.sin.req.days, 365);
+  assert.equal(idnRules.unlock.sin.cost, 250000);
   assert.equal(ev('REGION.idn.startCash'), 250000);
 });
 
