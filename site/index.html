@@ -970,7 +970,7 @@ let TAIL=[
  ['Peach State Hosting','cdn',['atn'],'Sweet, fuzzy and surprisingly reliable.'],
  ['Chowder Hosting','cdn',['bos'],'Thick, comforting and very New England.'],
 ];
-function ixStatic(c){const o=[];if(CITY[c]&&CITY[c].ix)o.push(c);for(const x of XIX)if(x.c===c)o.push(x.id);return o;}
+function ixStatic(c){const o=[];if(CITY[c]&&CITY[c].ix)o.push(c);for(const x of XIX)if(x.c===c&&!o.includes(x.id))o.push(x.id);return o;}
 TAIL.forEach(([name,type,home,blurb,sh],i)=>{const h=hstr(name),cand=home.flatMap(ixStatic),ix=[];
   if(cand.length){ix.push(cand[h%cand.length]);if(cand.length>1&&(h>>>8)%100<40){const o=cand[(h>>>12)%cand.length];if(!ix.includes(o))ix.push(o);}}
   const sel=(h>>>4)%10>=8;
@@ -3492,6 +3492,52 @@ const SEA_XIX=[
  {id:'kul~2',c:'kul',name:'DE-CIX KL',cheap:0.45,take:0.4,blurb:'The German import. Same fabric, tropical humidity.'},
  {id:'tpe~2',c:'tpe',name:'STUIX',cheap:0.45,take:0.45,blurb:'Taipei’s university-run exchange. Fast ports, student prices.'},
 ];
+/* Brief 14: Indonesian exchanges from PeeringDB, names parodied. Only the 11 cities
+   already on this map are wired; the five entries for cities that arrive with the
+   33-city map (brief 7 §3) live in the commented block below and are NOT in XIX.
+   `take` is the share of a city's IX members you can reach; `cheap` scales port cost. */
+const XIX_IDN=[
+ // ── Jakarta (6) ──
+ {id:'jkt',   c:'jkt', name:'JKT-IKS',        cheap:0.55, take:0.60, blurb:'The big one. Nearly nine hundred members and a queue at the switch.'},
+ {id:'jkt~2', c:'jkt', name:'IIIX',           cheap:0.45, take:0.55, blurb:'The other Jakarta giant. Slightly cheaper, equally crowded.'},
+ {id:'jkt~3', c:'jkt', name:'AIKS',           cheap:0.50, take:0.45, blurb:'A neutral fabric with a very serious-looking route server.'},
+ {id:'jkt~4', c:'jkt', name:'SisiX',          cheap:0.50, take:0.40, blurb:'Runs out of a converted office block. The lifts are the bottleneck.'},
+ {id:'jkt~5', c:'jkt', name:'BIKS',           cheap:0.45, take:0.35, blurb:'Smaller, friendlier and permanently out of 100G ports.'},
+ {id:'jkt~6', c:'jkt', name:'DU-CIKS',        cheap:0.55, take:0.30, blurb:'The imported fabric. Sales calls it “premium interconnection”.'},
+
+ // ── Surabaya (4) ──
+ {id:'sby',   c:'sby', name:'ODIKS',          cheap:0.45, take:0.45, blurb:'East Java’s busiest switch, run by the local data centre crowd.'},
+ {id:'sby~2', c:'sby', name:'IIIX Jatim',     cheap:0.40, take:0.40, blurb:'The Jakarta fabric’s East Java outpost. One rack and a lot of fans.'},
+ {id:'sby~3', c:'sby', name:'JKT-IKS Sby',    cheap:0.45, take:0.30, blurb:'A satellite of the Jakarta exchange. Same logo, warmer air.'},
+ {id:'sby~4', c:'sby', name:'BIKS Sby',       cheap:0.35, take:0.20, blurb:'The smallest port in Surabaya. Bring your own optics.'},
+
+ // ── Yogyakarta, Denpasar, Bandung, Semarang ──
+ {id:'jog',   c:'jog', name:'CitraIKS Jogja', cheap:0.35, take:0.40, blurb:'A campus-adjacent switch with strong opinions about IPv6.'},
+ {id:'jog~2', c:'jog', name:'UNI-IKS',        cheap:0.30, take:0.30, blurb:'Run by the university. Cheap ports, student operators, long lunches.'},
+ {id:'dps',   c:'dps', name:'SisiX Dps',      cheap:0.40, take:0.35, blurb:'Denpasar’s challenger fabric. Surfboards by the door, packets inside.'},
+ {id:'dps~2', c:'dps', name:'IIIX Bali',      cheap:0.35, take:0.30, blurb:'The Bali branch of the big Jakarta fabric. Tourist-season latency.'},
+ {id:'bdg',   c:'bdg', name:'IIIX Jabar',     cheap:0.35, take:0.35, blurb:'Bandung’s main switch, cooled by highland air and cheap electricity.'},
+ {id:'smg',   c:'smg', name:'PANDA-IKS',      cheap:0.30, take:0.30, blurb:'A small cooperative exchange. The name is the only panda in sight.'},
+ {id:'smg~2', c:'smg', name:'CitraIKS Smg',   cheap:0.25, take:0.25, blurb:'Semarang’s second fabric, mostly local ISPs and one very large café.'},
+
+ // ── Sumatra, Java, Batam, Makassar ──
+ {id:'mdn',   c:'mdn', name:'IIIX Sumut',     cheap:0.25, take:0.25, blurb:'Medan’s only serious switch, a short walk from the landing station.'},
+ {id:'plm',   c:'plm', name:'IIIX Sumsel',    cheap:0.25, take:0.25, blurb:'Palembang’s fabric. River barges outside, fibre inside.'},
+ {id:'pku',   c:'pku', name:'IIIX Rimbo',     cheap:0.30, take:0.30, blurb:'Pekanbaru’s main exchange. Everything arrives by road, slowly.'},
+ {id:'pku~2', c:'pku', name:'sumIKS',         cheap:0.25, take:0.20, blurb:'A tiny Sumatra-wide fabric with a very optimistic logo.'},
+ {id:'btm',   c:'btm', name:'BatamIKS',       cheap:0.35, take:0.30, blurb:'Four milliseconds from Singapore, one customs form away.'},
+ {id:'upg',   c:'upg', name:'IIIX Sulampua',  cheap:0.20, take:0.10, blurb:'Makassar’s single tiny switch. Two members and a long way to anywhere.'},
+];
+/* Future entries — cities from brief 7 §3 that are not on this 16-city map yet.
+   Data only: do not wire these until those cities exist.
+const XIX_IDN_FUTURE=[
+ {id:'tkg',   c:'tkg', name:'IIIX Lampung',  cheap:0.30, take:0.30},
+ {id:'tkg~2', c:'tkg', name:'GPMIKS',        cheap:0.25, take:0.25},
+ {id:'djb',   c:'djb', name:'BJN-IKS',       cheap:0.25, take:0.25},
+ {id:'soc',   c:'soc', name:'CitraIKS Solo', cheap:0.30, take:0.30},
+ {id:'mlg',   c:'mlg', name:'BIKS Malang',   cheap:0.25, take:0.20},
+];
+*/
 /* The twelve regional cables from brief 2 §2.1, plus the spurs that keep the six
    remaining SEA capitals off the isolated list. They are region-only: Global's 73
    cables / 134 pairs stay exactly as they were (brief 4 §0, §11). */
@@ -3591,7 +3637,7 @@ function idnRegion(){
   project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES.filter(c=>c.pairs.every(([a,b])=>IDN_IDS.has(a)&&IDN_IDS.has(b))).concat(IDN_NEW_CABLES),
-  nets:NETS,xix:SEA_XIX.filter(x=>IDN_IDS.has(x.c)),tail:TAIL,
+  nets:NETS,xix:XIX_IDN,tail:TAIL,
  };
 }
 function ensureRegion(id){
