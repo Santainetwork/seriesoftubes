@@ -13,7 +13,11 @@ test('idn: Waeve offers a cheap rail corridor', () => {
   assert.equal(w.name, 'Waeve Rail Fibre', 'parody name only');
   assert.equal(w.rail, true);
   assert.ok(w.price < 0.30, `price ${w.price} must undercut subsea`);
-  assert.ok(w.pairs.length >= 5, 'at least five Java corridors');
+  /* Four Java corridors. The fifth was sby-dps, which crosses the Bali Strait — a railway duct
+     cannot do that, and the map was offering rail fibre on a subsea route. */
+  assert.equal(w.pairs.length, 4, 'four Java corridors, none of them across water');
+  const across = JSON.parse(ev("JSON.stringify(CABLES.find(c=>c.id==='waeve').pairs.filter(p=>CITY[p[0]].land!==CITY[p[1]].land))"));
+  assert.deepEqual(across, [], 'no rail pair crosses between landmasses');
   assert.deepEqual(errors, []);
 });
 

@@ -55,9 +55,10 @@ test('nap: an event in your POP city produces a wholesale offer', () => {
   ev('S.cash=1e8;S.day=60');
   ev("for(const c of ['sby','bdg'])ACT.buildPop({city:c})");
   // APJII Conneck bulan 3 = hari 99, di jkt (POP awal).
-  ev("S.confReg={};const cf=upcomingConfs(75).find(function(c){return c.c==='jkt';});if(cf)S.confReg[cf.key]=true");
-  // Stop before the 14-day event offer expires (day 99 + 14 = 113).
-  ev("for(let i=0;i<45;i++)dayTick()");
+  /* The lead arrives at registration now, not on the event day, so register through the action
+     the player actually uses. */
+  ev("const cf=upcomingConfs(75).find(function(c){return c.c==='jkt';});S.offers=[];if(cf)ACT.confGo({key:cf.key})");
+  ev("for(let i=0;i<10;i++)dayTick()");
   const ev2 = JSON.parse(ev("JSON.stringify(S.offers.filter(function(o){return o.fromEvent;}))"));
   assert.ok(ev2.length > 0, 'event produced a deal');
   assert.equal(ev2[0].city, 'jkt');

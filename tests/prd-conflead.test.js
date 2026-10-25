@@ -34,11 +34,17 @@ test('confs: an ISP also gets a venue lead', () => {
   assert.ok(ev('S.offers.length') > 0);
 });
 
-test('confs: confTick fires eventDeals without a POP', () => {
+test('confs: registering produces the lead, not the conference day', () => {
   const { ev } = load();
   ev("beginGame('N','fra',{region:'global',role:'nap'})");
   ev('S.cash=1e9');
-  ev("S.confReg={};const cf=upcomingConfs(75)[0];S.confReg[cf.key]=true;S.__cf=cf;S.day=S.__cf.day;S.offers=[]");
-  ev('confTick(S.day)');
-  assert.ok(ev('S.offers.length') > 0, 'the badge turned into a lead');
+  /* The lead now arrives when the player registers — that is the moment they meet people, and
+     waiting for the event day meant a registered player who forgot got nothing. */
+  ev('S.offers=[]');
+  ev('ACT.confGo({key:upcomingConfs(75)[0].key})');
+  assert.ok(ev('S.offers.length') > 0, 'registering turned into a lead');
+  /* And the day itself must not hand out a second one. */
+  const n = ev('S.offers.length');
+  ev('const cf=upcomingConfs(75)[0];S.day=cf.day;confTick(S.day)');
+  assert.equal(ev('S.offers.length'), n, 'the event day does not double the pipeline');
 });

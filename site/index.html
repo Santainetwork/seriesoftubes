@@ -1426,9 +1426,9 @@ function confTick(d){S.confReg=S.confReg||{};
   for(const cf of upcomingConfs(0)){if(cf.day!==d||!S.confReg[cf.key])continue;const reg=CITY[cf.c].reg;S.conf={until:d+CONF_DAYS,reg,name:cf.n};S.stats.confs=(S.stats.confs||0)+1;
     const r=Math.random();let extra='';if(r<0.3){const cash=5000+Math.floor(Math.random()*4)*5000;S.cash+=cash;extra=` You also won the raffle: ${fmt$(cash)} worth of optics, sold on eBuy the same evening.`;}else if(r<0.5)extra=' Someone from Goggle bought you a beer. You did not get their name, only a sticker.';
     toast(`<b>${esc(cf.n)} in ${esc(CITY[cf.c].name)}</b><br>You shook a lot of hands. For ${CONF_DAYS} days, selective networks with a presence in ${esc(REG[reg])} want half the usual traffic before they peer.${extra}`,'goal');sfx('coin');
-    /* Brief 16 (koreksi): attending always produces one lead in the host city, whether
-       or not you already run a POP there. */
-    eventDeals(cf);}}
+    /* The lead was handed out when the player registered, so the day itself only delivers the
+       peering glow and the raffle. Firing eventDeals() here too would double the pipeline for
+       anyone who registered early. */}}
 /* A NAP does not go to a conference to peer. It goes to sell racks. Every event in a
    city where you run a POP produces one wholesale offer: a carrier, a content network
    or a cloud on-ramp that needs space, cross-connects and a meet-me room. */
@@ -1520,11 +1520,21 @@ function trExits(net){const day=S.day,ev=S.ev,leak=ev.leak&&ev.leak.until>day?ev
    to anything else still rides to Singapore and back; what it buys you is bandwidth efficiency,
    not latency. */
 const IDN_LOCAL_CONTENT=new Set(['fbk']);
+/* Everything else — Goggle, NetChill, Amazin', Microsnoft, Akamaybe, Crowdflare — serves
+   Indonesia out of Singapore. A cross-connect in Jakarta only reaches their nearest edge, so
+   the packet still travels to Singapore and back and the round trip stays in the tens of
+   milliseconds. Single digits are Meta's alone. */
 function idnHub(city,net){
   if(curRegion!=='idn')return null;
   if(!CITY[city])return null;
   if(net&&IDN_LOCAL_CONTENT.has(net.id))return null;
   return 'sin';
+}
+/* Local content answers in single digits; anything that lives in Singapore answers in the
+   twenties on a good day. Used by the traceroute so the number matches the path. */
+function contentRtt(net,localMs,remoteMs){
+  if(curRegion!=='idn')return localMs;
+  return IDN_LOCAL_CONTENT.has(net.id)?localMs:remoteMs;
 }
 function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[],ip=(a,b)=>`100.64.${a%250}.${b%250}`;let rtt=0.3,n=1;
   const hop=(host,addr,extra,note)=>{rtt+=extra;lines.push(`${String(n++).padStart(2)}  ${host} (${addr})  ${rtt.toFixed(1)} ms${note?'   ← '+note:''}`);};
@@ -1543,20 +1553,31 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
          country is only reachable through the regional hub, which is why a traceroute from
          Jakarta to it shows two-digit latency and a hop in Singapore. Only a direct PNI makes
          it a single-digit local path. */
-      const hub=idnHub(e.city,N);
+      /* An Indonesian carrier is local, so the path always leaves through Singapore; anything
+         else is judged by whether it has Indonesian infrastructure of its own. */
+      /* The carrier is local, but where the *target* lives decides the path: Meta is in Jakarta,
+         so it is handed over locally; everything else rides the carrier's link to Singapore. */
+      const hub=(N&&IDN_LOCAL_CONTENT.has(N.id))?null:(T.transitOnly?'sin':idnHub(e.city,N));
       /* N.pops lists the network's POPs worldwide; most are not on the map the player is looking
          at, so only cities this region actually has can be measured. */
       const known=(N.pops||[]).filter(c=>CITY[c]);
       const far=known.length?known.reduce((a,c)=>kmBetween(e.city,c)<kmBetween(e.city,a)?c:a,known[0]):e.city;
       if(hub){
-        hop(`ae-2.core.sin.${slug(T.name)}.net`,`203.0.113.${(hstr('sin')+7)%250}`,1.6,`${T.name} hands it off in Singapore`);
+        /* The carrier's own backbone to Singapore is the 9-13 ms; the hand-off in the building
+           above cost nothing. */
+        hop(`ae-2.core.sin.${slug(T.name)}.net`,`203.0.113.${(hstr('sin')+7)%250}`,9+Math.random()*4,`${T.name} hands it off in Singapore — this is the 10-13 ms`);
         /* The hand-off above is the last hop that belongs to the transit provider; the target
            network picks it up in Singapore, not in Jakarta. */
       }else{
         const km=CITY[far]?kmBetween(e.city,far):0;
-        hop(`ae-2.core.${far}.${slug(T.name)}.net`,`203.0.113.${(hstr(far)+7)%250}`,km*1.3/100+0.3,CITY[far]?`${T.name} carries it to ${CITY[far].name}`:'');
+        /* Meta's anycast node sits in the same metro, so the carrier does not carry it anywhere:
+           the last internal hop is 0 ms too. */
+        const intra=(N&&IDN_LOCAL_CONTENT.has(N.id)&&curRegion==='idn')?0:km*1.3/100+0.3;
+        hop(`ae-2.core.${far}.${slug(T.name)}.net`,`203.0.113.${(hstr(far)+7)%250}`,intra,CITY[far]?`${T.name} carries it to ${CITY[far].name}`:'');
       }
-      hop(`${slug(N.name)}-peer.${far}.${slug(T.name)}.net`,`198.51.100.${hstr(N.id)%250}`,0.4,`${T.name} hands it to ${N.name}`);}}
+      /* Anycast: Meta's node is already in this metro, so the peer hop is local too. */
+      const peerMs=(IDN_LOCAL_CONTENT.has(N.id)&&curRegion==='idn')?0:0.4;
+      hop(`${slug(N.name)}-peer.${far}.${slug(T.name)}.net`,`198.51.100.${hstr(N.id)%250}`,peerMs,`${T.name} hands it to ${N.name}`);}}
   else if(e.k==='ix'){hop(`${slug(ixName(e.city))}.peering.${e.city}`,`185.0.${hstr(e.city)%250}.${hstr(N.id)%250}`,0.3,`across the ${ixName(e.city)} switch`);}
   else if(e.k==='p'){
     /* A PNI only buys a cross-connect to the nearest edge of that network. Where the network
@@ -1574,14 +1595,24 @@ function traceroute(src,to){const P=trPaths(src),me=slug(S.name)+'.net',lines=[]
          provider's own backbone adds another hop or two: 9-13 ms is what this actually measures
          in the field, so that is the range the model uses. */
       const isT1=N.type==='t1'||N.type==='t2';
-      const rtt=isT1?9+Math.random()*4:Math.max(0.6,400*0.005);
+      /* Jakarta to Singapore is 9-13 ms, and that is the whole path: a Tier 1 with no Indonesian
+         landing and a content network served from Singapore both cost the same cable crossing.
+         The difference is not latency — it is that the content network's cache saves transit
+         capacity, while the Tier 1 sells you the capacity in the first place. */
+      const rtt=9+Math.random()*4;
       hop(`${slug(N.name)}-edge.${isT1?'sin':'sin'}.${me}`,ip(hstr(N.id),5),rtt,
         isT1?`${N.name} has no Indonesian landing — the path runs over the cable to its nearest POP`
             :`${N.name} serves Indonesia from Singapore — the PNI saves transit capacity, not distance`);
     }
   }
   else{hop(`cache-${slug(N.name)}.${e.city}.${me}`,ip(hstr(N.id),4),0.1,'embedded cache in your rack');}
-  asPath.push(N.asn);if(e.k!=='c')hop(`www.${slug(N.name)}.example`,`198.51.100.${(hstr(N.id)+1)%250}`,0.5+(e.k==='t'?1:0.2),`${N.name}`);
+  asPath.push(N.asn);
+  /* Meta runs anycast nodes in Jakarta, so its answer comes from the same metro: 0.x ms, not
+     the 1-2 ms a normal hand-off costs. Every other network answers from wherever it lives. */
+  if(e.k!=='c'){
+    const anycast=IDN_LOCAL_CONTENT.has(N.id)&&curRegion==='idn';
+    hop(`www.${slug(N.name)}.example`,`198.51.100.${(hstr(N.id)+1)%250}`,anycast?0.2+Math.random()*0.4:(0.5+(e.k==='t'?1:0.2)),`${N.name}${anycast?' — anycast node in Jakarta':''}`);
+  }
   const order={c:'caches beat PNIs',p:'PNIs beat IX peering',ix:'IX peering beats transit',t:'transit is the last resort'}[e.k];
   const cn=cnCity(src)!==!!N.cn?` Crossing the Great Firewall here loses about ${S.ev.gfw>S.day?35:20}% of packets.`:'';
   return {text:lines.join('\n'),why:`Exit: ${e.lab} in ${CITY[e.city].name}. ${order[0].toUpperCase()+order.slice(1)}, and closer exits win ties${e.pref!=='normal'?`; this one is set to ${e.pref==='high'?'Prefer':'Backup only'}`:''}.${e.used>=e.cap*0.999?' It is full, so some traffic overflows to the next exit.':''}${cn}`,asPath};}
@@ -2949,7 +2980,13 @@ const ACT={
  share:()=>shareModal(),
  shareDl:()=>shareFile(f=>{if(!f)return;const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);track('share_download');}),
  shareGo:()=>shareFile(f=>{const d={title:'Series of Tubes',text:`${S.name} (AS${S.asn}): ${tierLabel()}, ${fmtG(S.stats.peak||0)} peak. Build your own internet at`,url:'https://seriesoftub.es/'};try{if(f&&navigator.canShare&&navigator.canShare({files:[f]}))d.files=[f];navigator.share(d).then(()=>track('share_done')).catch(()=>{});}catch(e){}}),
- confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day)return;if(!spend(confCost()))return;S.confReg[key]=true;toast('<b>Registered.</b><br>Flights booked, badge printed, business cards ordered in the wrong font.','good');after();},
+ confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day)return;if(!spend(confCost()))return;S.confReg[key]=true;
+   /* Registering is the point where you meet people, so the lead arrives now rather than on the
+      day of the event. Waiting until the conference starts meant a player who registered and
+      then forgot about it got nothing at all — the whole reason to pay the fee is the pipeline
+      it opens. The deal carries the same fuse as before, counted from today. */
+   eventDeals(cf);
+   toast(`<b>Registered for ${esc(cf.n)}.</b><br>Flights booked, badge printed, business cards ordered in the wrong font. You already have a lead from the attendee list.`,'good');after();},
  tutSkip:()=>{S.tut=null;try{localStorage.setItem('sot-tut','1');}catch(e){}renderCoach();},
  addSite:({city})=>{const p=S.pops[city];if(!p||p.site2)return;if(!spend(SITE2_COST))return;p.site2=true;p.site2Day=S.day;toast(`<b>Second site live in ${CITY[city].name}.</b><br>${esc(siteName(city,'b'))} is joined to ${esc(siteName(city,'a'))} by your own metro ring. Move some uplinks there from the Transit and Peering tabs.`,'good');sfx('build');after();},
  rmSite:({city})=>{const p=S.pops[city];if(!p||!p.site2)return;if(UI.confirm!=='site'+city){UI.confirm='site'+city;renderPanel();return;}UI.confirm=null;p.site2=0;p.sdown=null;p.ringcut=0;for(const t of S.transit)if(t.city===city)t.site='a';for(const x of S.pni)if(x.city===city)x.site='a';if(S.ixSite)for(const x of ixIdsIn(city))delete S.ixSite[x];after();},
@@ -4056,13 +4093,13 @@ const XIX_IDN_FUTURE=[
    cables / 134 pairs stay exactly as they were (brief 4 §0, §11). */
 const SEA_NEW_CABLES=[
  {id:'jksg',name:'Selat-Max',price:0.55,age:'new',blurb:'Jakarta to Singapore across the Java Sea. The busiest stretch of water in the region.',pairs:[['jkt','sin',[[106.2,-5.2],[105.2,-3.2],[104.5,-1.5],[104.0,0.4]]]]},
- {id:'jksb',name:'Java–Sumatra Link',price:0.50,age:'new',blurb:'Jakarta to Palembang, hopping the Sunda Strait.',pairs:[['jkt','plm',[[106.3,-5.6],[105.4,-4.4],[104.9,-3.6]]]]},
- {id:'jvsb',name:'Java-East',price:0.45,age:'new',blurb:'The north-coast workhorse between Jakarta and Surabaya.',pairs:[['jkt','sby',[[107.5,-6.0],[109.5,-6.3],[111.4,-6.8]]]]},
- {id:'sbbl',name:'Bali Strait',price:0.50,age:'new',blurb:'Surabaya to Denpasar, one short wet hop.',pairs:[['sby','dps',[[113.6,-7.6],[114.6,-8.1]]]]},
- {id:'mkst',name:'Makassar Strait',price:0.55,age:'new',blurb:'Banjarmasin to Makassar across a strait full of islands and fishing boats.',pairs:[['bjm','upg',[[115.6,-3.6],[117.0,-4.2],[118.4,-4.8]]]]},
+ {id:'jksb',df:true,name:'Java–Sumatra Link',price:0.50,age:'new',blurb:'Jakarta to Palembang, hopping the Sunda Strait.',pairs:[['jkt','plm',[[106.3,-5.6],[105.4,-4.4],[104.9,-3.6]]]]},
+ {id:'jvsb',df:true,name:'Java-East',price:0.45,age:'new',blurb:'The north-coast workhorse between Jakarta and Surabaya.',pairs:[['jkt','sby',[[107.5,-6.0],[109.5,-6.3],[111.4,-6.8]]]]},
+ {id:'sbbl',df:true,name:'Bali Strait',price:0.50,age:'new',blurb:'Surabaya to Denpasar, one short wet hop.',pairs:[['sby','dps',[[113.6,-7.6],[114.6,-8.1]]]]},
+ {id:'mkst',df:true,name:'Makassar Strait',price:0.55,age:'new',blurb:'Banjarmasin to Makassar across a strait full of islands and fishing boats.',pairs:[['bjm','upg',[[115.6,-3.6],[117.0,-4.2],[118.4,-4.8]]]]},
  {id:'suln',name:'Sulawesi North',price:0.60,age:'new',blurb:'Makassar up to Manado, around the top of Sulawesi.',pairs:[['upg','mdc',[[119.9,-3.5],[121.5,-1.5],[123.5,0.2],[124.4,1.1]]]]},
- {id:'kepri',name:'Kepri Link',price:0.40,age:'new',blurb:'Batam to Tanjung Pinang, the short hop that keeps the Riau Islands online.',pairs:[['btm','tnj',[[104.0,0.95],[104.45,0.92]]]]},
- {id:'timor',name:'Timor Spur',price:0.55,age:'new',blurb:'Denpasar down to Kupang, the long empty stretch along the Lesser Sunda chain.',pairs:[['dps','koe',[[115.2,-8.8],[116.5,-9.1],[118.0,-9.3],[119.5,-9.6],[121.5,-9.9],[123.4,-9.9]]]]},
+ {id:'kepri',df:true,name:'Kepri Link',price:0.40,age:'new',blurb:'Batam to Tanjung Pinang, the short hop that keeps the Riau Islands online.',pairs:[['btm','tnj',[[104.0,0.95],[104.45,0.92]]]]},
+ {id:'timor',df:true,name:'Timor Spur',price:0.55,age:'new',blurb:'Denpasar down to Kupang, the long empty stretch along the Lesser Sunda chain.',pairs:[['dps','koe',[[115.2,-8.8],[116.5,-9.1],[118.0,-9.3],[119.5,-9.6],[121.5,-9.9],[123.4,-9.9]]]]},
  {id:'banda',name:'Banda Crossing',price:0.55,age:'new',blurb:'Makassar to Ambon across the Banda Sea, with nothing but water in between.',pairs:[['upg','ami',[[119.4,-4.5],[121.0,-4.6],[123.0,-4.3],[125.5,-3.9],[127.6,-3.8]]]]},
  {id:'papua',name:'Papua Backbone',price:0.50,age:'new',blurb:'Sorong to Jayapura along the north coast of New Guinea.',pairs:[['soq','jay',[[131.3,-1.0],[133.0,-1.5],[135.0,-2.0],[137.5,-2.3],[139.5,-2.4]]]]},
  {id:'summ',name:'Malacca North',price:0.50,age:'new',blurb:'Medan to Kuala Lumpur, under the busiest shipping lane on earth.',pairs:[['mdn','kul',[[98.0,4.2],[99.5,3.4],[100.8,2.8]]]]},
@@ -4134,7 +4171,9 @@ const IDN_NEW_CABLES=[
 const WEAVE_CABLES=[
  {id:'waeve',name:'Waeve Rail Fibre',price:0.20,age:'new',rail:true,coreQ:0.6,cutRisk:0.04,
   blurb:'Leased cores in the railway duct. You did not dig anything: the track was already there, and so was the duct. The track crew knows where your fibre is.',
-  pairs:[['jkt','bdg'],['jkt','smg'],['smg','jog'],['jog','sby'],['sby','dps']]},
+  /* Java only. A railway duct cannot cross the Bali Strait, so sby-dps was removed — the map
+     offered "Waeve Rail Fibre" on a subsea route, which made no sense at all. */
+  pairs:[['jkt','bdg'],['jkt','smg'],['smg','jog'],['jog','sby']]},
 ];
 const IDN_CITIES=SEA_CITIES.filter(c=>SEA_IDN_LANDS.has(c.land));
 const IDN_IDS=new Set(IDN_CITIES.map(c=>c.id));
