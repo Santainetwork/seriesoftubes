@@ -88,18 +88,18 @@ test('NSH sums to 1 in every region', () => {
 test('global NETS untouched after visiting sea', () => {
   const ev = region('global');
   ev("applyRegion('sea')");
-  assert.equal(ev('NETS.length'), 128, 'NETS must not be spliced in place');
+  assert.equal(ev('NETS.length'), 131, 'NETS must not be spliced in place');
   assert.equal(ev('REGION.global.nets===NETS'), true, 'global nets still aliases NETS');
   ev("applyRegion('global')");
-  assert.equal(ev('NETS.length'), 128);
-  assert.equal(ev('Object.keys(NSH).length'), 128);
+  assert.equal(ev('NETS.length'), 131);
+  assert.equal(ev('Object.keys(NSH).length'), 131);
   assert.equal(ev('CABLE_PAIRS.length'), 134);
 });
 
 test('live network counts match the brief (40 SEA, own IDN list)', () => {
   const ev = region('sea');
-  assert.equal(ev('Object.keys(NET).length'), 40);
-  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 4);
+  assert.equal(ev('Object.keys(NET).length'), 43);
+  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 5);
   ev("applyRegion('idn')");
   /* Brief 18 §G: the Indonesia map no longer inherits the global T1/T2 carriers — a domestic
      NAP buys from Tel-Kom, Indo-Sat and friends. CDNs and eyeball networks stay. */
@@ -107,11 +107,13 @@ test('live network counts match the brief (40 SEA, own IDN list)', () => {
   /* Only networks with a POP in an Indonesian city are live there — the 33-city map reaches
      far more of them than the old 16-city one did, but it is still a subset. */
   assert.ok(idnNets.length >= 20, `only ${idnNets.length} networks live in IDN`);
-  /* Five domestic T1s sell transit; the global T1s that reach Jakarta (ntt, tat) are members
-     of the local exchange but do not sell a port there — that is the whole point of §G. */
-  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1'&&sellsTransit(NET[k])).length"), 5);
-  assert.ok(ev("Object.keys(NET).filter(k=>NET[k].type==='t1'&&!sellsTransit(NET[k])).length") >= 1,
-    'at least one global T1 peers on the Indonesia map without selling transit');
+  /* Brief 18 §G (corrected): all eleven domestic carriers are tagged Tier 2 and are the only
+     ones that sell transit. No Tier 1 sells a port on the Indonesia map — the global Tier 1s
+     are peering partners there, which is what the Tier 1 goal is built on. */
+  const idnT1Selling = ev("Object.keys(NET).filter(k=>NET[k].type==='t1'&&sellsTransit(NET[k])).length");
+  assert.equal(idnT1Selling, 0, 'no Tier 1 sells transit on the Indonesia map');
+  assert.ok(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length") >= 1,
+    'global Tier 1s are still present as peering partners');
   /* The global T1s that reach Jakarta are exchange members, but they are not on the transit
      list: you peer with them, you do not buy a port from them. */
   const idnTransit = JSON.parse(ev('JSON.stringify(Object.keys(NET).filter(k=>sellsTransit(NET[k])))'));
@@ -125,10 +127,15 @@ test('live network counts match the brief (40 SEA, own IDN list)', () => {
 
 test('exchange member lists only include live networks', () => {
   const ev = region('sea');
-  assert.equal(ev('Object.keys(NET).length'), 40);
+  assert.equal(ev('Object.keys(NET).length'), 43);
   assert.equal(ev(`XIX.every(x=>x.members.every(id=>!!NET[id]))`), true);
   ev("applyRegion('idn')");
-  assert.equal(ev(`XIX.every(x=>x.members.every(id=>!!NET[id]))`), true);
+  /* Brief 18 §G: on the Indonesia map every global Tier 1 and Tier 2 is an exchange member even
+     without an Indonesian POP — you reach them over the fabric. So the invariant is weaker
+     here: every member must exist in NETS, not necessarily in the live NET subset. */
+  assert.equal(ev(`XIX.every(x=>x.members.every(id=>NETS.some(n=>n.id===id)))`), true);
+  assert.ok(ev(`XIX.some(x=>x.members.some(id=>!NET[id]))`),
+    'and at least one member has no POP in the region');
 });
 
 test('SEA still has a Tier 1 that reaches all eight core cities', () => {
@@ -150,6 +157,6 @@ test('global baseline unchanged', () => {
   assert.equal(ev('CITIES.length'), 94);
   assert.equal(ev('CABLES.length'), 73);
   assert.equal(ev('CABLE_PAIRS.length'), 134);
-  assert.equal(ev('NETS.length'), 128);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 65);
+  assert.equal(ev('NETS.length'), 131);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 68);
 });

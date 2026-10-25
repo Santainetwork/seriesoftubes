@@ -1,7 +1,7 @@
 // PRD M1 gate — tests/prd-m1-global.test.js (renamed: tests Global, not absence of others).
 // REGION + applyRegion + rebuildDerived. Global entry must always exist;
 // sea/idn entries were added later (M3) and are allowed. The permanent invariant
-// is tests/prd-baseline.test.js (CITIES 94, CABLE_PAIRS 134, non-tail 65, ...).
+// is tests/prd-baseline.test.js (CITIES 94, CABLE_PAIRS 134, non-tail 68, ...).
 // Run: node --test tests/prd-m1-global.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,7 +22,7 @@ test('M1: global region untouched (§16.1)', () => {
   assert.equal(ev('CABLE_PAIRS.length'), 134);
   assert.equal(ev('XIX.length'), 25);
   assert.equal(ev('TAIL.length'), 60);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 65);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 68);
   assert.equal(ev("regionMult('sin')"), 2.5);
   assert.equal(ev("kmBetween('fra','ams')"), 364);
   assert.equal(ev('proj0(0,0)[0]'), 1000);
@@ -60,6 +60,6 @@ test('M1: boot rebinds through applyRegion with no errors', () => {
   ev("boot()");
   assert.equal(ev('curRegion'), 'global');
   assert.equal(ev('CITIES.length'), 94);
-  assert.equal(ev('NETS.length'), 128);
+  assert.equal(ev('NETS.length'), 131);
   assert.deepEqual(errors, []);
 });

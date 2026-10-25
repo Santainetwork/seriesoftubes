@@ -23,7 +23,7 @@ test('trace: the modal opens in every region', () => {
 test('trace: the network list matches the region, not the global NETS', () => {
   /* Brief 18 §G: IDN now carries its own domestic transit list, so the count is no longer the
      15 networks that happened to have a POP in Jakarta. Global and SEA are unchanged. */
-  const expected = { global: 128, sea: 40 };
+  const expected = { global: 131, sea: 43 };
   for (const reg of Object.keys(expected)) {
     const { ev } = load();
     ev(`beginGame('T','jkt',{region:'${reg}',role:'isp'})`);

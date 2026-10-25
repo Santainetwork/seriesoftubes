@@ -182,7 +182,8 @@ test('M3: region rules and start cash match brief 3 §3–§4', () => {
   /* Brief 18 §F added eyeMul/eyeBoost to the rules, so the pinned shape is asserted field by
      field instead of byte for byte — the contract is the values, not the key order. */
   const seaRules = JSON.parse(ev('JSON.stringify(REGION.sea.rules)'));
-  assert.equal(seaRules.t1Served, 400);
+  /* Brief 19: a sixth Tier 1 lifts SEA's bar from 400 to 480 Gbps (400 × 6/5). */
+  assert.equal(seaRules.t1Served, 480);
   assert.equal(seaRules.t1Pops, 8);
   assert.equal(seaRules.t1Continents, 2);
   assert.equal(seaRules.cacheCities, null);
@@ -260,7 +261,7 @@ test('M3: switching back to global restores the untouched world', () => {
   assert.equal(ev('LANDS_LL.length'), 14);
   assert.equal(ev('LENSES.length'), 7);
   assert.equal(ev('CABLE_PAIRS.length'), 134);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 65);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 68);
   assert.equal(ev('XIX.length'), 25);
   assert.equal(ev('TAIL.length'), 60);
   assert.equal(JSON.stringify(ev('proj0(0,0)')), '[1000,537.6]');

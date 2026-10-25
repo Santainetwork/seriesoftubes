@@ -1,8 +1,9 @@
 /* Series of Tubes — offline shell.
-   The whole game is one HTML file plus a handful of images, so a cache-first strategy on the
-   app shell is enough to make it playable with no network at all. Bump SHELL when the game
-   changes so returning players pick up the new build instead of a stale one. */
-const SHELL = 'sot-shell-v1.10.1';
+   The page always comes from the network when there is one, so a new release shows up on the
+   next visit; everything else is served from the cache and refreshed in the background. A
+   cache-first shell would keep players on a stale build forever, which is exactly what happened
+   when the Indonesia map shipped: the game kept loading the old one. */
+const SHELL = 'sot-shell-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -37,22 +38,21 @@ self.addEventListener('fetch', e => {
   const url = new URL(r.url);
   if (url.origin !== self.location.origin) return;
 
-  /* Navigations: serve the cached shell immediately, then refresh it in the background so a
-     new build lands on the next launch. A game that opens in two seconds beats one that is
-     always current but never opens offline. */
+  /* Navigations: network first, cached shell as the offline fallback. */
   if (r.mode === 'navigate') {
     e.respondWith(
-      caches.match('/index.html').then(hit => {
-        const net = fetch(r).then(res => {
-          if (res && res.ok) caches.open(SHELL).then(c => c.put('/index.html', res.clone()));
-          return res;
-        }).catch(() => hit);
-        return hit || net;
-      })
+      fetch(r).then(res => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(SHELL).then(c => c.put('/index.html', copy));
+        }
+        return res;
+      }).catch(() => caches.match('/index.html').then(hit => hit || caches.match('/')))
     );
     return;
   }
 
+  /* Everything else: cache first, refreshed in the background. */
   e.respondWith(
     caches.match(r).then(hit => hit || fetch(r).then(res => {
       if (res && res.ok && res.type === 'basic') {

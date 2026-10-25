@@ -12,8 +12,8 @@ test('PRD §16.1: global region baseline is unchanged', () => {
   assert.equal(ev('CABLE_PAIRS.length'), 134, 'cable pairs');
   assert.equal(ev('XIX.length'), 25, 'rival exchanges');
   assert.equal(ev('TAIL.length'), 60, 'long tail');
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 65, 'non-tail networks');
-  assert.equal(ev('NETS.length'), 128, 'all networks');
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 68, 'non-tail networks');
+  assert.equal(ev('NETS.length'), 131, 'all networks');
   assert.equal(ev('LENSES.length'), 7, 'lenses');
   assert.equal(ev('LANDS_LL.length'), 14, 'land polygons');
   assert.equal(ev('Object.keys(CITY_LL).length'), 94, 'city coordinates');
