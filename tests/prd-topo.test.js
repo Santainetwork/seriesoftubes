@@ -107,9 +107,16 @@ test('live network counts match the brief (40 SEA, own IDN list)', () => {
   /* Only networks with a POP in an Indonesian city are live there — the 33-city map reaches
      far more of them than the old 16-city one did, but it is still a subset. */
   assert.ok(idnNets.length >= 20, `only ${idnNets.length} networks live in IDN`);
-  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 5);
-  for (const dead of ['lvl', 'tly', 'cog', 'tat']) {
-    assert.ok(!idnNets.includes(dead), `${dead} must not sell transit on the Indonesia map`);
+  /* Five domestic T1s sell transit; the global T1s that reach Jakarta (ntt, tat) are members
+     of the local exchange but do not sell a port there — that is the whole point of §G. */
+  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1'&&sellsTransit(NET[k])).length"), 5);
+  assert.ok(ev("Object.keys(NET).filter(k=>NET[k].type==='t1'&&!sellsTransit(NET[k])).length") >= 1,
+    'at least one global T1 peers on the Indonesia map without selling transit');
+  /* The global T1s that reach Jakarta are exchange members, but they are not on the transit
+     list: you peer with them, you do not buy a port from them. */
+  const idnTransit = JSON.parse(ev('JSON.stringify(Object.keys(NET).filter(k=>sellsTransit(NET[k])))'));
+  for (const t1 of ['lvl', 'tly', 'cog', 'tat', 'ntt']) {
+    assert.ok(!idnTransit.includes(t1), `${t1} must not sell transit on the Indonesia map`);
   }
   for (const live of ['tlkm', 'inds', 'xlnt', 'ionx', 'mvnx']) {
     assert.ok(idnNets.includes(live), `${live} should be live in IDN`);
