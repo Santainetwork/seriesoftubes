@@ -2316,6 +2316,8 @@ const lands=C=>C.land2?[C.land,C.land2]:[C.land];
 const isSub=(a,b)=>{const A=lands(CITY[a]),B=lands(CITY[b]);return !A.some(x=>B.includes(x));};
 const popUp=c=>S.pops[c]&&!(S.pops[c].down>S.day);
 const regionsCount=()=>new Set(Object.keys(S.pops).map(c=>CITY[c].reg)).size;
+/* The most continents any player could ever reach on the current map: the gate ceiling. */
+const mapRegionsCount=()=>new Set(CITIES.map(c=>c.reg)).size;
 const ixCity=x=>String(x).split('~')[0];
 function ixIdsIn(c){const o=ixStatic(c);if(S&&S.myIx&&S.myIx[c]&&!o.includes(c))o.unshift(c);return o;}
 const hasIxAt=c=>ixIdsIn(c).some(x=>S.ixp[x]!==undefined);
@@ -2361,11 +2363,19 @@ function ixSessions(c){
 function t1Club(){
   /* Tier 1 thresholds are calibrated per region (brief 3): a "continent" is a projection
      region, and SEA/IDN maps only ever cover one, so the global 3-continent rule made T1
-     impossible there. Global keeps the old numbers via the {} fallback. */
+     impossible there. Global keeps the old numbers via the {} fallback.
+     The fourth gate, peering sessions, used to fall back to a bare 20 that no region ever
+     set: it was invisible in the rules, absent from the brief, and a player with 250 Gbps
+     and six POPs was refused by a number nobody had chosen. Every region now states it.
+     A continent gate is capped at what the map actually offers, the same way lvReg() does:
+     SEA declared t1Continents:2 while all 49 of its cities are reg:'AS', so every SEA player
+     who met POPs, traffic and sessions was still refused for a continent the map cannot
+     supply. A requirement no map can honour is a bug, not a difficulty setting, so the cap
+     is defensive and every future region is safe by construction. */
   const rr=(REGION[curRegion]&&REGION[curRegion].rules)||{};
   const needPops=rr.t1Pops||10;
   const needServed=rr.t1Served||1500;
-  const needCont=rr.t1Continents!=null?rr.t1Continents:3;
+  const needCont=Math.min(rr.t1Continents!=null?rr.t1Continents:3,mapRegionsCount());
   const needSess=rr.t1Sessions||20;
   const needTxt=needServed>=1000?`${needServed/1000} Tbps`:`${needServed} Gbps`;
   const miss=[];const pops=Object.keys(S.pops).length;
@@ -5575,8 +5585,13 @@ function seaRegion(){
   startCities:['jkt','mnl','bkk','sin'],
   startCash:300000,
   regionMult:{AS:2.5,AF:2,OC:1.4,SA:1.6,EU:1},
-  /* SEA carries five live Tier 1s, one more than before: 400 × 6/5 = 480 Gbps. */
-  rules:{t1Served:480,t1Pops:8,t1Continents:2,cacheCities:null,cacheMinMul:1.2,startCash:300000,
+  /* SEA carries five live Tier 1s, one more than before: 400 × 6/5 = 480 Gbps.
+     t1Continents is 1, not the 2 brief 3 §6.9 recommended: that number was calibrated on the
+     assumption the map kept Perth, Sydney and Darwin (reg:'OC'), and the shipped SEA map never
+     carried them — all 49 cities are reg:'AS'. The brief said so itself: "if the Australian
+     cities are left out of the region, t1Continents must become 1". t1Club() also caps the gate
+     at the map, so a future map cannot reintroduce the dead gate, but the rule states the truth. */
+  rules:{t1Served:480,t1Pops:8,t1Continents:1,cacheCities:null,cacheMinMul:1.2,startCash:300000,
     /* Brief 18 §F: the eyeball ceiling. A metro carries far more than its calibrated P once
        broadband is cheap; the boost table lifts the handful of capitals that dwarf their region.
        The table must be monotone in P: a city with more calibrated eyeballs than another can

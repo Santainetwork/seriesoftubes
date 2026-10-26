@@ -87,7 +87,10 @@ test('t1Club thresholds rise with the sixth Tier 1, per region', () => {
   m = JSON.parse(ev('JSON.stringify(t1Club().missing)'));
   assert.ok(m.some(s => s.includes('480 Gbps')), `sea: ${JSON.stringify(m)}`);
   assert.ok(m.some(s => s.includes('8+ POPs')));
-  assert.ok(m.some(s => s.includes('2+ continents')));
+  /* SEA is one continent (all 49 cities reg:'AS'), so a 2-continent gate here is one no player
+     could ever clear. The rule now says 1 and t1Club() caps the gate at the map regardless. */
+  assert.equal(m.some(s => s.includes('continent')), false,
+    `sea has one continent and a fresh player already meets it: ${JSON.stringify(m)}`);
 
   /* Indonesia sells transit from its own five domestic T1s; Sparkly is not live there. */
   ev("applyRegion('idn')");

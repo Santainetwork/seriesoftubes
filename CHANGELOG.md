@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+- Tier 1 was unreachable on the Southeast Asia map. The club asked for POPs on two continents, but
+  every city on that map is in one, so no amount of traffic or peering could open the door: a
+  player with all 49 POPs, 3.2 Tbps served and 106 peering sessions was still refused for a
+  continent the map does not contain. The requirement is now capped at what each map actually
+  offers, and SEA's own rule states the honest number.
 - A hosting outfit could not level up. Peak traffic — the number the customer levels are built on
   — was fed only by IP traffic, and a private circuit never passes an IP exit: a cloud on-ramp or
   an AI interconnect moved hundreds of gigabits, paid for them, and counted for nothing. Signing a
