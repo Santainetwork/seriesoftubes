@@ -1,3 +1,12 @@
+## [1.27.4] — 2026-10-26
+
+- The SEA and Indonesia maps were painted on top of the world map. Manila stood in the
+  Mediterranean, Hanoi in North America, Cebu near East Africa: the cities were projected with
+  the regional lens while paintWorld() still read LANDP_ALL/LANDP_FAR, which are frozen from
+  the Global COAST at module load. It now paints LANDP, the table applyRegion() rebuilds.
+  prd-paint locks it: the regional coastline must be richer than the global one, and every
+  SEA city must fall inside a painted polygon.
+
 ## [1.27.3] — 2026-10-26
 
 - The city panel now counts down to the capacity wall. A fresh ISP in Semarang carries 8 Gbps

@@ -5907,7 +5907,14 @@ function draw(now){
 }
 function drawCone(x,y,now){const b=Math.sin(now/300)*1.5;ctx.save();ctx.translate(x,y-12+b);ctx.strokeStyle='#1E2640';ctx.lineWidth=2;ctx.fillStyle='#FF8A3D';ctx.beginPath();ctx.moveTo(-7,9);ctx.lineTo(0,-10);ctx.lineTo(7,9);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.fillRect(-4,-1,8,3);ctx.fillStyle='#1E2640';rr(-10,8,20,4,2);ctx.fill();ctx.restore();}
 // Static land + cable map, rendered once per zoom bucket into an offscreen canvas.
-function paintWorld(c,z,withCables){const LANDP=lodFar()?LANDP_FAR:LANDP_ALL;
+function paintWorld(c,z,withCables){
+  /* LANDP is the coastline of the region that is loaded right now; LANDP_ALL/LANDP_FAR were frozen
+     from the Global COAST at module load. Painting from those drew the whole world under a map of
+     Southeast Asia: Manila's label landed in the Mediterranean and Hanoi's in North America, because
+     the cities were projected with the SEA lens while the land underneath never changed. The global
+     tables survive only as the fallback for when no region has bound yet. */
+  const regional=LANDP&&LANDP.length;
+  const LANDP=regional?LANDP:(lodFar()?LANDP_FAR:LANDP_ALL);
   /* The world wraps, so every coastline pass is drawn three times: at 0, +W and -W. */
   const OFF=WRAPX?[0,W,-W]:[0];
   for(const o of [0,W,-W]){c.save();c.translate(o+5/z,7/z);c.fillStyle='rgba(20,90,130,.35)';for(const p of LANDP)c.fill(p);c.restore();}
