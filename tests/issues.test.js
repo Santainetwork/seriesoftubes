@@ -710,7 +710,7 @@ test('a broken day is skipped instead of killing the loop', () => {
   const day = ev('S.day');
   ev("window.__realDayTick=dayTick;window.dayTick=()=>{throw new Error('boom')};safeTick();safeTick();window.dayTick=window.__realDayTick");
   assert.equal(ev('S.day'), day, 'no day advanced');
-  assert.equal(ev('tickErr'), 2, 'failures are counted');
+  assert.equal(ev('tickErrs'), 2, 'failures are counted');
   assert.equal(ev("document.getElementById('toasts').textContent.includes('simulation hit a snag')"), true);
   ev("dayTick()");
   assert.equal(ev('S.day'), day + 1, 'the simulation still runs afterwards');
@@ -737,13 +737,13 @@ test('the loop stops ticking after a frame of work and renders once', () => {
   // burning the whole frame, and panels redraw once however many days ran.
   ev("S.cash=1e12;for(const c of ['lon','ams','nyc','ash']){if(!S.pops[c])S.pops[c]={day:0,bb:{d:500},boost:0,down:0,routers:2,gen:false,rgen:0};}for(let i=0;i<4;i++){const cs=['fra','lon','ams','nyc','ash'];S.links.push({id:'lag'+i,a:cs[i],b:cs[i+1],kind:'wave',tier:2,km:500,sub:false,mo:1,cut:0,day:0});}compute();tickErr=0;UI.speed=8;acc=DAY_MS*2;last=performance.now()-16");
   ev("frame(performance.now())");
-  assert.ok(ev('tickErr') === 0, 'no tick failed');
+  assert.ok(ev('tickErrs') === 0, 'no tick failed');
   assert.ok(ev('S.day') > 0, 'days advanced');
   assert.deepEqual(errors, []);
 });
 
 test('crowded non-POP cities hide instead of drawing nameless dots', () => {
-  const { ev, errors } = load();
+  const { ev, dom, errors } = load();
   base(ev);
   // Zoomed out, non-POP cities whose labels lose both slots skip their art too.
   ev("cam.z=0.4;UI.speed=0;draw(1000)");
@@ -753,9 +753,6 @@ test('crowded non-POP cities hide instead of drawing nameless dots', () => {
   assert.equal(noLabel.length, 0, `no nameless city art (${list.length} drawn)`);
   assert.ok(list.length > 0, 'labeled cities still draw');
   assert.deepEqual(errors, []);
-<<<<<<< HEAD
-});
-=======
   dom.window.close();
 });
 
@@ -1057,4 +1054,3 @@ test('#56 parallel waves of different sizes are labelled per size, not as N time
   ev("cam.z=2;draw(0)");
   assert.deepEqual(errors, []);
 });
->>>>>>> 92b24fd
