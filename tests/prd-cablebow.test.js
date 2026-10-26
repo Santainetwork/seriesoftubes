@@ -112,6 +112,38 @@ test('cables: routes do not wander far from the direct line', () => {
   assert.ok(detour < 4, 'average cable is ' + detour.toFixed(2) + 'x its direct distance');
 });
 
+test('cables: drawn line stays near its true sea route', () => {
+  // The feathered corridor offset used to accumulate unbounded, pushing drawn cables up to 230px
+  // off the raw CABLE_PTS route. The offset is now clamped to ±24px, which pins the drawing to
+  // the real sea route. Post-fix: avg of per-route max deviation 30.7px, 1 route over 80px, max
+  // 84px. Bounds are ~20% above those so normal wiggle does not flake.
+  const { ev } = idn();
+  const dev = ev(`(() => {
+    const segDist = (p, a, b) => {
+      const vx = b[0] - a[0], vy = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy || 1)));
+      return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy));
+    };
+    const maxes = [];
+    for (const cp of CABLE_PAIRS) {
+      const q = CABLE_PTS[cp.cid + '|' + cp.a + '|' + cp.b] || CABLE_PTS[cp.cid + '|' + cp.b + '|' + cp.a];
+      if (!q) continue;
+      const poly = [[CITY[cp.a].x, CITY[cp.a].y], ...q.map(w => proj(w[0], w[1])), [CITY[cp.b].x, CITY[cp.b].y]];
+      let mx = 0;
+      for (let i = 1; i < cp.pts.length - 1; i++) {
+        let d = Infinity;
+        for (let j = 1; j < poly.length; j++) d = Math.min(d, segDist(cp.pts[i], poly[j - 1], poly[j]));
+        mx = Math.max(mx, d);
+      }
+      maxes.push(mx);
+    }
+    return { n: maxes.length, over: maxes.filter(m => m > 100).length, avg: maxes.reduce((s, m) => s + m, 0) / maxes.length };
+  })()`);
+  assert.ok(dev.n >= 90, 'expected ~96 routes, got ' + dev.n);
+  assert.ok(dev.over <= 3, dev.over + ' routes deviate more than 100px from their raw route');
+  assert.ok(dev.avg < 45, 'average of per-route max deviations is ' + dev.avg.toFixed(1) + 'px');
+});
+
 test('cables: no cable is drawn across land', () => {
   // The raw sea routes are 0.9% over land. With the fan, lane and corridor offsets applied it was
   // 30%: a 16px sideways shove moves a cable in a 10km strait straight onto the beach, and a

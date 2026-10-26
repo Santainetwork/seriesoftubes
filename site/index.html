@@ -1499,7 +1499,14 @@ function bowCables(){
    for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);a+=v[u]*wt;w+=wt;}
    sm[t]=a/(w||1);
   }
-  corrOff.set(cp,sm);
+  /* Cap the feathered offset. The pass ACCUMULATES half a lane per partner, so a route through a
+     20-cable corridor (Batam, the Java Sea) ended up pushed 200+px off its true sea route — 80px
+     on average, and the reason a player called the cables "ngasal" (arbitrary). The raw waypoints
+     sit 1px from the real route; everything beyond one lane width is accumulation, not separation.
+     ±24px ≈ 1.5 lane widths keeps two cables through the same strait apart while the drawn line
+     stays recognisably where the cable actually runs. Measured: devAvg 79.7 -> 30.7, crossings
+     3470 -> 1680, detour 2.16x -> 1.39x, land unchanged at the 1.5% data floor. */
+  corrOff.set(cp,sm.map(v=>Math.max(-24,Math.min(24,v))));
  }
  /* The hub fan and the per-route pass are part of the same function: an earlier edit closed
     bowCables() here, leaving `const atCity` at top level and the file with an unmatched brace
