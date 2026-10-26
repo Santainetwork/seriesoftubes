@@ -29,8 +29,8 @@ Semua di bawah ini punya test pengunci. Kalau test itu merah, perbaikannya hilan
 | Tanjung Pinang `land:'kep'` (id hantu) | `prd-rings` | jadi `btm` |
 | Level 4+ mustahil di IDN/SEA | — | `lvReg()` dibatasi `maxRegions` |
 | T1 mustahil di IDN/SEA | `prd-t1reach` | `lvl` dapat POP di `jkt`, `sin`, `hkg` |
-| Kabel menyeberang darat | `prd-cablebow` | 30% → **0%** titik di darat |
-| Kabel berliku/melengkung liar | `prd-cablebow` | detour 3,08× → **2,24×**, patahan 123 → 572/5414 |
+| Kabel menyeberang darat | `prd-cablebow` | 27,3% → **1,5%** titik di darat (batas data routing) |
+| Kabel berliku/melengkung liar | `prd-cablebow` | detour 3,08× → **2,24×**, patahan 572/5414 |
 | Tombol anti-DDoS mati | `prd-scrub` | `'scrub'` → `buildScrub`/`rmScrub` |
 | Kredit penulis hilang dari game | `attribution` | `HTIW` + `plugHtml()` di 3 layar |
 | Toast versi baru tidak pernah muncul | `prd-update` | 3/3 (dulu 0/3) |
