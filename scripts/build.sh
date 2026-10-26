@@ -14,8 +14,9 @@ if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
   exit 1
 fi
 
-rm -rf "$OUT"
-cp -R site "$OUT"
+mkdir -p "$OUT"
+find "$OUT" -mindepth 1 -delete
+cp -a site/. "$OUT"/
 for f in "$OUT/index.html" "$OUT/sitemap.xml" "$OUT/llms.txt"; do
   sed -i.bak -e "s/__VERSION__/${VERSION}/g" -e "s/__BUILD_DATE__/${BUILD_DATE}/g" "$f"
   rm -f "$f.bak"

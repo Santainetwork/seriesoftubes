@@ -19,14 +19,12 @@ Open work on the Indonesia + SEA fork. Mirrors the Virtual Office kanban board
   worldwide is 1,026 rings / 28,784 points / ~420 KB, and `index.html` is already 938 KB, so the
   table belongs in a fetched asset, not inline.
 
-- **RT/RW net tidak bisa broadband — pastikan pesannya jelas** (p3, `t_bdb8ef6b`).
-  By design (`ROLES.rtnet.bb=false`, it sells DIA to businesses), but a player asked whether it
-  was a bug, so the refusal should say what the role *can* sell.
-
 - **Commit kartu kanban ini ke repo sebagai backlog** (p4, `t_ff221a4e`).
   This file.
 
 ## Done this session
+
+- RT/RW net broadband refusal toast now specifies what the role sells (DIA to businesses) instead of generic rejection (`t_bdb8ef6b`). r2 goal text fixed to business DIA.
 
 - Merge upstream v1.27.0; 334/334 tests, live as 1.27.1.
 - Sumatra was drawn twice (`btm` mislabelled the whole island); fixed, zero overlapping points.

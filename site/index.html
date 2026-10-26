@@ -1780,7 +1780,7 @@ const GOALS=[
   d:'You resell someone else’s bandwidth. Buy a transit port and keep the lights on for 90 days.',
   r:8000,ok:()=>S.transit.length>0&&S.day>=90},
  {id:'r2',by:['rtnet'],t:'Fifty neighbours online',
-  d:'A neighbourhood network lives on density. Fifty broadband subscribers in two POPs is a real business.',
+  d:'A neighbourhood network lives on density. 50 Gbps of business DIA in two POPs is a real business.',
   r:20000,ok:()=>R.served>=50},
  {id:'r3',by:['rtnet'],t:'Survive a bad month',
   d:'One cable cut, one unpaid bill, one angry customer. Come out the other side still solvent.',
@@ -3730,12 +3730,17 @@ const ACT={
    const n=Object.keys(S.pops).length,cap=popCap(),over=popOverMul(),cost=popCost(city)*over;
    if(n>=cap)toast(`<b>Beyond your role's footprint.</b><br>POP ${n+1} costs ${fmt$(cost)} — ${Math.round((over-1)*100)}% over the list price.`,'warn');
    if(!spend(cost))return;S.pops[city]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};floater(CITY[city].x,CITY[city].y-30,'New POP!','#FF4F9A');UI.tab='cust';after();},
- launchBB:({city})=>{const p=S.pops[city];if(!p||p.bb)return;if(!roleDef().bb){toast('<b>Home broadband is not part of your role.</b><br>Hosting, NAP and RT/RW networks sell to businesses instead.','bad');sfx('err');return;}const C=CITY[city];if(!spend(bbCost(city)))return;p.bb={d:Math.max(8,C.P*0.03)};floater(C.x,C.y-30,'Eyeballs online!','#16A866');after();},
+ launchBB:({city})=>{const p=S.pops[city];if(!p||p.bb)return;
+   if(!roleDef().bb){
+     const what=S.role==='rtnet'?'RT/RW networks sell DIA (dedicated internet access) to businesses instead.':S.role==='hosting'?'Hosting providers sell colocation, GPU and AI hosting instead.':S.role==='nap'?'NAPs sell wholesale capacity to ISPs, hyperscalers and AI instead.':'Your role sells to businesses instead.';
+     toast(`<b>Home broadband is not part of your role.</b><br>${what}`,'bad');sfx('err');return;
+   }
+   const C=CITY[city];if(!spend(bbCost(city)))return;p.bb={d:Math.max(8,C.P*0.03)};floater(C.x,C.y-30,'Eyeballs online!','#16A866');after();},
  ad:({city})=>{const p=S.pops[city];if(!p||!p.bb)return;if(!spend(8000))return;p.boost=S.day+30;floater(CITY[city].x,CITY[city].y-30,'Ad campaign!','#FF8A3D');after();},
  /* Brief 13 §1.1: B2B tenant acquisition. Deliberately separate from ACT.ad, which drives
     consumer broadband demand. NAP and hosting only; three cities at a time. */
  promo:({city})=>{const p=S.pops[city];if(!p)return;
-   if(S.role!=='nap'&&S.role!=='hosting'){toast('<b>B2B campaigns are for carriers.</b><br>ISPs and RT/RW nets use the broadband ad campaign instead.','bad');sfx('err');return;}
+   if(S.role!=='nap'&&S.role!=='hosting'){toast('<b>B2B campaigns are for carriers.</b><br>ISPs use the broadband ad campaign instead.','bad');sfx('err');return;}
    S.promo=S.promo||{};
    const active=Object.keys(S.promo).filter(c=>S.promo[c]>S.day);
    if(S.promo[city]>S.day)return;

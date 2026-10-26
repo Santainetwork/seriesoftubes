@@ -48,6 +48,7 @@ test('ROLES: hosting cannot sell broadband and keeps its 3-POP footprint', () =>
   assert.equal(ev("bbCost('fra')"), Infinity, 'no broadband price for hosting');
   ev("ACT.launchBB({city:'fra'})");
   assert.equal(ev("S.pops.fra.bb"), null, 'launchBB is a no-op');
+  assert.match(ev("document.getElementById('toasts').textContent"), /colocation, GPU and AI hosting/);
   ev("renderPanel()");
   assert.equal(ev("document.getElementById('panelBody').textContent.includes('Launch broadband')"), false,
     'the button is not offered');
@@ -90,6 +91,8 @@ test('ROLES: RT/RW net takes small DIA only, keeps a 2-POP footprint, needs tran
   const { ev, errors } = load();
   ev("UI.role='rtnet';ACT.start({});S.cash=1e6");
   assert.equal(ev('S.cash'), 1000000, 'test topped the budget up');
+  ev("ACT.launchBB({city:'fra'})");
+  assert.match(ev("document.getElementById('toasts').textContent"), /RT\/RW networks sell DIA/);
   // Brief 5 §1: $45k so the role can actually buy its own POPs ($20k each).
   assert.equal(ev("ROLES.rtnet.cash"), 45000, 'starting cash covers a two-POP footprint');
 
