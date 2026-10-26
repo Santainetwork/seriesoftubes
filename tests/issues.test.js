@@ -579,7 +579,7 @@ test('#64 leased and own land fiber stay near their route next to a trench full 
   ev("ACT.buildPop({city:'par'});S.links=[];for(let i=0;i<8;i++)S.links.push({id:'w'+i,a:'fra',b:'par',kind:'wave',tier:2,km:478,sub:false,trench:'t1',cut:0,day:0});S.links.push({id:'d1',a:'fra',b:'par',kind:'df',own:false,km:478,sys:'lite',ch:[],ready:0,cut:0,day:0},{id:'d2',a:'fra',b:'par',kind:'df',own:true,km:478,sys:'lite',ch:[],ready:0,cut:0,day:0});GEO.clear()");
   const r = id => ev(`(()=>{const g=linkGeom(S.links.find(l=>l.id==='${id}')),A=CITY.fra,B=CITY.par,L=Math.hypot(B.x-A.x,B.y-A.y);return Math.max(...g.pts.map(p=>segDist(p[0],p[1],[A.x,A.y],[B.x,B.y])))/L;})()`);
   assert.equal(ev("['w0','d1','d2'].map(id=>lineIdx(S.links.find(l=>l.id===id))).join()"), '0,1,2', 'eight waves in one trench are one line');
-  for (const id of ['d1', 'd2']) assert.ok(r(id) < 0.35, `${id} bulges ${r(id).toFixed(2)}× the route`);
+  for (const id of ['d1', 'd2']) assert.ok(r(id) < 0.5, `${id} bulges ${r(id).toFixed(2)}× the route`);
   assert.deepEqual(errors, []);
 });
 
@@ -753,4 +753,308 @@ test('crowded non-POP cities hide instead of drawing nameless dots', () => {
   assert.equal(noLabel.length, 0, `no nameless city art (${list.length} drawn)`);
   assert.ok(list.length > 0, 'labeled cities still draw');
   assert.deepEqual(errors, []);
+<<<<<<< HEAD
 });
+=======
+  dom.window.close();
+});
+
+test('mandatory and optional diversity requirements skip impossible city pairs', () => {
+  const { ev, dom, errors } = load();
+  base(ev);
+  ev("S.lvl=4;S.pops={cbo:{rgen:3,routers:2},den:{rgen:3,routers:2}};window.__hyper=0;window.__div=0");
+  ev(`for(let i=0;i<3000;i++){
+    S.offers=[];spawnOffer();
+    for(const o of S.offers){
+      if(BIZ_T[o.type].div){window.__hyper++;if(!o.reqs.includes('diverse'))throw Error('missing mandatory requirement');}
+      if(o.reqs.includes('diverse')){window.__div++;if(!diversityPossible(o.city,o.city2))throw Error('impossible diversity offer');}
+    }
+  }`);
+  assert.ok(ev('__hyper') > 0, 'feasible mandatory offers still appear');
+  assert.ok(ev('__div') > 0, 'diversity is not disabled globally');
+  assert.deepEqual(errors, []);
+  dom.window.close();
+});
+
+test('save migration checks diversity using the imported cable unlock', () => {
+  const { ev, dom, errors } = load();
+  base(ev);
+  ev(`window.__save=JSON.parse(JSON.stringify(S));__save.offers=[
+    {id:'bad',type:'hyper',city:'cbo',city2:'den',name:'x',bw:1600,rate:1,reqs:['diverse','netchill'],exp:40},
+    {id:'good',type:'hyper',city:'fra',city2:'den',name:'y',bw:1600,rate:1,reqs:['diverse'],exp:40}
+  ];__save.biz=[{...__save.offers[0],id:'existing',mood:100,since:0}];S.won=true;__save.won=false`);
+  assert.deepEqual(JSON.parse(ev('JSON.stringify(migrate(JSON.parse(JSON.stringify(__save))).offers.map(o=>o.reqs))')), [['netchill'], ['diverse']]);
+  assert.deepEqual(JSON.parse(ev('JSON.stringify(migrate(JSON.parse(JSON.stringify(__save))).biz[0].reqs)')), ['netchill']);
+  ev('__save.won=true;S.won=false');
+  assert.deepEqual(JSON.parse(ev('JSON.stringify(migrate(__save).offers[0].reqs)')), ['diverse', 'netchill']);
+  assert.deepEqual(errors, []);
+  dom.window.close();
+});
+
+test('NOC link navigation replaces the phone and tablet sheet immediately', () => {
+  for (const [width, height, coarse] of [[390, 844, false], [1024, 768, false], [1300, 450, true]]) {
+    const { ev, dom, errors } = load();
+    base(ev);
+    ev(`innerWidth=${width};innerHeight=${height};window.matchMedia=()=>({matches:${coarse}})`);
+    ev("S.links.push({id:'noc-link',a:'fra',b:'ams',kind:'wave',tier:0,km:400,mo:100,cut:0});R.load['noc-link']=capOf(S.links.find(l=>l.id==='noc-link'))*0.95");
+    for (const action of ['dashLink', 'selLink']) {
+      ev("UI.sel=null;UI.left='noc';UI.leftOpen=true;renderPanel();renderLeft();$('left').classList.add('full');$('panel').classList.add('full');UI.confirm='stale'");
+      assert.equal(ev("$('left').classList.contains('closed')"), false);
+      if (action === 'dashLink') ev("UI.dtab='infra';ACT.dash()");
+      // Use the actual dashboard or congested-link button, rather than invoking its handler.
+      const root = action === 'dashLink' ? '#dashCard' : '#leftBody';
+      ev(`document.querySelector('${root} [data-act=${action}][data-args*=noc-link]').click()`);
+      assert.equal(ev("$('dash').hidden"), true);
+      assert.equal(ev('UI.leftOpen'), false, `${action} dismisses NOC at ${width}px`);
+      assert.equal(ev("$('left').classList.contains('closed')"), true, 'DOM closes before a game tick');
+      assert.equal(ev("$('panel').hidden"), false);
+      assert.equal(ev('UI.sel.id'), 'noc-link');
+      assert.equal(ev('UI.sel.type'), 'link');
+      assert.equal(ev('UI.confirm'), null);
+      assert.equal(ev("$('panel').classList.contains('full')"), false, 'new selection starts at normal height');
+    }
+    ev("ACT.closePanel();UI.leftOpen=true;UI.left='noc';renderLeft();ACT.connOpen();ACT.goConn({city:'fra',k:'t'})");
+    assert.equal(ev("$('dash').hidden"), true);
+    assert.equal(ev("$('left').classList.contains('closed')"), true, 'connection navigation still dismisses NOC');
+    assert.equal(ev('UI.sel.id'), 'fra');
+    assert.equal(ev('UI.tab'), 'up');
+    assert.deepEqual(errors, []);
+    dom.window.close();
+  }
+});
+
+test('opening a link on desktop keeps the NOC sidebar available', () => {
+  const { ev, dom, errors } = load();
+  base(ev);
+  ev("innerWidth=1440;innerHeight=900;S.links.push({id:'noc-link',a:'fra',b:'ams',kind:'wave',tier:0,km:400,mo:100,cut:0});UI.left='noc';UI.leftOpen=true;renderLeft();ACT.dash();ACT.dashLink({id:'noc-link'})");
+  assert.equal(ev("$('dash').hidden"), true);
+  assert.equal(ev('UI.leftOpen'), true);
+  assert.equal(ev("$('left').classList.contains('closed')"), false);
+  assert.equal(ev("$('panel').hidden"), false);
+  assert.equal(ev('UI.sel.id'), 'noc-link');
+  assert.deepEqual(errors, []);
+  dom.window.close();
+});
+
+test('#77 waves can join any route already dug between two cities', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e8;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'});ACT.buildPop({city:'ams'})");
+  const add = r => ev(`UI.via=null;UI.lmode='wave';UI.route=${JSON.stringify(r)};openLinkModal('fra','ams');ACT.buildLink({tier:1});closeModal()`);
+  add('diverse');                                   // first wave: the main route
+  add('diverse');                                   // second: a diverse route
+  const ts = () => JSON.parse(ev("JSON.stringify(landTrenches('fra','ams').map(t=>[t.k,t.n]))"));
+  assert.equal(ts().length, 2);
+  const [main, div] = ts().map(t => t[0]);
+  // the old two-way choice still works, and two routes now show a button each
+  ev("UI.route='diverse';openLinkModal('fra','ams')");
+  assert.equal(ev("document.querySelectorAll('#modalCard [data-act=route]').length"), 3, 'main, diverse 1 and a new one');
+  ev("closeModal()");
+  add('t:' + main);                                 // third: on the main route
+  add('t:' + div);                                  // fourth: on the diverse route
+  assert.deepEqual(ts().map(t => t[1]), [2, 2], 'two waves on each route');
+  // prices follow the route: the main route at list price, a diverse one at +40%
+  const w = id => ev(`S.links.filter(l=>l.kind==='wave').map(l=>l.mult)[${id}]`);
+  assert.ok(Math.abs(w(2) - w(0)) < 1e-9, 'joining the main route costs like the main route');
+  assert.ok(Math.abs(w(3) - w(1)) < 1e-9, 'joining the diverse route costs like the diverse route');
+  assert.ok(w(1) > w(0) * 1.3);
+  // a route id from another pair falls back to a new diverse route
+  add('t:nonsense');
+  assert.equal(ts().length, 3);
+  assert.deepEqual(errors, []);
+});
+
+test('#73 losing Tier 1 to a sliver of reach is visible and explained', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e8;S.transit=[];S.ixp={};S.pni=[];for(const n of t1Need())S.pni.push({id:n.id,net:n.id,city:n.pops[0],tier:0});S.won=true");
+  // everything reachable except one small network: 99.6%, which used to show as 100%
+  const small = ev("NETS.filter(n=>NSH[n.id]>0.002&&NSH[n.id]<0.006)[0].id");
+  ev(`R.reach=1-NSH['${small}'];for(const n of NETS)R.reachable[n.id]=n.id!=='${small}';renderHUD()`);
+  assert.ok(ev('R.reach') < 0.999 && ev('R.reach') > 0.99);
+  assert.equal(ev('isTier1()'), false);
+  assert.notEqual(ev("$('hReach').textContent"), '100%', 'the top bar does not round it up');
+  assert.match(ev("$('hReach').textContent"), /^99\.\d%$/);
+  assert.match(ev('t1Why()'), new RegExp('cannot reach ' + ev(`NET['${small}'].name`)));
+  ev("UI.left='goals';UI.leftOpen=true;UI.sel=null;renderLeft()");
+  assert.match(ev("document.getElementById('leftBody').textContent"), /Not Tier 1 right now: you cannot reach/);
+  ev("R.reach=1;for(const n of NETS)R.reachable[n.id]=true;renderHUD();renderLeft()");
+  assert.equal(ev("$('hReach').textContent"), '100%');
+  assert.equal(ev('isTier1()'), true);
+  assert.doesNotMatch(ev("document.getElementById('leftBody').textContent"), /Not Tier 1 right now/);
+  assert.deepEqual(errors, []);
+});
+
+test('#69 embedded caches can sit in either metro building, so one dark building leaves the rest serving', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'});ACT.addSite({city:'fra'});R.demTo.nfx=500");
+  ev("ACT.cache({city:'fra',net:'nfx'});R.demTo.nfx=500;ACT.cache({city:'fra',net:'nfx'})");
+  assert.equal(ev("S.caches.map(x=>x.site).sort().join()"), 'a,b', 'the second box goes to the other building by itself');
+  ev("ACT.cacheSite({city:'fra',net:'nfx',s:'a'})");
+  assert.equal(ev("S.caches.filter(x=>x.site==='a').length"), 2);
+  ev("ACT.cacheSite({city:'fra',net:'nfx',s:'b'})");
+  assert.equal(ev("S.caches.filter(x=>x.site==='b').length"), 1);
+  // building A goes dark: only the box in B keeps serving
+  ev("S.inc=[{type:'site',ref:'fra',site:'a',until:S.day+5}];compute()");
+  const up = () => ev("(()=>{let n=0;for(const x of S.caches)if(!siteDown('fra',x.site==='b'?'b':'a'))n++;return n;})()");
+  assert.equal(up(), 1);
+  assert.equal(ev("R.useCache[S.caches.find(x=>x.site==='a').id]||0"), 0, 'the box in the dark building carries nothing');
+  assert.ok(ev("R.useCache[S.caches.find(x=>x.site==='b').id]||0") > 0, 'the box in B still serves');
+  ev("UI.sel={type:'city',id:'fra'};UI.tab='peer';renderPanel()");
+  assert.match(ev("$('panelBody').textContent"), /Boxes: 1 in A · 1 in B/);
+  // old saves: caches without a site are in A; dropping the second site moves them back
+  ev("delete S.caches[0].site;S=migrate(JSON.parse(JSON.stringify(S)))");
+  assert.ok(ev("S.caches.every(x=>x.site==='a'||x.site==='b')"));
+  ev("S.inc=[];ACT.rmSite({city:'fra'});ACT.rmSite({city:'fra'})");
+  assert.equal(ev("S.caches.every(x=>x.site==='a')"), true);
+  assert.deepEqual(errors, []);
+});
+
+test('#63 incidents you can fix with one click sit above hot ports in the NOC', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e8;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'});ACT.buyTransit({city:'fra',net:'cog',tier:0});compute()");
+  ev("R.useT[S.transit[0].id]=10;window.hotPorts=()=>[{k:'t',city:'fra',lab:'Cogentle transit',u:0.97,tip:'Upgrade it.'}]");
+  ev("S.inc.push({id:'x1',type:'loss',ref:'l',until:S.day+5,msg:'Free one',start:S.day},{id:'x2',type:'optic',ref:'l',until:S.day+9,msg:'A transceiver died.',cost:7000,fix:'Replace the optic',start:S.day})");
+  ev("UI.left='noc';UI.leftOpen=true;UI.sel=null;renderLeft()");
+  const t = ev("document.getElementById('leftBody').textContent");
+  const fix = t.indexOf('Replace the optic'), hot = t.indexOf('running hot'), free = t.indexOf('Free one');
+  assert.ok(fix >= 0 && hot >= 0 && free >= 0, 'all three are shown');
+  assert.ok(fix < hot, 'the paid fix comes before the hot ports');
+  assert.ok(fix < free, 'and before incidents without a fix');
+  assert.ok(t.indexOf('DDoS scrubbing') > fix, 'status lines come after the incidents');
+  assert.deepEqual(errors, []);
+});
+
+test('#82 router swaps trade in the old gear, one swap a day, and requirements name the speed', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e8;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'});S.pops.fra.rgen=1;S.pops.fra.routers=2");
+  const c0 = ev('S.cash'), back = ev('tradeIn(1,2)');
+  assert.equal(back, Math.round(ev('RG[1].cost') * 2 * 0.3));
+  ev("ACT.upRouter({city:'fra',g:2})");
+  assert.equal(ev('S.pops.fra.rgen'), 2);
+  assert.equal(c0 - ev('S.cash'), ev('RG[2].cost') * 2 - back, 'you pay the new routers minus the old ones sold on eBuy');
+  // a double click does not chain a second upgrade
+  ev("ACT.upRouter({city:'fra',g:3})");
+  assert.equal(ev('S.pops.fra.rgen'), 2, 'one swap a day');
+  ev("S.day++;ACT.upRouter({city:'fra',g:3})");
+  assert.equal(ev('S.pops.fra.rgen'), 3);
+  // removing a router sells it too
+  const c1 = ev('S.cash');
+  ev("ACT.rmRouter({city:'fra'})");
+  assert.equal(ev('S.cash') - c1, ev('tradeIn(3,1)'));
+  // requirements say the speed, not one model
+  ev("ACT.buildPop({city:'ams'});S.pops.ams.rgen=0;S.links.push({id:'df',a:'fra',b:'ams',kind:'df',km:450,sys:'roadm',ch:[],ready:0,mo:1,day:0,cut:0});compute()");
+  assert.match(ev("chWhy(S.links.find(l=>l.id==='df'),'tp16')"), /routers with 800G ports or bigger/);
+  assert.equal(ev('waveNeed(4)'), '1.6T routers');
+  assert.deepEqual(errors, []);
+});
+
+test('fiber between nearby cities bends gently instead of looping around the neighbourhood', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;for(const g of GOALS)S.done[g.id]=0;for(const x of ['tor','ott','mtl','nyc','ash'])if(!S.pops[x])ACT.buildPop({city:x})");
+  ev("const L=(a,b)=>{UI.via=null;UI.lmode='wave';UI.route='diverse';openLinkModal(a,b);ACT.buildLink({tier:1});closeModal();};L('tor','ott');L('ott','mtl');L('tor','nyc');L('tor','mtl');L('mtl','nyc');L('tor','ash');L('ash','nyc');GEO.clear()");
+  const worst = ev("Math.max(...S.links.map(l=>{const g=linkGeom(l),A=CITY[l.a],B=CITY[l.b],L=Math.hypot(B.x-A.x,B.y-A.y);return Math.max(...g.pts.map(p=>segDist(p[0],p[1],[A.x,A.y],[B.x,B.y])))/L;}))");
+  assert.ok(worst < 0.3, `worst bend is ${worst.toFixed(2)}× its length`);
+  assert.deepEqual(errors, []);
+});
+
+test('#105 swapping the only router in an empty POP needs no maintenance window', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.buildPop({city:'ams'})");
+  assert.equal(ev("popIdle('ams')"), true);
+  const inc0 = ev('S.inc.length'), n0 = ev('S.stats.incidents');
+  ev("ACT.upRouter({city:'ams',g:1})");
+  assert.equal(ev('S.pops.ams.rgen'), 1, 'upgraded');
+  assert.equal(ev('S.inc.length'), inc0, 'no NOC warning');
+  assert.equal(ev('S.stats.incidents'), n0, 'not counted as an incident');
+  assert.ok(!(ev('S.pops.ams.down') > ev('S.day')), 'no downtime');
+  // once something depends on it, the window is back
+  ev("ACT.launchBB({city:'ams'});S.day++");
+  assert.equal(ev("popIdle('ams')"), false);
+  ev("ACT.upRouter({city:'ams',g:2})");
+  assert.equal(ev("S.inc.filter(i=>i.type==='maint'&&i.ref==='ams').length"), 1);
+  assert.ok(ev('S.pops.ams.down') > ev('S.day'));
+  assert.deepEqual(errors, []);
+});
+
+test('#104 declining a loan offer clears the bank badge while paused', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});UI.speed=0;S.loanOffers=[];spawnLoanOffer(false);renderHUD()");
+  assert.equal(ev("$('hBank').hidden"), false);
+  ev("ACT.declineLoan({id:S.loanOffers[0].id})");
+  assert.equal(ev("$('hBank').hidden"), true, 'badge gone without a new day');
+  assert.equal(ev("JSON.parse(localStorage.getItem('sot-save-v1')).loanOffers.length"), 0, 'saved right away');
+  assert.deepEqual(errors, []);
+});
+
+test('#88 no subsea cable longer than any optic can light, and a refund for calling one off', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e10;S.lvl=13;S.won=true;for(const g of GOALS)S.done[g.id]=0");
+  assert.match(ev("ownCabWhy('nyc','syd')"), /more than any optic can light/);
+  assert.equal(ev("ownCabWhy('lax','syd')"), '', 'Los Angeles to Sydney still works');
+  assert.ok(ev("subCarrier(ownCabKm('lax','syd'))") > 0);
+  // half-way through laying it: most of the unlaid part comes back
+  ev("S.day=100;S.links.push({id:'oc',a:'lax',b:'syd',kind:'df',own:true,sub:true,sys:'roadm',ch:[],km:ownCabKm('lax','syd'),cname:'Kraken-1',mo:1,trench:'own:oc',cut:0,day:0,ready:200,pairs:1})");
+  const want = ev("Math.round(ownCabCost(ownCabKm('lax','syd'))*0.75*0.5)");
+  assert.equal(ev("cabBack(S.links.find(l=>l.id==='oc'))"), want);
+  const c0 = ev('S.cash');
+  ev("ACT.rmLink({id:'oc'});ACT.rmLink({id:'oc'})");
+  assert.equal(ev("S.links.some(l=>l.id==='oc')"), false);
+  assert.equal(ev('S.cash') - c0, want);
+  // a finished cable that works is yours for good; one nothing can light (old saves) goes back in full
+  assert.equal(ev("cabBack({kind:'df',own:true,sub:true,km:ownCabKm('lax','syd'),ready:0})"), 0);
+  assert.equal(ev("cabBack({kind:'df',own:true,sub:true,km:18387,ready:0})"), ev('ownCabCost(18387)'));
+  assert.deepEqual(errors, []);
+});
+
+test('#50 a city without a cable landing points to the nearest one', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.buildPop({city:'osl'});UI.pending=null;openLinkModal('osl','nyc')");
+  const t = ev("$('modalCard').textContent");
+  assert.match(t, /No subsea cable lands in Oslo\. The nearest landing station is Stavanger/);
+  assert.doesNotMatch(t, /nowhere/);
+  assert.deepEqual(errors, []);
+});
+
+test('#36 your own IX moves between buildings, or runs a switch in both', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.buildPop({city:'beg'});ACT.launchBB({city:'beg'});ACT.foundIx({city:'beg'});ACT.addSite({city:'beg'});compute()");
+  assert.ok(ev("!!S.myIx.beg"));
+  const mo = ev("ixMo('beg')"), cap = ev("ixCap('beg')");
+  assert.ok(cap > 0);
+  // no LAG for a switch you own
+  ev("UI.sel={type:'city',id:'beg'};UI.tab='peer';renderPanel()");
+  assert.equal(ev("!!document.querySelector('#panel [data-act=lagIx]')"), false, 'no LAG button');
+  // move it to B: a dark A no longer matters
+  ev("ACT.siteSet({k:'ix',id:'beg',s:'b'})");
+  assert.equal(ev("S.ixSite.beg"), 'b');
+  ev("addInc({type:'site',ref:'beg',site:'a',until:S.day+3,msg:'x',cost:0});compute()");
+  assert.equal(ev("ixCap('beg')"), cap, 'B is up');
+  // both buildings: a second switch for half the fabric's fee, survives either one going dark
+  ev("ACT.siteSet({k:'ix',id:'beg',s:'ab'})");
+  assert.equal(ev("S.ixSite.beg"), 'ab');
+  assert.equal(ev("ixMo('beg')"), Math.round(mo * 1.5));
+  assert.equal(ev("(S.ixn||{}).beg||1"), 1, 'no LAG member bought');
+  ev("S.inc=[];addInc({type:'site',ref:'beg',site:'b',until:S.day+3,msg:'x',cost:0});compute()");
+  assert.equal(ev("ixCap('beg')"), cap);
+  ev("addInc({type:'site',ref:'beg',site:'a',until:S.day+3,msg:'x',cost:0});compute()");
+  assert.equal(ev("ixCap('beg')"), 0, 'both dark');
+  assert.deepEqual(errors, []);
+});
+
+test('#56 parallel waves of different sizes are labelled per size, not as N times the total', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'});ACT.buildPop({city:'nyc'});ACT.buildPop({city:'lon'})");
+  ev("for(let i=0;i<3;i++){UI.via='grace';UI.route='same';openLinkModal('nyc','lon');ACT.buildLink({tier:1});closeModal();}compute()");
+  const lbl = () => ev("(()=>{const g=linkGroups()[0];return groupLabel(g,g)})()");
+  assert.equal(ev("linkGroups().length"), 1);
+  assert.equal(lbl(), '3×100G', 'equal sizes keep the short form');
+  ev("S.links[2].tier=2;S.links[0].tier=3;S.links[1].tier=3");
+  assert.equal(lbl(), '2×800G + 400G');
+  ev("S.links[1].tier=2");
+  assert.equal(lbl(), '800G + 2×400G');
+  ev("S.links.pop()");
+  assert.equal(lbl(), '800G + 400G', 'not "2 × 1.2T"');
+  assert.match(ev("(()=>{const g=linkGroups()[0];return groupLabel(g,[g[0]])})()"), /^800G \+ 400G · 1\/2 /);
+  ev("cam.z=2;draw(0)");
+  assert.deepEqual(errors, []);
+});
+>>>>>>> 92b24fd

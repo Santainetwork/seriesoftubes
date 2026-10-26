@@ -1,6 +1,6 @@
 {
   "name": "seriesoftubes",
-  "version": "1.27.5",
+  "version": "1.29.0",
   "description": "A cartoon browser game about building the internet.",
   "private": true,
   "license": "MIT",
@@ -14,7 +14,8 @@
     "build": "bash scripts/build.sh",
     "i18n:check": "node scripts/i18n-check.js",
     "serve": "npm run build && npx --yes serve@14.2.4 _site",
-    "test:quiet": "node --test --test-concurrency=1 --test-reporter=dot tests/*.test.js"
+    "test:quiet": "node --test --test-concurrency=1 --test-reporter=dot tests/*.test.js",
+    "perf": "node scripts/perf-bench.js"
   },
   "engines": {
     "node": ">=20"
