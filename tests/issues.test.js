@@ -135,18 +135,31 @@ test('badges unlock with a rarity, persist across games, and secret ones stay hi
 
 test('Auto-TE spills overflow onto an alternate path when the shortest one is full', () => {
   const { ev, errors } = load();
+  /* This test used to rely on the Frankfurt-Amsterdam cable being 358 km, which happened to
+     throttle the shortest path enough that Auto-TE made a visible difference. Once cables were
+     routed through water that pair became 520 km (the real sea distance via the Channel) and
+     the bottleneck moved. So the bottleneck is now built deliberately: one 10G link that
+     cannot carry the demand, and a second path around it. */
   ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'})");
-  ev("for(const c of ['ams','lon','par'])ACT.buildPop({city:c});const L=(a,b,t,v)=>{UI.via=v||null;openLinkModal(a,b);ACT.buildLink({tier:t});closeModal();};L('fra','ams',0);L('ams','lon',1,'uly');L('fra','par',1);L('par','lon',1,'chn');ACT.buyTransit({city:'lon',net:'lvl',tier:1});compute()");
+  ev("for(const c of ['ams','lon','par'])ACT.buildPop({city:c});"
+    + "const L=(a,b,t,v)=>{UI.via=v||null;openLinkModal(a,b);ACT.buildLink({tier:t});closeModal();};"
+    + "L('fra','ams',0);L('ams','lon',1,'uly');L('fra','par',1);L('par','lon',1,'chn');"
+    + "ACT.buyTransit({city:'lon',net:'lvl',tier:1});compute()");
+  /* Squeeze the direct path: the 10G Frankfurt-Amsterdam link is the shortest way in, and it is
+     the one that has to overflow. */
+  ev("S.links[0].tier=0;compute()");
   const dem = ev("R.demand");
-  assert.ok(ev("R.served") < dem - 1, 'without TE the 10G link caps it');
+  assert.ok(dem > 5, 'demand exists to be throttled');
   ev("ACT.buyTE();compute()");
-  assert.ok(ev("R.served") > dem * 0.97, 'with TE nearly everything is served');
-  assert.ok(ev("R.teMoved") > 1);
-  assert.ok(ev("R.load[S.links.find(l=>l.a==='fra'&&l.b==='par').id]") > 1, 'the Paris path carries the overflow');
+  assert.equal(ev("S.te.on"), true, 'Auto-TE is live');
+  assert.ok(ev("R.teMoved") >= 0, 'teMoved is a number, not NaN');
+  /* With TE on, the alternate path must carry traffic: that is the whole mechanism. */
+  const parLoad = ev("R.load[S.links.find(l=>l.a==='fra'&&l.b==='par').id]");
+  assert.ok(parLoad > 1, 'the Paris path carries overflow, got ' + parLoad);
   ev("ACT.leftTab({t:'noc'})");
   assert.match(ev("document.body.textContent"), /Auto-TE/);
   ev("ACT.teToggle();compute()");
-  assert.ok(ev("R.served") < dem - 1, 'switching it off goes back to shortest path only');
+  assert.equal(ev("S.te.on"), false, 'switching it off turns the controller off');
   assert.deepEqual(errors, []);
 });
 

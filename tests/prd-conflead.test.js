@@ -34,17 +34,24 @@ test('confs: an ISP also gets a venue lead', () => {
   assert.ok(ev('S.offers.length') > 0);
 });
 
-test('confs: registering produces the lead, not the conference day', () => {
+test('confs: registering buys a badge, the leads arrive during the event', () => {
   const { ev } = load();
   ev("beginGame('N','fra',{region:'global',role:'nap'})");
   ev('S.cash=1e9');
-  /* The lead now arrives when the player registers — that is the moment they meet people, and
-     waiting for the event day meant a registered player who forgot got nothing. */
+  /* Registering is not the moment you meet people: you are still at home booking flights. The
+     lead lands while you are actually at the event, across the days between arrival and the
+     closing keynote, so a conference is a week of work rather than a vending machine. */
   ev('S.offers=[]');
   ev('ACT.confGo({key:upcomingConfs(75)[0].key})');
-  assert.ok(ev('S.offers.length') > 0, 'registering turned into a lead');
-  /* And the day itself must not hand out a second one. */
-  const n = ev('S.offers.length');
-  ev('const cf=upcomingConfs(75)[0];S.day=cf.day;confTick(S.day)');
-  assert.equal(ev('S.offers.length'), n, 'the event day does not double the pipeline');
+  assert.equal(ev('S.offers.length'), 0, 'nothing lands before you walk in');
+  const lead = JSON.parse(ev('JSON.stringify(S.confReg[upcomingConfs(75)[0].key].leadDays)'));
+  assert.ok(lead[0] > ev('S.day'), 'the first lead is after today');
+  assert.ok(lead[1] - lead[0] >= 2 && lead[1] - lead[0] <= 7, 'the window is 3-7 days');
+  /* Walk the window day by day: leads appear, and they never all appear at once. */
+  ev('S.day=' + lead[0] + ';confTick(S.day)');
+  const first = ev('S.offers.length');
+  assert.ok(first > 0, 'a lead lands on the first day of the event');
+  assert.ok(first < 3, 'but not the whole pipeline at once');
+  ev('S.day=' + lead[1] + ';confTick(S.day)');
+  assert.ok(ev('S.offers.length') > first, 'another lead lands by the closing day');
 });

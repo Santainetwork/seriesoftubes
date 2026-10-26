@@ -63,20 +63,43 @@ test('geometry: cables follow water instead of cutting through islands', () => {
   assert.ok(pct < 8, pct.toFixed(1) + '% of cable waypoints are on land');
 });
 
-test('geometry: every cable pair has routed waypoints', () => {
+test('geometry: every subsea cable pair has routed waypoints', () => {
   const { ev } = load();
   ev("applyRegion('idn')");
+  /* Rail duct is not subsea. Waeve runs beside railway track and is deliberately not routed
+     through water: the water router sent jog->sby out into the Indian Ocean and back. Those
+     four pairs are covered by the land router instead, so they are excluded here. */
   const missing = JSON.parse(ev(
-    'JSON.stringify(CABLE_PAIRS.filter(c=>!cablePts(c.cid,c.a,c.b)).map(c=>c.cid+":"+c.a+"-"+c.b))'
+    'JSON.stringify(CABLE_PAIRS.filter(c=>!CAB[c.cid]||!CAB[c.cid].rail)'
+    + '.filter(c=>!cablePts(c.cid,c.a,c.b)).map(c=>c.cid+":"+c.a+"-"+c.b))'
   ));
   assert.deepEqual(missing, [], 'pairs with no sea route: ' + missing.join(','));
+});
+
+test('geometry: rail fibre runs on land, not through the sea', () => {
+  const { ev } = load();
+  ev("applyRegion('idn')");
+  const rail = JSON.parse(ev(
+    'JSON.stringify(CABLE_PAIRS.filter(c=>CAB[c.cid]&&CAB[c.cid].rail).map(c=>c.cid+":"+c.a+"-"+c.b))'
+  ));
+  assert.ok(rail.length >= 4, 'expected the Waeve rail pairs, got ' + rail.length);
+  /* A rail duct cannot cross the Bali Strait, so every rail pair must connect two cities on the
+     same landmass. */
+  const cross = JSON.parse(ev(
+    'JSON.stringify(CABLE_PAIRS.filter(c=>CAB[c.cid]&&CAB[c.cid].rail)'
+    + '.filter(c=>CITY[c.a]&&CITY[c.b]&&CITY[c.a].land!==CITY[c.b].land).map(c=>c.a+"-"+c.b))'
+  ));
+  assert.deepEqual(cross, [], 'rail pairs crossing landmasses: ' + cross.join(','));
 });
 
 test('geometry: a cable bends, it is not a straight line', () => {
   const { ev } = load();
   ev("applyRegion('idn')");
-  // The old build gave 86 of 99 pairs exactly three points. A sea route needs more.
-  const lens = JSON.parse(ev('JSON.stringify(CABLE_PAIRS.map(c=>c.pts.length))'));
+  /* The old build gave 86 of 99 pairs exactly three points. A sea route needs more. Rail pairs
+     are excluded: they are short land hops whose land route is legitimately nearly straight. */
+  const lens = JSON.parse(ev(
+    'JSON.stringify(CABLE_PAIRS.filter(c=>!CAB[c.cid]||!CAB[c.cid].rail).map(c=>c.pts.length))'
+  ));
   const short = lens.filter((n) => n < 5).length;
   assert.equal(short, 0, short + ' cables still have fewer than 5 points');
 });

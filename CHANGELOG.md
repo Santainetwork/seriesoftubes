@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/). Each release is deployed to
 [seriesoftub.es](https://seriesoftub.es).
 
+## [1.11.0] — 2026-10-26
+
+- The map finally looks like Indonesia. The coastline used to be hand-drawn —
+  25 rings and 168 points for the whole archipelago, which is why Java read as a
+  smear and Batam sat on top of Sumatra. It now comes from Natural Earth 1:50m:
+  158 rings, 3,623 points, 22 landmasses, with small islands simplified gently so
+  Bintan keeps enough shape to hold Tanjung Pinang. Every city in SEA and IDN
+  verifies on land.
+- Subsea cables follow water instead of cutting across islands. 86 of 99 pairs
+  used to be three points (A, midpoint, B) and drew as ruler lines through
+  Sumatra and Borneo. A router now runs A* over a 0.05-degree water grid with
+  carved corridors for Suez, Panama, Corinth, Kiel, Bosphorus, Dardanelles,
+  Messina and Oresund: 232 of 238 pairs across all three regions follow open
+  water, median 9.5 waypoints, 1.68% of interior waypoints on land.
+- The NAP role in Indonesia now needs a Komdigi licence. You start with Rp 100
+  juta and 360 days to meet four cumulative commitments — 100 km of cable, 100G
+  of Tier-2 bandwidth, one IRU (a leased dark-fibre pair, not your own trench),
+  and two upstreams. Pass the audit and the licence is issued; fail and it is
+  revoked, which ends the run. PPN 11% + BHP 0,5% + USO 1,25% of gross revenue is
+  billed yearly, and an unpaid bill becomes arrears rather than bankruptcy.
+- Batam and Tanjung Pinang were both drawn on the Sumatran coast, 90 km from
+  where they belong. Their coordinates were wrong, not just crowded.
+- Timor-Leste had no coastline at all: the generator looked for "Timor-Leste"
+  but Natural Earth calls it "East Timor", so 1.22 square degrees of land were
+  silently dropped and Dili was drawn on Flores.
+- New game really starts over, mode changes ask first, and the region picker
+  stops snapping back to Global.
+- 13 levels, following upstream, with the LV_REQ table.
+
 ## [1.10.1] — 2026-10-24
 
 - Reach is now a button, not a mystery. Tap the Reach chip (or the new line in

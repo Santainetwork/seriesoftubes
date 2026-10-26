@@ -12,6 +12,7 @@ import math
 import sys
 
 SRC = '/tmp/ne50.geojson'
+CITIES = '/tmp/city_land.json'
 # Which Natural Earth admin areas make up the Indonesian map, and the landmass id each one
 # keeps in the game. An admin area can be split into several landmasses by island group.
 ADMIN_TO_LAND = {
@@ -19,7 +20,7 @@ ADMIN_TO_LAND = {
     'Malaysia': 'mla',
     'Singapore': 'sg',
     'Brunei': 'brn',
-    'Timor-Leste': 'tls',
+    'East Timor': 'tls',
     'Papua New Guinea': 'pap',
     'Philippines': 'ph',
     'Thailand': 'tha',
@@ -34,6 +35,28 @@ ADMIN_TO_LAND = {
 
 # Islands smaller than this (in square degrees) are dropped: at map scale they are a dot.
 MIN_AREA = 0.02
+# Islands smaller than MIN_AREA are dropped as specks, but some of them host a real POP. Batam
+# (0.0116 sq deg) and Bintan (0.0117) fall under the threshold, which left both cities floating
+# in open water and drew Tanjung Pinang and Batam on top of each other on the Sumatran coast.
+# Any ring that contains a city is kept regardless of size.
+def simplify_for(area):
+    """Simplification tolerance, scaled to the island.
+
+    A fixed 0.05 degrees is fine for Borneo and destroys Bintan: the island is only 0.4 degrees
+    wide, so Douglas-Peucker collapses its 22 vertices into 5 and the resulting polygon no
+    longer contains Tanjung Pinang. Small islands keep more detail because they have less of it
+    to spare.
+
+    The floor is 0.002, not smaller: below that the polygons gain vertices faster than they gain
+    shape, and Hong Kong's harbour outline is already at the edge of what 1:50m resolves.
+    """
+    if area >= 1.0:
+        return 0.05
+    if area >= 0.1:
+        return 0.015
+    if area >= 0.02:
+        return 0.006
+    return 0.002
 # Douglas-Peucker tolerance in degrees. 0.05 keeps the shape readable without the noise.
 TOL = 0.05
 
@@ -132,8 +155,31 @@ def assign_islands(rings):
     return assigned
 
 
+def ring_has_city(ring, cities):
+    """True if any city falls inside this ring. Used to keep islands too small for MIN_AREA
+    that nonetheless host a POP, such as Batam and Bintan."""
+    for cid, lon, lat, land in cities:
+        if point_in_ring(lon, lat, ring):
+            return True
+    return False
+
+
+def point_in_ring(x, y, ring):
+    c = False
+    n = len(ring)
+    for i in range(n - 1):
+        x1, y1 = ring[i]
+        x2, y2 = ring[i + 1]
+        if (y1 > y) != (y2 > y):
+            xin = (x2 - x1) * (y - y1) / (y2 - y1 + 1e-12) + x1
+            if x < xin:
+                c = not c
+    return c
+
+
 def main():
     data = json.load(open(SRC))
+    cities = [tuple(c) for c in json.load(open(CITIES))]
     idn_rings = []
     other = {}
     for feat in data['features']:
@@ -145,21 +191,26 @@ def main():
         polys = geom['coordinates'] if geom['type'] == 'MultiPolygon' else [geom['coordinates']]
         for poly in polys:
             ring = poly[0]  # outer ring only; holes are invisible at this scale
-            # City-states are tiny; keep them anyway, they host real POPs.
+            if len(ring) < 4:
+                continue
+            # Keep a ring if it is big enough to read at map scale, if it is a city-state, or if
+            # it actually contains one of the game's cities.
             tiny = admin in ('Hong Kong S.A.R.', 'Macao S.A.R', 'Singapore', 'Brunei')
-            if len(ring) < 4 or (ring_area(ring) < MIN_AREA and not tiny):
+            keep = tiny or ring_area(ring) >= MIN_AREA or ring_has_city(ring, cities)
+            if not keep:
                 continue
             if default == 'idn':
                 idn_rings.append(ring)
             else:
-                simp = simplify([(round(p[0], 2), round(p[1], 2)) for p in ring], TOL)
+                ar = ring_area(ring)
+                simp = simplify([(round(p[0], 3), round(p[1], 3)) for p in ring], simplify_for(ar))
                 if len(simp) >= 3:
-                    other.setdefault(default, []).append((ring_area(ring), simp))
+                    other.setdefault(default, []).append((ar, simp))
 
     # Indonesia is split by island; every other country keeps its own id.
     out = dict(other)
     for area, ring, lid in assign_islands(idn_rings):
-        simp = simplify([(round(p[0], 2), round(p[1], 2)) for p in ring], TOL)
+        simp = simplify([(round(p[0], 3), round(p[1], 3)) for p in ring], simplify_for(area))
         if len(simp) >= 3:
             out.setdefault(lid, []).append((area, simp))
 

@@ -55,10 +55,13 @@ test('nap: an event in your POP city produces a wholesale offer', () => {
   ev('S.cash=1e8;S.day=60');
   ev("for(const c of ['sby','bdg'])ACT.buildPop({city:c})");
   // APJII Conneck bulan 3 = hari 99, di jkt (POP awal).
-  /* The lead arrives at registration now, not on the event day, so register through the action
-     the player actually uses. */
+  /* The lead arrives while the player is at the event, not when they register: nothing lands
+     before they walk in. So register, then advance to the event window and step through it. */
   ev("const cf=upcomingConfs(75).find(function(c){return c.c==='jkt';});S.offers=[];if(cf)ACT.confGo({key:cf.key})");
-  ev("for(let i=0;i<10;i++)dayTick()");
+  assert.equal(ev("S.offers.filter(function(o){return o.fromEvent;}).length"), 0,
+    'registering alone produces no deal');
+  ev("const k=Object.keys(S.confReg).find(function(k){return S.confReg[k].leadDays;})"
+    + ";S.day=S.confReg[k].leadDays[0];confTick(S.day)");
   const ev2 = JSON.parse(ev("JSON.stringify(S.offers.filter(function(o){return o.fromEvent;}))"));
   assert.ok(ev2.length > 0, 'event produced a deal');
   assert.equal(ev2[0].city, 'jkt');
