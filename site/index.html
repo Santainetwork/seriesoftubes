@@ -1337,24 +1337,24 @@ function bowCables(){
      for(let u=1;u<Q.length-1;u++){const d=Math.hypot(a[0]-Q[u][0],a[1]-Q[u][1]);if(d<best){best=d;bi=u;}}
      corrOff.set(p,(corrOff.get(p)||new Map()).set(t,side*CORRIDOR));
      corrOff.set(q,(corrOff.get(q)||new Map()).set(bi,-side*CORRIDOR));
-     }
-     }
-     }
-     /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Spread each
-     offset over its neighbours with a small kernel, so the separation ramps in and out and the
-     route never kinks where a corridor starts or stops. */
-     for(const [cp,m] of [...corrOff]){
-     const n=cp.pts.length,raw=new Array(n).fill(0);
-     for(const [t,v] of m)raw[t]=v;
-     const sm=new Array(n).fill(0);
-     for(let t=1;t<n-1;t++){
-     let a=0,w=0;
-     for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);a+=raw[u]*wt;w+=wt;}
-     sm[t]=a/(w||1);
-     }
-     corrOff.set(cp,sm);
-     }
-     }
+   }
+  }
+ }
+ /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Spread each
+    offset over its neighbours with a small kernel, so the separation ramps in and out and the
+    route never kinks where a corridor starts or stops. */
+ for(const [cp,m] of [...corrOff]){
+  const n=cp.pts.length,raw=new Array(n).fill(0);
+  for(const [t,v] of m)raw[t]=v;
+  const sm=new Array(n).fill(0);
+  for(let t=1;t<n-1;t++){
+   let a=0,w=0;
+   for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);a+=raw[u]*wt;w+=wt;}
+   sm[t]=a/(w||1);
+  }
+  corrOff.set(cp,sm);
+ }
+}
  const atCity=new Map();
  for(const cp of CABLE_PAIRS){
   const k=key.get(cp);
@@ -1389,7 +1389,7 @@ function bowCables(){
   const nx=-dy/len,ny=dx/len;
   const co=corrOff.get(cp);
   /* A corridor offset needs at least one point beside the endpoints to act on. */
-  if((!f||!f.s)&&!l&&(!co||!co.size))continue;
+  if((!f||!f.s)&&!l&&(!co||!co.length))continue;
   /* The widest cable at a hub stays inside FRAC of the chord, so a short hop does not swing out
      like an ocean crossing, and PITCH caps the gap between neighbours on long runs. FRAC*len
      shrinks to nothing on a short hop though — Batam–Tanjung Pinang is ~20 px, so its whole fan
@@ -1402,11 +1402,14 @@ function bowCables(){
    let d=((f?f.s*unit:0)+l*LANE)*env,ox=0,oy=0;
    /* Corridor offsets ride the route's own normal (previous→next point), so the separation
       follows the bends instead of pushing everything along one chord direction. */
-   if(co&&co.has(j+1)){
+   /* `co` is the feathered per-point offset array built above, not the raw Map — reading it with
+      .has()/.get() threw 'co.has is not a function' on every frame. Index j+1 because cp.pts[j]
+      is the previous point inside this map callback. */
+   if(co&&co.length>j+1&&co[j+1]){
     const pr=cp.pts[j],nt=cp.pts[j+2]!==undefined?cp.pts[j+2]:cp.pts[j+1];
     let cnx=-(nt[1]-pr[1]),cny=nt[0]-pr[0];
     const cl=Math.hypot(cnx,cny)||1;
-    ox=cnx/cl*co.get(j+1);oy=cny/cl*co.get(j+1);
+    ox=cnx/cl*co[j+1];oy=cny/cl*co[j+1];
    }
    return [q[0]+nx*d+ox,q[1]+ny*d+oy];
   }),[cp.pts[cp.pts.length-1]]);
@@ -1698,7 +1701,17 @@ const LEVELS=[
 ];
 // What each level asks for (peak Gbps, POPs, continents). Continents carry over to the levels above.
 const LV_REQ=[null,{pk:200,pops:3},{pk:1000,pops:6},{pk:3000,pops:10,reg:3},{pk:6000,pops:15,reg:4},{pk:9000,pops:20},{pk:12000,pops:25,reg:5},{pk:16000,pops:32},{pk:21000,pops:40,reg:6},{pk:26000,pops:50},{pk:33000,pops:60},{pk:40000,pops:70},{pk:50000,pops:80}];
-const lvReg=i=>Math.max(0,...LV_REQ.slice(1,i+1).map(q=>q.reg||0));
+/* Level requirements ask for continents: level 4 wants three, level 7 five, level 10 six. That is
+   fair on the Global map and impossible everywhere else — the Indonesia map covers one projection
+   region (`reg:['AS']` on all 34 cities) and SEA covers one too, so regionsCount() can never exceed
+   1 and a player stops at level 3 no matter how big the network gets. A player reported exactly
+   that: "itu 3 continent ganti dengan pulau, gak bisa leveling tuh". The requirement is capped at
+   what the map can actually offer, so the gate still means something where it can be met. */
+const lvReg=i=>{
+  const want=Math.max(0,...LV_REQ.slice(1,i+1).map(q=>q.reg||0));
+  const can=(typeof REGION!=='undefined'&&REGION[curRegion]&&REGION[curRegion].rules&&REGION[curRegion].rules.maxRegions)||0;
+  return can?Math.min(want,can):want;
+};
 const lvl=()=>(S&&S.lvl)||1;
 function custLevel(){const pops=Object.keys(S.pops).length,pk=S.stats.peak,rc=regionsCount();let lv=1;for(let i=1;i<LV_REQ.length;i++){const q=LV_REQ[i];if(pk>=q.pk&&pops>=q.pops&&rc>=lvReg(i))lv=i+1;else break;}return lv;}
 /* ================= KOMDIGI (NAP licence, Indonesia only) =================
@@ -5696,7 +5709,7 @@ function seaRegion(){
   rules:{t1Served:480,t1Pops:8,t1Continents:2,cacheCities:null,cacheMinMul:1.2,startCash:300000,
     /* Brief 18 §F: the eyeball ceiling. A metro carries far more than its calibrated P once
        broadband is cheap; the boost table lifts the handful of capitals that dwarf their region. */
-    eyeMul:1.9,eyeBoost:{jkt:2.6,sby:1.6,sin:1.8,bkk:1.5,mnl:1.5,hkg:1.4,tok:1.5,sel:1.3}}, 
+    eyeMul:1.9,maxRegions:1,eyeBoost:{jkt:2.6,sby:1.6,sin:1.8,bkk:1.5,mnl:1.5,hkg:1.4,tok:1.5,sel:1.3}}, 
   roles:{
     hosting:{cash:120000,maxPops:4},
     nap:{cash:900000,minPops:3},
@@ -5770,7 +5783,7 @@ function idnRegion(){
     /* Brief 18 §F: Indonesia is the densest eyeball market in the game. Jakarta alone is roughly
        a third of the country's traffic, and the multiplier lifts every city so a NAP selling
        transit is not starved by a ceiling calibrated for the global map. */
-    eyeMul:2.4,eyeBoost:{jkt:3.2,sby:2.0,btm:1.8,bdg:1.7,mdn:1.5,smg:1.4,jog:1.4,mks:1.4,dps:1.4,pku:1.3,pdg:1.3,plm:1.3,bjm:1.2,bpn:1.2,mdc:1.2,pnk:1.2,jay:1.2,tkg:1.2,btj:1.2,djb:1.2,bks:1.2,pky:1.2,sri:1.2,tnj:1.2,koe:1.2,ami:1.2,kdi:1.2,plw:1.2,amb:1.2,ttn:1.2,soq:1.2,soc:1.2,mlg:1.3},
+    eyeMul:2.4,maxRegions:1,eyeBoost:{jkt:3.2,sby:2.0,btm:1.8,bdg:1.7,mdn:1.5,smg:1.4,jog:1.4,mks:1.4,dps:1.4,pku:1.3,pdg:1.3,plm:1.3,bjm:1.2,bpn:1.2,mdc:1.2,pnk:1.2,jay:1.2,tkg:1.2,btj:1.2,djb:1.2,bks:1.2,pky:1.2,sri:1.2,tnj:1.2,koe:1.2,ami:1.2,kdi:1.2,plw:1.2,amb:1.2,ttn:1.2,soq:1.2,soc:1.2,mlg:1.3},
     /* Brief 8 §2.1: Singapore unlock. APJII leg = 'APJII Conneck' conference stamp (no M5
        idLic yet). cost is internal USD; the IDR display converts it. */
     unlock:{sin:{req:{pops:8,served:120,apjii:true,days:365},cost:250000,
