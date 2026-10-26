@@ -768,7 +768,9 @@ const subCarrier=km=>Math.max(0,...Object.values(OPT).map(O=>{const m=(O.modes||
 const dfCap=l=>{if(l.ready>S.day||l.eqDown>S.day)return 0;const ch=l.ch||[];let g=0;for(const c of ch)g+=optG(c,l);const f=l.chFail&&l.chFail.until>S.day?l.chFail:null;if(f){const fo=f.o&&ch.includes(f.o)?f.o:ch.slice().sort((a,b)=>optG(a,l)-optG(b,l))[0];if(fo)g-=optG(fo,l);}return Math.max(0,g);};
 function chWhy(l,o){const O=OPT[o];if(O.lvl>lvl())return tr('Unlocks at customer level {n}.',{n:O.lvl});if(O.sys==='roadm'&&!isRdm(l.sys))return tr('Needs a ROADMaster 9000 line system.');if(!optMode(o,l)){const mx=reachOn((O.modes||[[0,O.reach]]).at(-1)[1],l.sub);return tr('Too far even at its slowest setting: an optical span here is {span} km and it reaches {max} km. Add a regen site (Line system).',{span:spanKm(l).toLocaleString(),max:mx.toLocaleString()});}
   if((l.ch||[]).length+soldSlots(l)>=chMax(l))return soldSlots(l)?tr('{sys} is full ({max} channels, {sold} sold to customers).',{sys:DF_SYS[l.sys].n,max:chMax(l),sold:soldSlots(l)}):tr('{sys} is full ({max} channels).',{sys:DF_SYS[l.sys].n,max:chMax(l)});
-  for(const c of [l.a,l.b]){const p=S.pops[c];if(p&&RG[p.rgen||0].cls<O.rg)return tr('Needs {model} routers at both ends ({city}).',{model:RG[mainRG(O.rg)].n,city:CITY[c].name});}return '';}
+  /* Requirements name the port speed, not one model: several chassis reach 800G, and a player who
+     bought the Arrrhipster should not be told to buy a Chonk. */
+  for(const c of [l.a,l.b]){const p=S.pops[c];if(p&&RG[p.rgen||0].cls<O.rg)return tr('Needs routers with {pn} ports or bigger at both ends ({city}).',{pn:RG[mainRG(O.rg)].pn,city:CITY[c].name});}return '';}
 const dfLeaseMo=km=>Math.round(400+km*1.0);
 const dfBuildCost=km=>Math.round(25000+km*120);
 const dfBuildDays=km=>Math.round(120+km*0.25);
@@ -805,7 +807,8 @@ function subWaveWhy(i,km,sub){if(!sub)return '';const c=subCarrier(km);return wa
 const subMaxTier=km=>{let t=0;LT.forEach((T,i)=>{if(!subWaveWhy(i,km,true))t=i;});return t;};
 // What an optic carries depends only on the optic, the span length and subsea or not; the map and compute() ask a lot.
 const OPTG={};const optG=(o,l)=>{const km=spanKm(l),m=OPTG[o]||(OPTG[o]=new Map()),k=km*2+(l.sub?1:0);let g=m.get(k);if(g===undefined){const x=optMode(o,l);m.set(k,g=x?x.g:0);}return g;};
-const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.loss&&l.loss.until>S.day?l.loss.f:1);
+const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.loss&&l.loss.until>S.day?l.loss.f:1)/* Karhutla: haze stops a terrestrial microwave shot, so land links lose a third of their
+   capacity while it lasts. Subsea cable sits on the seabed and is unaffected. */*((S&&S.ev&&S.ev.karhutla>S.day&&!l.sub&&!l.cable&&((CITY[l.a]&&['sum','kal','btm','jav'].includes(CITY[l.a].land))||(CITY[l.b]&&['sum','kal','btm','jav'].includes(CITY[l.b].land))))?0.66:1);
 // A sick LAG (LACP trouble) keeps only part of its capacity until the incident clears.
 const lagF=o=>o&&o.lacp&&o.lacp.until>S.day?o.lacp.f:1,ixLagF=x=>lagF(S.ev&&S.ev.ixlacp&&{lacp:S.ev.ixlacp[x]});
 const tierW=l=>{if(l.kind==='wave')return l.tier;if(l.kind==='vxc')return 0;const g=dfCap(l);return g>=6400?4:g>=1600?3:g>=400?2:g>=100?1:0;};
@@ -3169,7 +3172,10 @@ function migrate(s){
     if(!s.komdigi||typeof s.komdigi!=='object')s.komdigi={started:+s.day||0,audit:(+s.day||0)+KOMDIGI_GRACE,yearRev:0};
     if(!s.komdigi.audit)s.komdigi.audit=(+s.komdigi.started||0)+KOMDIGI_GRACE;
   }
-  sanitize(s);for(const b of [...s.biz,...s.offers])if(Array.isArray(b.reqs))b.reqs=b.reqs.filter(k=>!REQS[k]||!REQS[k].can||(isCity(b.city)&&(!b.city2||isCity(b.city2))&&REQS[k].can(b)));if(s.ltv!==2){for(const l of s.links)if(l.kind==='wave'&&l.tier>=3)l.tier=Math.min(LT.length-1,l.tier+1);s.ltv=2;}if(s.dk){s.dk.m=s.dk.m||{};s.dk.add=s.dk.add||{};s.dk.ret=s.dk.ret||{};s.dk.retUsed=s.dk.retUsed||{};}s.hist=s.hist||[];s.loans=s.loans||[];s.loanOffers=s.loanOffers||[];s.loanStrikes=s.loanStrikes||0;for(const l of s.links||[])if(!l.kind)l.kind='wave';
+  /* The requirement's can() has to judge the imported save, not the live game: diversityPossible()
+     reads `won` and the scenario rules off the state it is given, and passing no state falls back
+     to S, which is why a pre-win save kept requirements that only became buildable after winning. */
+  sanitize(s);for(const b of [...s.biz,...s.offers])if(Array.isArray(b.reqs))b.reqs=b.reqs.filter(k=>!REQS[k]||!REQS[k].can||(isCity(b.city)&&(!b.city2||isCity(b.city2))&&REQS[k].can(b,s)));if(s.ltv!==2){for(const l of s.links)if(l.kind==='wave'&&l.tier>=3)l.tier=Math.min(LT.length-1,l.tier+1);s.ltv=2;}if(s.dk){s.dk.m=s.dk.m||{};s.dk.add=s.dk.add||{};s.dk.ret=s.dk.ret||{};s.dk.retUsed=s.dk.retUsed||{};}s.hist=s.hist||[];s.loans=s.loans||[];s.loanOffers=s.loanOffers||[];s.loanStrikes=s.loanStrikes||0;for(const l of s.links||[])if(!l.kind)l.kind='wave';
   for(const c in s.pops){const p=s.pops[c];if(p.rgen===undefined){let g=0;const need=(i,key)=>{const k=RG.findIndex(r=>r[key]>=i);if(k>g)g=k;};
     for(const l of s.links||[])if((l.a===c||l.b===c)&&l.kind==='wave')need(l.tier,'maxLT');
     for(const t of s.transit||[])if(t.city===c)need(t.tier,'maxP');for(const x of s.pni||[])if(x.city===c)need(x.tier,'maxP');if(s.ixp&&s.ixp[c]!==undefined)need(s.ixp[c],'maxP');p.rgen=g;}}for(const b of s.biz||[])if(!b.reqs)b.reqs=BIZ_T[b.type]&&BIZ_T[b.type].div?['diverse']:[];for(const o of s.offers||[])if(!o.reqs)o.reqs=[];if(!s.lvl)s.lvl=1;s.nni=s.nni||[];s.cnLic=s.cnLic||{state:'none'};if(s.scrubAt===undefined)s.scrubAt=null;s.ev=s.ev||{};for(const l of s.links){if(!l.kind)l.kind='wave';if(l.mo===undefined)l.mo=Math.round(waveMo(l.km,l.sub,l.tier)*(l.mult||1));}for(const c in s.pops){if(!s.pops[c].routers)s.pops[c].routers=1;}
