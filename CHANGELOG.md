@@ -1,3 +1,14 @@
+## [1.27.2] — 2026-10-26
+
+- Lombok was filed under Bali. The nearest-vertex rule matched the Bali reference point to
+  Lombok's west coast, so Mataram stood on a ring labelled bal while its own land field said ntb.
+  Karhutla therefore skipped Lombok and the subsea test answered for the wrong island.
+- Tanjung Pinang used land kep, an id nothing else in the game knew about: not a landmass, not in
+  any ring. It is now btm, because Bintan is part of the Batam group.
+- New test suite prd-rings locks the invariant that broke both: every city must sit inside a ring
+  of its own landmass, no ring may span twelve degrees in both directions, and Kangean and Kai
+  Besar must stay drawn.
+
 ## [1.27.1] — 2026-10-26
 
 - The region picker works again. showTitle() called loadSave() on every render, and loadSave()
