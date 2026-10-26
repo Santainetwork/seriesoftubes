@@ -106,3 +106,24 @@ test('paint: no painted polygon reaches thousands of pixels off-map', () => {
     assert.equal(far, 0, id + ' has ' + far + ' polygons projected far off-map');
   }
 });
+
+test('paint: no land polygon spills past the map edge', () => {
+  // Papua's easternmost islands reached x=2558 on a 2000px canvas. With wrapX off for SEA and IDN,
+  // the overflow was not wrapped away — it was drawn where it landed, and a player saw a second
+  // Papua in the bottom-left corner. Every point must stay inside the canvas.
+  for (const [id, city] of [['sea', 'mnl'], ['idn', 'jkt']]) {
+    const { ev } = region(id, city);
+    const spill = ev(`(() => {
+      const out = [];
+      const w = W;
+      for (const l of LANDS) {
+        if (l.hide) continue;
+        for (const p of l.pts) {
+          if (p[0] < -20 || p[0] > w + 20) { out.push(l.id + '@' + Math.round(p[0])); break; }
+        }
+      }
+      return out;
+    })()`);
+    assert.deepEqual(spill, [], id + ' draws land outside the canvas: ' + spill.join(', '));
+  }
+});

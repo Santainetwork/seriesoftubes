@@ -1295,26 +1295,23 @@ function bowCables(){
    Sunda Strait, the Java Sea, the Malacca approach. A bow only spreads the fan at the hub, so
    mid-route the lines converge back onto the same waypoints. Corridor fix: for each pair of
    distinct routes, find stretches where the two run close together (nearest-point match, so
-   routes with different waypoint counts still pair up), and record a scalar lateral offset for
-   each member over that stretch. Offsets are applied along each route's own local normal in the
-   drawing pass below, so they follow the corridor's bends, and the sine envelope eases them to
-   zero at both cities — endpoints stay pinned, which the endpoint test locks. */
- const corrOff=new Map();
- const corrGroup=new Map();
- for(let gi=0;gi<CABLE_PAIRS.length;gi++)corrGroup.set(CABLE_PAIRS[gi],gi);
+   routes with different waypoint counts still pair up), and accumulate a push-apart VECTOR for
+   each member: the direction from the other cable's nearest point to this one, scaled by
+   CORRIDOR. Pushing away (not a fixed side per pair) is what keeps three cables in one strait
+   from being shoved onto each other by an alternating sign. Offsets are applied per point in
+   the drawing pass below, and a smoothing kernel feathers them in and out, so the separation
+   follows the corridor's bends and never kinks where it starts or stops. The sine envelope is
+   NOT applied to corridor offsets — the feathering already ramps them — and endpoints are never
+   touched, which the endpoint test locks. */
+ const corrVec=new Map();
  {
   const NEAR=45,MINRUN=4,SAMPLE=3;
+  const vecOf=cp=>{let v=corrVec.get(cp);if(!v){v=cp.pts.map(()=>[0,0]);corrVec.set(cp,v);}return v;};
   for(let i=0;i<CABLE_PAIRS.length;i++)for(let j=i+1;j<CABLE_PAIRS.length;j++){
    const p=CABLE_PAIRS[i],q=CABLE_PAIRS[j];
    if(key.get(p)===key.get(q))continue; // duplicate routes already have their own lane
    const P=p.pts,Q=q.pts;
    if(Math.min(P.length,Q.length)<MINRUN+2)continue;
-   /* q may be indexed in either direction relative to p; decide once, by the endpoints that are
-      shared. Most shared-corridor pairs share no endpoint, in which case direction does not
-      matter — the nearest-point match below is direction-agnostic anyway. */
-   let rev=0,same=0;
-   for(const a of [p.a,p.b]){if(q.b===a)rev++;else if(q.a===a)same++;}
-   const flip=rev>same?-1:1;
    for(let s=1;s<P.length-1;s+=SAMPLE){
     let run=0;
     for(let t=s;t<P.length-1;t++){
@@ -1322,39 +1319,40 @@ function bowCables(){
      let best=Infinity,bi=-1;
      for(let u=1;u<Q.length-1;u++){const d=Math.hypot(a[0]-Q[u][0],a[1]-Q[u][1]);if(d<best){best=d;bi=u;}}
      if(best>=NEAR)break;
-     /* A corridor needs the neighbours to track too, else two crossing cables would count. */
-     const a2=P[Math.min(t+1,P.length-2)],b2=Q[Math.max(1,Math.min(Q.length-2,bi+flip))];
-     if(Math.hypot(a2[0]-b2[0],a2[1]-b2[1])>=NEAR)break;
      run++;
     }
     if(run<MINRUN)continue;
-    /* Push each member away from the other over the stretch; the side alternates by pair index
-       so a three-way corridor does not shove everything the same way. */
-    const side=(i+j)%2?1:-1;
     for(let t=s;t<s+run;t++){
      const a=P[t];
      let best=Infinity,bi=-1;
      for(let u=1;u<Q.length-1;u++){const d=Math.hypot(a[0]-Q[u][0],a[1]-Q[u][1]);if(d<best){best=d;bi=u;}}
-     corrOff.set(p,(corrOff.get(p)||new Map()).set(t,side*CORRIDOR));
-     corrOff.set(q,(corrOff.get(q)||new Map()).set(bi,-side*CORRIDOR));
+     /* Direction from the other cable's nearest point to this one: push each member away from
+        the other. A cross-corridor pair contributes once; overlapping runs of several pairs
+        accumulate, which is exactly what a three-way strait needs. */
+     let vx=a[0]-Q[bi][0],vy=a[1]-Q[bi][1];
+     const vl=Math.hypot(vx,vy)||1;
+     const vp=vecOf(p),vq=vecOf(q);
+     vp[t][0]+=vx/vl*CORRIDOR;vp[t][1]+=vy/vl*CORRIDOR;
+     vq[bi][0]-=vx/vl*CORRIDOR;vq[bi][1]-=vy/vl*CORRIDOR;
+    }
    }
   }
  }
- /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Spread each
-    offset over its neighbours with a small kernel, so the separation ramps in and out and the
-    route never kinks where a corridor starts or stops. */
- for(const [cp,m] of [...corrOff]){
-  const n=cp.pts.length,raw=new Array(n).fill(0);
-  for(const [t,v] of m)raw[t]=v;
-  const sm=new Array(n).fill(0);
+ /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Smooth each
+    vector over its neighbours with a small kernel, so the separation ramps in and out and the
+    route never kinks where a corridor starts or stops. Endpoint vectors stay zero. */
+ for(const [cp,v] of [...corrVec]){
+  const n=v.length,sm=v.map(()=>[0,0]);
   for(let t=1;t<n-1;t++){
-   let a=0,w=0;
-   for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);a+=raw[u]*wt;w+=wt;}
-   sm[t]=a/(w||1);
+   let ax=0,ay=0,w=0;
+   for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);ax+=v[u][0]*wt;ay+=v[u][1]*wt;w+=wt;}
+   sm[t][0]=ax/(w||1);sm[t][1]=ay/(w||1);
   }
-  corrOff.set(cp,sm);
+  corrVec.set(cp,sm);
  }
-}
+ /* The hub fan and the per-route pass are part of the same function: an earlier edit closed
+    bowCables() here, leaving `const atCity` at top level and the file with an unmatched brace
+    (SyntaxError: Unexpected token '}'), which made the whole game fail to parse. */
  const atCity=new Map();
  for(const cp of CABLE_PAIRS){
   const k=key.get(cp);
@@ -1387,9 +1385,9 @@ function bowCables(){
   if((!f||!f.s)&&!l)continue;
   const dx=wrapDx(A.x,B.x),dy=B.y-A.y,len=Math.hypot(dx,dy)||1;
   const nx=-dy/len,ny=dx/len;
-  const co=corrOff.get(cp);
+  const cvv=corrVec.get(cp);
   /* A corridor offset needs at least one point beside the endpoints to act on. */
-  if((!f||!f.s)&&!l&&(!co||!co.length))continue;
+  if((!f||!f.s)&&!l&&!cvv)continue;
   /* The widest cable at a hub stays inside FRAC of the chord, so a short hop does not swing out
      like an ocean crossing, and PITCH caps the gap between neighbours on long runs. FRAC*len
      shrinks to nothing on a short hop though — Batam–Tanjung Pinang is ~20 px, so its whole fan
@@ -1399,19 +1397,12 @@ function bowCables(){
   const mid=cp.pts.slice(1,-1),last=mid.length+1;
   cp.pts=[cp.pts[0]].concat(mid.map((q,j)=>{
    const env=Math.sin(Math.PI*(j+1)/last);
-   let d=((f?f.s*unit:0)+l*LANE)*env,ox=0,oy=0;
-   /* Corridor offsets ride the route's own normal (previous→next point), so the separation
-      follows the bends instead of pushing everything along one chord direction. */
-   /* `co` is the feathered per-point offset array built above, not the raw Map — reading it with
-      .has()/.get() threw 'co.has is not a function' on every frame. Index j+1 because cp.pts[j]
-      is the previous point inside this map callback. */
-   if(co&&co.length>j+1&&co[j+1]){
-    const pr=cp.pts[j],nt=cp.pts[j+2]!==undefined?cp.pts[j+2]:cp.pts[j+1];
-    let cnx=-(nt[1]-pr[1]),cny=nt[0]-pr[0];
-    const cl=Math.hypot(cnx,cny)||1;
-    ox=cnx/cl*co[j+1];oy=cny/cl*co[j+1];
-   }
-   return [q[0]+nx*d+ox,q[1]+ny*d+oy];
+   const d=((f?f.s*unit:0)+l*LANE)*env;
+   /* `cvv[j+1]` is the feathered push-apart vector for this waypoint, ready to add — the
+      corridor pass already resolved direction and magnitude. Index j+1 because cp.pts[0] is
+      the city itself and is never moved. */
+   const w=cvv?cvv[j+1]:null;
+   return [q[0]+nx*d+(w?w[0]:0),q[1]+ny*d+(w?w[1]:0)];
   }),[cp.pts[cp.pts.length-1]]);
  }
 }
@@ -4635,15 +4626,17 @@ function cityPanel(c){
   }else if(UI.tab==='up'){
     h+=portNote(c);
     h+=`<section><h3>IP transit</h3><p class="lead">Pay a bigger network per Gbps and it carries your traffic to the whole internet. Billed on the 95th percentile of the last 30 days, with a 20% commit and a port fee. Spikes like DDoS raise your bill.</p>`;
-    const prov=NETS.filter(n=>sellsTransit(n)&&n.pops.includes(c)).sort((a,b)=>a.price-b.price);
+    /* Arcello UI pass: group the sellers by reach instead of a flat price sort. Local/regional
+       networks (Tier 2 here, the domestic carriers on the Indonesia map) are the everyday buy;
+       global Tier 1s are the expensive long-haul escape hatch. Same sellers, same prices — just
+       two labelled groups so the tab reads at a glance on a phone. */
+    const prov=NETS.filter(n=>sellsTransit(n)&&n.pops.includes(c)),loc=prov.filter(n=>n.type!=='t1'),glo=prov.filter(n=>n.type==='t1');
+    loc.sort((a,b)=>a.price-b.price);glo.sort((a,b)=>a.price-b.price);
     if(!prov.length)h+=`<p class="empty">Nobody sells transit here. Haul your traffic over fiber to a city that has it.</p>`;
-    for(const n of prov){const t=S.transit.find(x=>x.city===c&&x.net===n.id);const pr=n.price*S.priceMul*(t&&t.premium&&c==='hkg'?n.premium:1)*regionMult(c);
-      h+=`<div class="row">${logo(n)}<div class="grow"><div class="nm">${esc(n.name)} <span class="tag ${n.type}">${TYPE_L[n.type]}</span></div><div class="meta">${tr('${price} per Gbps / month · billed on 95th percentile',{price:pr.toFixed(2)})}</div>`;
-      if(t){const u=R.useT[t.id]||0,cap=lagCap(PORT[t.tier].g,t.n),tdown=t.down>S.day;
-        h+=`<div class="kv"><span>${lagName(t.tier,t.n)}${tdown?' · <b style="color:var(--bad)">'+tr('OUTAGE')+'</b>':''}</span><b>${fmtG(u)}</b></div><div class="bar ${barCls(u/cap)}"><i style="width:${u/cap*100}%"></i></div>${prefCtl('t',t.id,t.pref)}${siteCtl('t',t.id,c,t.site)}${n.premium&&c==='hkg'?`<div class="btns">${btn(t.premium?tr('CN-Too premium on ✓'):tr('Switch to CN-Too premium <small>{x}× price · ~3% loss into China</small>',{x:n.premium}),'togglePrem',{id:t.id},t.premium?'green sm':'sm')}</div>`:''}${(()=>{const top=transitTop([t.id],4);return top.length?`<div class="ttop"><div class="meta"><b>${tr('Top destinations on this port')}</b></div>${top.map(([id,v])=>`<div class="meta">${esc(NET[id].name)} · ${fmtG(v)} · <i>${esc(offTransitHint(id,c))}</i></div>`).join('')}</div>`:'';})()}<div class="meta">${tr('95th pct {p95} · commit {commit} · bill {bill}/mo',{p95:fmtG(R.p95[t.id]||0),commit:fmtG(cap*.2),bill:fmt$(Math.max(R.p95[t.id]||0,PORT[t.tier].g*(t.n||1)*.2)*pr+PORT[t.tier].tmo*(t.n||1))})}</div>
-        <div class="btns">${PORT.map((P2,i)=>i>t.tier&&portShown(i)?btn((t.n||1)>1?tr('Upgrade all to {port} <small>{cost} + {mo}/mo</small>',{port:P2.n,cost:fmt$(P2.setup*(t.n||1)),mo:fmt$(P2.tmo*(t.n||1))}):tr('Upgrade {port} <small>{cost} + {mo}/mo</small>',{port:P2.n,cost:fmt$(P2.setup*(t.n||1)),mo:fmt$(P2.tmo*(t.n||1))}),'buyTransit',{city:c,net:n.id,tier:i},'sm',S.cash<P2.setup*(t.n||1)||!portOk(c,i)):'').join('')}${(t.n||1)<LAG_MAX?btn(tr('+ LAG member <small>{cost} + {mo}/mo</small>',{cost:fmt$(PORT[t.tier].setup),mo:fmt$(PORT[t.tier].tmo)}),'lagT',{id:t.id,d:1},'sm',S.cash<PORT[t.tier].setup||!portOk(c,t.tier)):''}${(t.n||1)>1?btn(tr('− member'),'lagT',{id:t.id,d:-1},'ghost sm'):''}${btn(t.clean?tr('Clean-pipe on ✓'):tr('+ Clean-pipe <small>{mo}/mo · scrubs DDoS upstream</small>',{mo:fmt$(cleanMo(t))}),'cleanPipe',{id:t.id},t.clean?'green sm':'sm')}${btn(UI.confirm===t.id?tr('Really cancel?'):tr('Cancel'),'cancelTransit',{id:t.id},'ghost sm')}</div>`;}
-      else h+=`<div class="btns">${PORT.map((P2,i)=>portShown(i)?btn(tr('{port} <small>{cost} + {mo}/mo</small>',{port:P2.n,cost:fmt$(P2.setup),mo:fmt$(P2.tmo)}),'buyTransit',{city:c,net:n.id,tier:i},'sm',S.cash<P2.setup||!portOk(c,i)):'').join('')}</div>`;
-      h+=`</div></div>`;}
+    if(loc.length)h+=`<div class="meta" style="margin:6px 0 0;font-weight:800">${trn('Local & regional networks ({n})','Local & regional networks ({n})',loc.length,{n:loc.length})}</div>`;
+    for(const n of loc)h+=transitRow(n,c);
+    if(glo.length)h+=`<div class="meta" style="margin:10px 0 0;font-weight:800">${trn('Global Tier 1 · long-haul ({n})','Global Tier 1 · long-haul ({n})',glo.length,{n:glo.length})}</div>`;
+    for(const n of glo)h+=transitRow(n,c);
     h+=`</section>`;
   }else if(UI.tab==='peer'){
     h+=portNote(c);
@@ -5717,7 +5710,7 @@ function seaRegion(){
     rtnet:{cash:60000,maxPops:3,bwMax:5},
   },
   confs:CONFS_SEA,
-  project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
+  project:(lon,lat)=>[(lon-90)/66*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:SEA_CITY_LL,cities:SEA_CITIES,cityNudge:SEA_NUDGE,
   cables:SEA_CABLES,nets:NETS,xix:SEA_XIX,tail:TAIL,
  };
@@ -5805,7 +5798,7 @@ function idnRegion(){
     rtnet:{cash:75000,maxPops:4,bwMax:10},
   },
   confs:CONFS_IDN,
-  project:(lon,lat)=>[(lon-92)/50*W,(26-lat)/35*H],
+  project:(lon,lat)=>[(lon-90)/66*W,(26-lat)/35*H],
   lenses:SEA_LENSES,lands:SEA_LANDS,decor:[],cityLL:IDN_CITY_LL,cities:IDN_CITIES,cityNudge:SEA_NUDGE,
   /* Cables whose both ends are on the Indonesia map, which now includes Singapore. A cable that
      lands in Singapore and Jakarta is exactly the cross-connect path the player needs. */
