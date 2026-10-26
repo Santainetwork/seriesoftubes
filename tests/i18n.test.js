@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { load, seed } = require('./harness');
 const { loadDict, brokenEntries } = require('../scripts/i18n-check');
@@ -85,6 +86,45 @@ test('the language buttons on the title screen work before any game exists', () 
   const { ev } = load();
   ev("[...document.querySelectorAll('#modalCard [data-act=langSet]')].find(b=>b.textContent==='Italiano').click()");
   assert.equal(ev("localStorage.getItem('sot-lang')"), 'it');
+});
+
+test('every dictionary in site/i18n/ is offered in window.SOT_LANGS, and every offered language has one', () => {
+  const dir = path.join(__dirname, '..', 'site', 'i18n');
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js')).map((f) => path.basename(f, '.js')).sort();
+
+  // Read the list through the game itself, not by grepping the HTML: the point is what the running
+  // page offers, and a regex over index.html would pass even if the list were never assigned.
+  // JSON round-trip because the value comes from the jsdom realm, whose Array.prototype is not ours.
+  const offered = JSON.parse(load().ev('JSON.stringify(Object.keys(window.SOT_LANGS))')).sort();
+
+  // English is the source language: its strings are the keys, so it has no dictionary file.
+  const withFiles = offered.filter((l) => l !== 'en');
+
+  // Both directions, because they fail differently. A file nobody offers is a translation that was
+  // written and then never wired up (pt was in this state). An offer with no file is worse: the
+  // player picks it, the fetch 404s, and the game quietly renders English under a foreign <html lang>.
+  assert.deepEqual(files.filter((l) => !offered.includes(l)), [],
+    'dictionary files the player cannot select (nothing in SOT_LANGS offers them)');
+  assert.deepEqual(withFiles.filter((l) => !files.includes(l)), [],
+    'languages offered to the player that have no dictionary (selecting one silently renders English)');
+});
+
+test('a language the player picks actually loads its dictionary and translates the UI', () => {
+  // Guards the pairing above: an entry in SOT_LANGS is only worth anything if the file it points at
+  // parses and really replaces English text. A stale or truncated dictionary would pass the test
+  // above and still leave the player reading English.
+  const englishLabel = load().ev("document.querySelector('#hud [data-act=bank] .lbl').textContent");
+  const offered = JSON.parse(load().ev('JSON.stringify(Object.keys(window.SOT_LANGS))'));
+  for (const lang of offered) {
+    if (lang === 'en') continue;
+    const { ev, errors } = load({ lang });
+    assert.equal(ev('LANG'), lang, `${lang} was selected but the game stayed in another language`);
+    assert.equal(ev('document.documentElement.lang'), lang, `${lang} did not reach <html lang>`);
+    assert.ok(ev(`Object.keys(window.I18N['${lang}']||{}).length > 100`), `${lang}.js has no usable dictionary`);
+    assert.notEqual(ev("document.querySelector('#hud [data-act=bank] .lbl').textContent"), englishLabel,
+      `${lang} is offered but still shows the English label`);
+    assert.deepEqual(errors, [], `${lang} raised errors while loading`);
+  }
 });
 
 test('picking a language saves the choice and the game, then reloads', () => {

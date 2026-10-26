@@ -74,3 +74,35 @@ test('paint: paintWorld runs without throwing in every region', () => {
     assert.equal(r, 'OK', id + ' threw: ' + r);
   }
 });
+
+test('paint: switching to SEA or IDN drops the Global decorative polygons', () => {
+  // DECOR_LL was never copied off the region, so the 23 Global decorations (Greenland, Arctic
+  // shapes) stayed loaded after switching maps. Projected with the regional lens they landed
+  // thousands of pixels away and drew a coarse second outline over the detailed coastline — the
+  // "old polygon still overlaps the new one" a player reported.
+  const g = load();
+  g.ev("beginGame('N','fra',{region:'global'})");
+  assert.ok(g.ev('DECOR.length') > 0, 'Global keeps its decorations');
+
+  for (const [id, city] of [['sea', 'mnl'], ['idn', 'jkt']]) {
+    const { ev } = region(id, city);
+    assert.equal(ev('DECOR.length'), 0, id + ' must not paint Global decorations');
+    assert.equal(ev('DECOR_LL.length'), 0, id + ' must clear the decoration source too');
+  }
+});
+
+test('paint: no painted polygon reaches thousands of pixels off-map', () => {
+  // The symptom was coordinates like x=-8400: a Global ring projected with a regional lens.
+  for (const [id, city] of [['sea', 'mnl'], ['idn', 'jkt']]) {
+    const { ev } = region(id, city);
+    const far = ev(`(() => {
+      const out = [];
+      const all = LANDS.filter(l => !l.hide).map(l => l.pts).concat(DECOR);
+      for (const poly of all) for (const p of poly) {
+        if (p[0] < -3000 || p[0] > 5000 || p[1] < -3000 || p[1] > 4000) { out.push([Math.round(p[0]), Math.round(p[1])]); break; }
+      }
+      return out.length;
+    })()`);
+    assert.equal(far, 0, id + ' has ' + far + ' polygons projected far off-map');
+  }
+});

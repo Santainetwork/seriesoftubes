@@ -1882,4 +1882,8 @@
 "Pause":"Pausa",
 "Half speed":"Metà velocità",
 "Toggle sound":"Attiva/disattiva suono",
+"Want to know how it really works?":"Vuoi sapere come funziona davvero?",
+"The real thing, by Thomas Kjær Aabo: a zoomable, interactive map of how your packets actually travel, from Wi-Fi to undersea fiber, today, in 2010 and in 1995. This game makes it up as it goes. That one gets it right.":"La versione vera, di Thomas Kjær Aabo: una mappa interattiva e zoomabile di come viaggiano davvero i tuoi pacchetti, dal Wi-Fi alla fibra sottomarina, oggi, nel 2010 e nel 1995 (in inglese, danese e tedesco). Questo gioco se lo inventa strada facendo. Quello ci azzecca.",
+"The real thing: follow a packet from Wi-Fi to undersea fiber.":"La versione vera: segui un pacchetto dal Wi-Fi alla fibra sottomarina.",
+"Explore →":"Esplora →",
 };

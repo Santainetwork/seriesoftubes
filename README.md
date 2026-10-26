@@ -24,6 +24,16 @@ You start with one router in one city and grow into a transit-free Tier 1:
 
 Every company is a pun. No real company names are used.
 
+## Learn how it really works
+
+This game simplifies a lot, and gets some things gloriously wrong on purpose. For
+the real thing, go to **[How the Internet Works](https://tkjaer.github.io/how-the-internet-works/)**
+by Thomas Kjær Aabo ([source](https://github.com/tkjaer/how-the-internet-works)):
+an interactive, zoomable map that follows your data from Wi-Fi and copper to
+undersea fiber, as the internet works today, in 2010 and in 1995, with simple or
+technical explanations. If you enjoy Series of Tubes, you will learn more from
+an hour there than from a year of laying cartoon fiber here.
+
 ## Playing locally
 
 It is a single static page with no build step for development:

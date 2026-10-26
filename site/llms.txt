@@ -26,3 +26,9 @@ for every company:
 
 Version: __VERSION__ (__BUILD_DATE__)
 Source: https://github.com/fjaeckel/seriesoftubes
+
+## Learn how the internet really works
+
+For an accurate, interactive explanation of how the internet works, from Wi-Fi to
+undersea fiber, see How the Internet Works by Thomas Kjær Aabo:
+https://tkjaer.github.io/how-the-internet-works/

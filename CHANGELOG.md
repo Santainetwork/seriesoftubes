@@ -1,3 +1,17 @@
+## [Unreleased]
+
+- Restored the credit to Thomas Kjær Aabo's *How the Internet Works*. The upstream
+  merge for 1.27.0 dropped the "Learn how it really works" section from `README.md`,
+  the "Learn how the internet really works" section from `site/llms.txt`, and the
+  in-game links on the title, help and victory screens, so the fork had stopped
+  pointing players at the guide it is built on. `README.md`, `site/llms.txt`,
+  `site/index.html` and the Italian dictionary carry it again, and
+  `tests/attribution.test.js` fails if any of them loses it.
+- The fork's `CHANGELOG.md` has no sections for upstream 1.12.0 through 1.26.1 and
+  1.28.0/1.29.0, so the 1.12.0 note that first credited How the Internet Works is
+  absent here. The credit is stated in `README.md` instead, which is the copy that
+  ships with the repo.
+
 ## [1.27.5] — 2026-10-26
 
 - Fixes a crash introduced in 1.27.4. The regional-coastline patch declared `const LANDP` and

@@ -586,7 +586,7 @@ button,.chip,.b,a{touch-action:manipulation;-webkit-tap-highlight-color:transpar
 
 <script>
 // Language: the player's saved choice, else the browser's, else English. Non-English dictionaries load before the game.
-(function(){const langs=window.SOT_LANGS={en:'English',it:'Italiano'};let l=null;try{l=localStorage.getItem('sot-lang');}catch(e){}
+(function(){const langs=window.SOT_LANGS={en:'English',it:'Italiano',pt:'Português'};let l=null;try{l=localStorage.getItem('sot-lang');}catch(e){}
   const b=(navigator.language||'').slice(0,2).toLowerCase();if(!Object.hasOwn(langs,l))l=Object.hasOwn(langs,b)?b:'en';
   window.SOT_LANG=l;document.documentElement.lang=l;if(l!=='en')document.write('<script src="i18n/'+l+'.js?v=__VERSION__"><\/script>');})();
 </script>
@@ -1271,25 +1271,67 @@ function cablePts(cid,a,b){
    direction alternates and whose depth scales with how many cables share that city, so two cables
    between the same places never overlap and a hub spreads its fan instead of stacking it. */
 function bowCables(){
- /* Each cable needs its own bow depth, not just its own sign. Depth used to depend only on how
-    many cables shared the hub, so every cable at Batam got an identical arc and half of them
-    landed on the same curve — the pile looked unchanged. `slot` counts the cables already bowed
-    at each hub, so the first one hugs the direct path and later ones fan outwards. */
- const share={},slot={};
- for(const cp of CABLE_PAIRS){share[cp.a]=(share[cp.a]||0)+1;share[cp.b]=(share[cp.b]||0)+1;}
+ /* Two things made the fan collapse back into a pile.
+    1. Order is not direction. Handing out slots in CABLE_PAIRS order, with an alternating sign,
+       put two cables that leave a hub in the same direction on opposite slots only by luck; the
+       ones that happened to sort next to each other still landed on top of each other.
+    2. Two cables between the same two cities have no separation at all to give: they share both
+       endpoints, so any bow based on the endpoints is identical for both and one paints over the
+       other. Those need a lane of their own.
+   So: rank each distinct route by bearing around the hub (that is the order the fan actually
+   opens in), and give duplicate routes a parallel lane offset. */
+ const PITCH=14,FRAC=0.35,LANE=12;
+ const key=new Map(),byRoute=new Map();
  for(const cp of CABLE_PAIRS){
-  const A=CITY[cp.a],B=CITY[cp.b];if(!A||!B||cp.pts.length<2)continue;
-  const n=Math.max(share[cp.a]||1,share[cp.b]||1);if(n<2)continue;
-  const hub=(share[cp.a]||1)>=(share[cp.b]||1)?cp.a:cp.b;
-  const k=slot[hub]=(slot[hub]||0)+1;
-  /* Alternating sign keeps neighbouring arcs on opposite sides; the slot index widens each one. */
-  const step=0.055+0.02*Math.min(n,14);
-  const bow=(0.06+step*k)*(k%2?1:-1);
-  const ax=A.x,ay=A.y,bx=A.x+wrapDx(A.x,B.x),by=B.y;
-  const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy)||1;
-  const nx=-dy/len,ny=dx/len,mx=(ax+bx)/2+nx*bow*len,my=(ay+by)/2+ny*bow*len;
-  const mid=cp.pts.slice(1,-1);
-  cp.pts=[cp.pts[0]].concat(mid.map((q,t)=>{const u=1-(t+1)/(mid.length+1);return [q[0]+(mx-q[0])*0.6*(1-u),q[1]+(my-q[1])*0.6*(1-u)];}),[cp.pts[cp.pts.length-1]]);
+  const k=cp.a<cp.b?cp.a+'>'+cp.b:cp.b+'>'+cp.a;
+  key.set(cp,k);if(!byRoute.has(k))byRoute.set(k,[]);byRoute.get(k).push(cp);
+ }
+ const lane=new Map();
+ for(const list of byRoute.values()){
+  if(list.length<2)continue;
+  list.forEach((cp,i)=>lane.set(cp,i-(list.length-1)/2));
+ }
+ const atCity=new Map();
+ for(const cp of CABLE_PAIRS){
+  const k=key.get(cp);
+  for(const [c,o] of [[cp.a,cp.b],[cp.b,cp.a]]){
+   if(!CITY[c]||!CITY[o])continue;
+   if(!atCity.has(c))atCity.set(c,new Map());
+   const m=atCity.get(c);if(!m.has(k))m.set(k,{other:o,k});
+  }
+ }
+ const fanAt=new Map();
+ for(const [c,m] of atCity){
+  const C=CITY[c],list=[...m.values()];
+  if(list.length<2)continue;
+  for(const x of list){const O=CITY[x.other];x.brg=Math.atan2(O.y-C.y,wrapDx(C.x,O.x));}
+  list.sort((p,q)=>p.brg-q.brg||(p.other<q.other?-1:p.other>q.other?1:0)||(p.k<q.k?-1:p.k>q.k?1:0));
+  const half=(list.length-1)/2,fan=new Map();
+  list.forEach((x,i)=>fan.set(x.k,{s:i-half,half,n:list.length}));
+  fanAt.set(c,fan);
+ }
+ for(const cp of CABLE_PAIRS){
+  const A=CITY[cp.a],B=CITY[cp.b];
+  if(!A||!B||!cp.pts||cp.pts.length<3)continue;
+  const k=key.get(cp);
+  const fa=(fanAt.get(cp.a)||new Map()).get(k),fb=(fanAt.get(cp.b)||new Map()).get(k);
+  /* Anchor the fan on the busier hub: that is the end that actually piles up. Blending both ends
+     cancels out, because two cables leaving a hub in opposite directions arrive from opposite
+     directions too and the two halves subtract. */
+  const f=!fa?fb:!fb?fa:(fa.n>=fb.n?fa:fb);
+  const l=lane.get(cp)||0;
+  if((!f||!f.s)&&!l)continue;
+  const dx=wrapDx(A.x,B.x),dy=B.y-A.y,len=Math.hypot(dx,dy)||1;
+  const nx=-dy/len,ny=dx/len;
+  /* The widest cable at a hub stays inside FRAC of the chord, so a short hop does not swing out
+     like an ocean crossing, and PITCH caps the gap between neighbours on long runs. */
+  const unit=f?Math.min(PITCH,FRAC*len/f.half):0;
+  const mid=cp.pts.slice(1,-1),last=mid.length+1;
+  cp.pts=[cp.pts[0]].concat(mid.map((q,j)=>{
+   const env=Math.sin(Math.PI*(j+1)/last);
+   const d=((f?f.s*unit:0)+l*LANE)*env;
+   return [q[0]+nx*d,q[1]+ny*d];
+  }),[cp.pts[cp.pts.length-1]]);
  }
 }
 function cablesOk(a,b){const ban=S&&S.ev&&S.ev.landban&&S.ev.landban.until>S.day&&[a,b].includes(S.ev.landban.city);if(ban)return [];const rl=S&&S.scn&&S.scn.rules,bp=rl&&rl.banPairs,bc=rl&&rl.banCities;return bp||bc?cablesFor(a,b).filter(c=>!(bp&&(bp.includes(c.cid+':'+c.a+'-'+c.b)||bp.includes(c.cid+':'+c.b+'-'+c.a)))&&!(bc&&(bc.includes(c.a)||bc.includes(c.b)))):cablesFor(a,b);}
@@ -3695,6 +3737,7 @@ const ACT={
  },
  dashClose:()=>{$('dash').hidden=true;},
  dashTab:({k})=>{if(!DTABS.includes(k))return;UI.dtab=k;renderDash();const d=$('dash');if(d)d.scrollTop=0;},
+ listMore:({k})=>{if(k!=='conn'&&k!=='cust')return;UI.listN=UI.listN||{};UI.listN[k]=listN(k)+LIST_PAGE;renderDash();},
  dashSort:({k})=>{if(!['name','asn','type','traffic','cost','lost'].includes(k))return;if(UI.dashSort===k)UI.dashDir=-(UI.dashDir||-1);else{UI.dashSort=k;UI.dashDir=k==='name'||k==='type'||k==='asn'?1:-1;}renderDash();},
  bank:()=>{if(!S)return;UI.confirm=null;$('dash').hidden=true;const b=$('bankBox');b.hidden=false;UI._bh=null;renderBank();},
  bankClose:()=>{UI.confirm=null;$('bankBox').hidden=true;},
@@ -4260,6 +4303,25 @@ const $=id=>document.getElementById(id);
 const btn=(label,act,args={},cls='',dis=false,title='')=>`<button class="b ${cls}" data-act="${act}" data-args="${esc(JSON.stringify(args))}"${dis?' disabled':''}${title?` title="${esc(title)}"`:''}>${label}</button>`;
 const logo=n=>`<span class="logo" style="--c:${n.col}">${initials(n)}</span>`;
 const barCls=u=>u>=0.9?'bad':u>=0.65?'warn':'';
+/* Panels are rebuilt from state every tick. Replacing a thousand rows makes the browser style and lay out every one
+   of them again, so patch what changed instead: same HTML, far less work. A button that now does something else, and
+   any form field that changed, is swapped out whole, so a tap that started on the old one still cannot fire it (#44). */
+const SWAP={INPUT:1,SELECT:1,TEXTAREA:1,OPTION:1};
+function morph(el,html){const t=document.createElement(el.tagName);t.innerHTML=html;morphKids(el,t);}
+function sameNode(x,y){if(x.nodeType!==y.nodeType||x.nodeName!==y.nodeName)return false;if(x.nodeType!==1)return true;
+  if(SWAP[x.nodeName])return x.outerHTML===y.outerHTML;
+  return x.getAttribute('data-act')===y.getAttribute('data-act')&&x.getAttribute('data-args')===y.getAttribute('data-args');}
+function morphKids(a,b){let x=a.firstChild,y=b.firstChild;
+  while(y){const ny=y.nextSibling;
+    if(!x)a.appendChild(y);
+    else if(!sameNode(x,y)){a.replaceChild(y,x);x=y;}
+    else if(x.nodeType===1){if(!SWAP[x.nodeName]){const ya=y.attributes,xa=x.attributes;
+        for(let i=0;i<ya.length;i++){const {name,value}=ya[i];if(x.getAttribute(name)!==value)x.setAttribute(name,value);}
+        for(let i=xa.length-1;i>=0;i--)if(!y.hasAttribute(xa[i].name))x.removeAttribute(xa[i].name);
+        morphKids(x,y);}}
+    else if(x.nodeValue!==y.nodeValue)x.nodeValue=y.nodeValue;
+    x=x&&x.nextSibling;y=ny;}
+  while(x){const nx=x.nextSibling;a.removeChild(x);x=nx;}}
 function renderAll(){if(isTablet()&&!UI.sel)UI.leftOpen=false;renderHUD();renderLeft();renderPanel();renderHint();renderMega();renderCoach();syncHud();}
 function renderMega(){const el=$('mega');if(!el)return;const on=!!(S&&S.ev&&S.ev.php>S.day);if(el.hidden===!on)return;el.hidden=!on;}
 
@@ -4413,19 +4475,19 @@ function renderLeft(){
   }else{
     h+=`<p class="lead">${tr("Every network on the map. Traffic share is how much of your users' traffic goes to them. Tap a connection to jump to its POP.")}</p>`;
     if(conns().length)h+=`<div class="btns" style="margin-bottom:8px">${btn(tr('All connections <small>{n}</small>',{n:conns().length}),'connOpen',{},'pink sm')}</div>`;
-    const tl=NETS.filter(n=>n.tail),tlOn=tl.filter(n=>Object.keys(S.ixp).some(c=>ixSessions(c).has(n.id))).length;
+    const where=netWhereIdx(),tl=NETS.filter(n=>n.tail),tlOn=tl.filter(n=>where(n.id).some(x=>x[2]==='ix')).length;
     for(const n of NETS){if(n.tail&&!UI.tailOpen)continue;
-      h+=`<div class="row">${logo(n)}<div class="grow"><div class="nm">${esc(n.name)} <span class="meta">AS${n.asn}</span></div><div class="meta"><span class="tag ${n.type}">${TYPE_L[n.type]}</span> <span class="tag ${n.pol}">${n.pol}</span> · ${tr('{p}% of traffic',{p:(NSH[n.id]*100).toFixed(1)})}${n.price?` · ${tr('transit ${price}/Gbps',{price:(n.price*S.priceMul).toFixed(2)})}`:''}</div><div class="meta">${esc(n.blurb)}</div>${netWhere(n)}</div></div>`;}
+      h+=`<div class="row">${logo(n)}<div class="grow"><div class="nm">${esc(n.name)} <span class="meta">AS${n.asn}</span></div><div class="meta"><span class="tag ${n.type}">${TYPE_L[n.type]}</span> <span class="tag ${n.pol}">${n.pol}</span> · ${tr('{p}% of traffic',{p:(NSH[n.id]*100).toFixed(1)})}${n.price?` · ${tr('transit ${price}/Gbps',{price:(n.price*S.priceMul).toFixed(2)})}`:''}</div><div class="meta">${esc(n.blurb)}</div>${netWhere(n,where)}</div></div>`;}
     h+=`<div class="row"><div class="grow"><div class="nm">${tr('The long tail')} <span class="meta">${tr('{n} small networks',{n:tl.length})}</span></div><div class="meta">${tr('{p}% of traffic between them, scattered across exchanges. You peer with {n}.',{p:(tl.reduce((a,n)=>a+NSH[n.id],0)*100).toFixed(1),n:tlOn})}</div></div>${btn(UI.tailOpen?tr('Hide'):tr('Show'),'tailTog',{},'ghost sm')}</div>`;
   }
-  if(h!==UI._lh){UI._lh=h;$('leftBody').innerHTML=h;}
+  if(h!==UI._lh){UI._lh=h;morph($('leftBody'),h);}
 }
 function renderPanel(){checkLayer();
   const P=$('panel');
   if(!S||!UI.sel){P.hidden=true;return;}
   P.hidden=false;
   const scrollEl=$('panelBody').querySelector('.scroll');const st=scrollEl?scrollEl.scrollTop:0;
-  const html=UI.sel.type==='city'?cityPanel(UI.sel.id):linkPanel(UI.sel.id);if(html===UI._ph&&!P.hidden&&$('panelBody').firstChild)return;UI._ph=html;$('panelBody').innerHTML=html;
+  const html=UI.sel.type==='city'?cityPanel(UI.sel.id):linkPanel(UI.sel.id);if(html===UI._ph&&!P.hidden&&$('panelBody').firstChild)return;UI._ph=html;morph($('panelBody'),html);
   const ns=$('panelBody').querySelector('.scroll');if(ns)ns.scrollTop=st;
 }
 function cityPanel(c){
@@ -4774,21 +4836,25 @@ function connSection(){const all=conns(),F=UI.cf||{};
   const tc=rows.reduce((a,r)=>a+r.cap,0),tu=rows.reduce((a,r)=>a+r.use,0),tm=rows.reduce((a,r)=>a+r.mo,0);
   if(isPhone()){const st=(r)=>r.down?` <span class="tag restrictive">${tr('DOWN')}</span>`:r.low?` <span class="tag st">${tr('backup')}</span>`:'';
     h+=`<div class="seg" style="margin-bottom:4px">${[['k',tr('Type')],['city',tr('Where')],['use',tr('In use')],['mo',tr('Per month')]].map(([k,l])=>btn(l+(sk===k?(dir>0?' ▲':' ▼'):''),'connSort',{k},sk===k?'pink sm':'ghost sm')).join('')}</div>`;
-    h+=rows.map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<div class="row"${r.down?' style="opacity:.55"':''}>${N?logo(N):`<span class="logo" style="--c:${CONN_COL[r.k]}">${r.k==='nni'?'NNI':'IX'}</span>`}<div class="grow"><div class="nm">${esc(r.name)} <span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span>${st(r)}</div><div class="meta">${esc(CITY[r.city].name)} · ${esc(r.port)} · ${tr('{price}/mo',{price:fmt$(r.mo)})}${r.note?' · '+esc(r.note):''}</div><div class="kv"><span>${tr('In use')}</span><b>${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}</b></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div></div>${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}</div>`;}).join('');
-    return h+`<div class="kv" style="margin-top:6px"><span><b>${trn('{n} connection','{n} connections',rows.length)}</b></span><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))} · ${tr('{price}/mo',{price:fmt$(tm)})}</b></div></div>`;}
+    h+=rows.slice(0,listN('conn')).map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<div class="row"${r.down?' style="opacity:.55"':''}>${N?logo(N):`<span class="logo" style="--c:${CONN_COL[r.k]}">${r.k==='nni'?'NNI':'IX'}</span>`}<div class="grow"><div class="nm">${esc(r.name)} <span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span>${st(r)}</div><div class="meta">${esc(CITY[r.city].name)} · ${esc(r.port)} · ${tr('{price}/mo',{price:fmt$(r.mo)})}${r.note?' · '+esc(r.note):''}</div><div class="kv"><span>${tr('In use')}</span><b>${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}</b></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div></div>${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}</div>`;}).join('');
+    return h+listMore('conn',rows.length,n=>trn('+{n} more connection','+{n} more connections',n))+`<div class="kv" style="margin-top:6px"><span><b>${trn('{n} connection','{n} connections',rows.length)}</b></span><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))} · ${tr('{price}/mo',{price:fmt$(tm)})}</b></div></div>`;}
   const th=(k,l,c)=>`<th class="${c||''}">${k?`<button class="thb" data-act="connSort" data-args="${esc(JSON.stringify({k}))}">${l}${sk===k?(dir>0?' ▲':' ▼'):''}</button>`:l}</th>`;
   h+=`<div class="tscroll"><table class="tbl"><thead><tr>${th('k',tr('Type'))}${th('city',tr('Where'))}${th('name',tr('With'))}${th('',tr('Port'))}${th('use',tr('In use'),'r')}${th('mo',tr('Per month'),'r')}<th></th></tr></thead><tbody>`;
-  h+=rows.map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<tr${r.down?' style="opacity:.55"':''}><td><span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span></td><td>${esc(CITY[r.city].name)}</td><td><span style="display:inline-flex;align-items:center;gap:6px">${N?logo(N):''}<span><b>${esc(r.name)}</b>${r.note?`<br><span class="meta">${esc(r.note)}</span>`:''}</span></span></td><td>${esc(r.port)}${r.down?` <span class="tag restrictive">${tr('DOWN')}</span>`:r.low?` <span class="tag st">${tr('backup')}</span>`:''}</td><td class="r">${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}<div class="bar ${barCls(u)}" style="margin-top:3px"><i style="width:${Math.min(100,u*100)}%"></i></div></td><td class="r">${fmt$(r.mo)}</td><td>${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}</td></tr>`;}).join('');
-  h+=`</tbody><tfoot><tr><td colspan="4"><b>${trn('{n} connection','{n} connections',rows.length)}</b></td><td class="r"><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))}</b></td><td class="r"><b>${fmt$(tm)}</b></td><td></td></tr></tfoot></table></div></div>`;
+  h+=rows.slice(0,listN('conn')).map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<tr${r.down?' style="opacity:.55"':''}><td><span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span></td><td>${esc(CITY[r.city].name)}</td><td><span style="display:inline-flex;align-items:center;gap:6px">${N?logo(N):''}<span><b>${esc(r.name)}</b>${r.note?`<br><span class="meta">${esc(r.note)}</span>`:''}</span></span></td><td>${esc(r.port)}${r.down?` <span class="tag restrictive">${tr('DOWN')}</span>`:r.low?` <span class="tag st">${tr('backup')}</span>`:''}</td><td class="r">${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}<div class="bar ${barCls(u)}" style="margin-top:3px"><i style="width:${Math.min(100,u*100)}%"></i></div></td><td class="r">${fmt$(r.mo)}</td><td>${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}</td></tr>`;}).join('');
+  h+=`</tbody><tfoot><tr><td colspan="4"><b>${trn('{n} connection','{n} connections',rows.length)}</b></td><td class="r"><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))}</b></td><td class="r"><b>${fmt$(tm)}</b></td><td></td></tr></tfoot></table></div>${listMore('conn',rows.length,n=>trn('+{n} more connection','+{n} more connections',n))}</div>`;
   return h;}
 // Where you connect to one network, as buttons that jump to the POP (Networks tab).
-function netWhere(n){const ch=[];
-  for(const t of S.transit)if(t.net===n.id)ch.push([tr('Transit'),t.city,'t']);
-  for(const x of S.pni)if(x.net===n.id)ch.push(['PNI',x.city,'p']);
-  for(const c in S.ixp)if(ixSessions(c).has(n.id))ch.push([ixName(c),ixCity(c),'ix']);
-  for(const c of new Set(S.caches.filter(x=>x.net===n.id).map(x=>x.city)))ch.push([tr('Cache'),c,'c']);
+function netWhereIdx(){const B={t:{},p:{},ix:{},c:{}},add=(k,id,x)=>(B[k][id]||(B[k][id]=[])).push(x);
+  for(const t of S.transit)add('t',t.net,[tr('Transit'),t.city,'t']);
+  for(const x of S.pni)add('p',x.net,['PNI',x.city,'p']);
+  for(const c in S.ixp){const nm=ixName(c),ct=ixCity(c);for(const id of ixSessions(c))add('ix',id,[nm,ct,'ix']);}
+  const seen=new Set();for(const x of S.caches){const k=x.net+'|'+x.city;if(!seen.has(k)){seen.add(k);add('c',x.net,[tr('Cache'),x.city,'c']);}}
+  return id=>[].concat(B.t[id]||[],B.p[id]||[],B.ix[id]||[],B.c[id]||[]);}
+function netWhere(n,where){const ch=(where||netWhereIdx())(n.id);
   if(!ch.length)return '';const MAX=6;
   return `<div class="btns">${ch.slice(0,MAX).map(([l,c,k])=>btn(`${esc(l)} <small>${esc(CITY[c].name)}</small>`,'goConn',{city:c,k},'ghost sm')).join('')}${ch.length>MAX?btn(tr('+{n} more',{n:ch.length-MAX}),'connFor',{net:n.id},'ghost sm'):''}</div>`;}
+const LIST_PAGE=100,listN=k=>(UI.listN&&UI.listN[k])||LIST_PAGE,listReset=k=>{if(UI.listN)delete UI.listN[k];};
+const listMore=(k,n,lab)=>n>listN(k)?`<div class="btns" style="margin-top:6px">${btn(lab(Math.min(LIST_PAGE,n-listN(k))),'listMore',{k},'ghost sm')}</div>`:'';
 const DTABS=['overview','cust','conn','traffic','infra'];
 function dashTabs(){const u=custStats().unhappy,cur=UI.dtab||'overview',L={overview:tr('Overview'),cust:tr('Customers'),conn:tr('Connections'),traffic:tr('Traffic'),infra:tr('Links & routers')};
   return `<nav class="dtabs">${DTABS.map(k=>`<button class="${cur===k?'on':''}" data-act="dashTab" data-args='{"k":"${k}"}'>${L[k]}${k==='cust'&&u?`<span class="cnt red">${u}</span>`:''}</button>`).join('')}</nav>`;}
@@ -4808,9 +4874,9 @@ function renderDash(){checkLayer();
   {const e={c:0,p:0,ix:0,t:0};let w=0;for(const n of NETS)if(n.tail){const x=R.netEg[n.id];if(x)for(const k in e)e[k]+=x[k]||0;w+=R.demTo[n.id]||0;}nets.push(row({id:'_tail',name:tr('The long tail ({n} small networks)',{n:NETS.filter(n=>n.tail).length}),asn:'many',type:'eye',col:'#8A93B8'},e,w));}
   for(let i=nets.length-1;i>=0;i--)if(!(nets[i].t>0.01||nets[i].want>0.01))nets.splice(i,1);
   {const k=UI.dashSort||'traffic',dir=UI.dashDir||-1,val=x=>k==='name'?x.n.name.toLowerCase():k==='asn'?x.n.asn:k==='type'?x.n.type:k==='cost'?x.cost:k==='lost'?x.lost:x.t;nets.sort((a,b)=>{const A=val(a),B=val(b);return (A<B?-1:A>B?1:0)*dir||b.t-a.t;});}
-  h+=`<div class="panel2" style="margin-top:12px"><h3>Traffic by network (ASN)</h3><p class="note" style="margin-top:0">Where your users' traffic comes from, and how it gets to you. Transit is the only part you pay per gigabit; caches, PNIs and IX peering are free or flat-rate. Tap a column to sort.</p><div class="legend" style="margin:0 0 6px">${['c','p','ix','t'].map(k=>`<span><i style="background:${EGC[k][1]}"></i>${EGC[k][0]}</span>`).join('')}</div><div class="tscroll"><table class="tbl"><thead><tr>${[['name','Network',''],['asn','AS',''],['type','Type',''],['traffic','Traffic','r'],['mix','How it arrives',''],['cost','Transit cost','r'],['lost','Lost','r']].map(([k,l,c])=>`<th class="${c}">${k==='mix'?l:`<button class="thb" data-act="dashSort" data-args="${esc(JSON.stringify({k}))}">${l}${UI.dashSort===k?(UI.dashDir>0?' ▲':' ▼'):''}</button>`}</th>`).join('')}</tr></thead><tbody>
+  if(DT==='traffic')h+=`<div class="panel2" style="margin-top:12px"><h3>Traffic by network (ASN)</h3><p class="note" style="margin-top:0">Where your users' traffic comes from, and how it gets to you. Transit is the only part you pay per gigabit; caches, PNIs and IX peering are free or flat-rate. Tap a column to sort.</p><div class="legend" style="margin:0 0 6px">${['c','p','ix','t'].map(k=>`<span><i style="background:${EGC[k][1]}"></i>${EGC[k][0]}</span>`).join('')}</div><div class="tscroll"><table class="tbl"><thead><tr>${[['name','Network',''],['asn','AS',''],['type','Type',''],['traffic','Traffic','r'],['mix','How it arrives',''],['cost','Transit cost','r'],['lost','Lost','r']].map(([k,l,c])=>`<th class="${c}">${k==='mix'?l:`<button class="thb" data-act="dashSort" data-args="${esc(JSON.stringify({k}))}">${l}${UI.dashSort===k?(UI.dashDir>0?' ▲':' ▼'):''}</button>`}</th>`).join('')}</tr></thead><tbody>
   ${nets.map(({n,e,t,want})=>{return `<tr><td><span style="display:inline-flex;align-items:center;gap:6px">${logo(n)}<b>${esc(n.name)}</b></span></td><td>${n.asn}</td><td><span class="tag ${n.type}">${TYPE_L[n.type]}</span></td><td class="r">${fmtG(t)}</td><td><div class="mix" title="${['c','p','ix','t'].filter(k=>e[k]>0.01).map(k=>EGC[k][0]+' '+fmtG(e[k])).join(' · ')||'nothing yet'}">${['c','p','ix','t'].map(k=>`<i style="width:${t?e[k]/t*100:0}%;background:${EGC[k][1]}"></i>`).join('')}</div></td><td class="r">${e.t>0.01?fmt$((R.cost.transit||0)*e.t/tT)+'/mo':'—'}</td><td class="r" style="color:${want-t>want*0.05?'var(--bad)':'inherit'}">${want>0.01?pct(Math.max(0,1-t/want)):'—'}</td></tr>`;}).join('')}</tbody></table></div></div>`;
-  {const top=transitTop(S.transit.map(t=>t.id),8);if(top.length)h+=`<div class="panel2" style="margin-top:12px"><h3>Who your transit carries</h3><p class="note" style="margin-top:0">The networks you pay transit to reach, biggest first, and the cheapest way to move each one to peering. This is your to-do list on the way to Tier 1.</p>${top.map(([id,v])=>`<div class="row">${logo(netOf(id)||{col:'#888'})}<div class="grow"><div class="nm">${esc(netName(id))} <span class="meta">AS${(netOf(id)||{}).asn||'?'} · ${fmtG(v)} · about ${fmt$((R.cost.transit||0)*v/tT)}/mo</span></div><div class="meta">${esc(offTransitHint(id))}</div></div></div>`).join('')}</div>`;}
+  if(DT==='traffic'){const top=transitTop(S.transit.map(t=>t.id),8);if(top.length)h+=`<div class="panel2" style="margin-top:12px"><h3>Who your transit carries</h3><p class="note" style="margin-top:0">The networks you pay transit to reach, biggest first, and the cheapest way to move each one to peering. This is your to-do list on the way to Tier 1.</p>${top.map(([id,v])=>`<div class="row">${logo(netOf(id)||{col:'#888'})}<div class="grow"><div class="nm">${esc(netName(id))} <span class="meta">AS${(netOf(id)||{}).asn||'?'} · ${fmtG(v)} · about ${fmt$((R.cost.transit||0)*v/tT)}/mo</span></div><div class="meta">${esc(offTransitHint(id))}</div></div></div>`).join('')}</div>`;}
   const ls=S.links.filter(l=>capOf(l)>0).map(l=>({l,u:(R.load[l.id]||0)/capOf(l)})).sort((a,b)=>b.u-a.u).slice(0,8);
   const rs=Object.keys(S.pops).map(c=>({c,u:(R.nodeLoad[c]||0)/(R.nodeCap[c]||1)})).sort((a,b)=>b.u-a.u).slice(0,6);
   if(DT==='cust')h+=custSection();
@@ -4818,7 +4884,7 @@ function renderDash(){checkLayer();
   if(DT==='infra')h+=`<div class="dcols" style="margin-top:12px"><div class="panel2"><h3>${tr('Busiest links')}</h3>${ls.length?ls.map(({l,u})=>`<div class="row"><div class="grow"><div class="nm">${CITY[l.a].name} ⇄ ${CITY[l.b].name} <span class="meta">${capName(l)} · ${linkLat(l).toFixed(1)} ms</span></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div></div><b class="num" style="min-width:42px;text-align:right">${pct(u)}</b>${btn(tr('Open'),'dashLink',{id:l.id},'ghost sm')}</div>`).join(''):'<p class="empty">'+tr('No links yet.')+'</p>'}</div>
   <div class="panel2"><h3>${tr('Router load')}</h3>${rs.map(({c,u})=>`<div class="row"><div class="grow"><div class="nm">${CITY[c].name} <span class="meta">${(S.pops[c].routers||1)} × ${esc(RG[S.pops[c].rgen||0].n)}</span></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div></div><b class="num" style="min-width:42px;text-align:right">${pct(u)}</b></div>`).join('')}
   <h3 style="margin-top:10px">${tr('Your AS')}</h3><div class="kv"><span>${tr('AS number')}</span><b>AS${S.asn}</b></div><div class="kv"><span>${tr('Prefixes')}</span><b>${Math.max(1,Math.ceil(Object.keys(S.pops).length/3))} × /22 IPv4, 1 × /32 IPv6</b></div><div class="kv"><span>${tr('BGP sessions')}</span><b>${R.sessions}</b></div><div class="kv"><span>${tr('Upstreams')}</span><b>${new Set(S.transit.map(t=>t.net)).size}</b></div><div class="kv"><span>${tr('Reach')}</span><b>${pct(R.reach)}</b></div><div class="kv"><span>${tr('Customers')}</span><b>${tr('{n} businesses',{n:S.biz.length})}</b></div></div></div>`;
-  if(h!==UI._dh){UI._dh=h;$('dashCard').innerHTML=h;}
+  if(h!==UI._dh){UI._dh=h;morph($('dashCard'),h);}
 }
 function loanSummary(o){return o.model==='transit'?tr('You pay {pct} of your transit bill until {price} is repaid.',{pct:pct(o.cut||0.3),price:fmt$(o.owe||o.amount)}):o.model==='balloon'?tr('Nothing to pay for {n} months. Then everything.',{n:o.term}):tr('{pay}/mo for {n} months.',{pay:fmt$(o.pay),n:o.term})+(o.share?' '+tr('Plus {pct} of your revenue until it is repaid.',{pct:pct(o.share)}):'');}
 function loanLine(l){const sh=l.share?' · '+tr('plus {pct} of revenue',{pct:pct(l.share)}):'',fee=loanFees(l)?' · '+tr('{price}/mo in extras',{price:fmt$(loanFees(l))}):'';
@@ -5714,7 +5780,11 @@ function applyRegion(id){
  WRAPX=r.wrapX!==false;
  proj0=r.project;
  LENSES=r.lenses;
- LANDS_LL=r.lands;CITY_LL=r.cityLL;CITIES=r.cities;CITY_NUDGE=r.cityNudge||{};
+ /* `decor` was never copied off the region, so DECOR_LL stayed at the 23 Global decorative
+    polygons (Greenland, Arctic shapes) after switching to SEA or Indonesia. Projected with the
+    regional lens they landed thousands of pixels off-map and drew a coarse second outline over the
+    detailed Natural Earth coastline. */
+ LANDS_LL=r.lands;DECOR_LL=r.decor||[];CITY_LL=r.cityLL;CITIES=r.cities;CITY_NUDGE=r.cityNudge||{};
  CABLES=r.cables;NETS=r.nets;XIX=r.xix;TAIL=r.tail;
  for(const L of LENSES){const q=proj0(L.lon,L.lat);L.x=q[0];L.y=q[1];}
  /* curRegion has to be set before rebuildDerived(): the derived pass reads it to decide which
