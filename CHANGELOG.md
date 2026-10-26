@@ -1,3 +1,10 @@
+## [1.27.3] — 2026-10-26
+
+- The city panel now counts down to the capacity wall. A fresh ISP in Semarang carries 8 Gbps
+  of demand against a 400 Gbps router and grows 2.5% a day: the wall is 156 days out, which at
+  8x speed is about three weeks. Players were hitting it with no warning and calling it a bug.
+  capDays() projects the day, capWarn() shows it in the panel, and both are covered by tests.
+
 ## [1.27.2] — 2026-10-26
 
 - Lombok was filed under Bali. The nearest-vertex rule matched the Bali reference point to

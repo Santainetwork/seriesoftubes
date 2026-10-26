@@ -4029,6 +4029,29 @@ function eyeMul(c){
    259 Gbps of eyeball ceiling is a POP that can never fill its own router — the customer then
    reads as unserved and churns for no reason. The ceiling is the larger of the calibrated P
    times the regional multiplier, and what the router in that POP can actually forward. */
+/* Capacity runs out on a schedule, not by surprise. A new ISP in Semarang starts at 8 Gbps of
+   demand against a 400 Gbps router and grows 2.5% a day, so the wall arrives on day 158 — real
+   play at 8x speed, about three weeks. Players were hitting that wall without warning and
+   reporting it as a bug. This turns it into a countdown they can act on. */
+function capDays(c){
+  const p=S&&S.pops&&S.pops[c];
+  if(!p||!p.bb)return null;
+  const eye=(R.cityEye&&R.cityEye[c])||0, cap=nodeCap(c)||1;
+  if(eye<=0)return null;
+  if(eye>=cap*0.95)return 0;
+  const g=0.025*(scnRule('boom')?1.5:1)*((p.boost||0)>S.day?2:1);
+  if(g<=0)return null;
+  return Math.ceil(Math.log((cap*0.95)/eye)/Math.log(1+g));
+}
+function capWarn(c){
+  const d=capDays(c);
+  if(d===null)return '';
+  const nc=nodeCap(c)||1, eye=(R.cityEye&&R.cityEye[c])||0;
+  if(d===0)return '<p class="why">Routers are at their limit. Traffic is being dropped now — upgrade the router in Infra.</p>';
+  if(d>180)return '';
+  const tone=d<=30?'why':'note';
+  return `<p class="${tone}">At today's growth this city fills its routers in ${d} ${d===1?'day':'days'} (${fmtG(eye)} of ${fmtG(nc)}). Upgrade in Infra before then.</p>`;
+}
 function eyeCap(c){
   const p=S&&S.pops&&S.pops[c];
   const hw=p?RG[p.rgen||0].cap*Math.max(1,(p.routers||1)):0;
@@ -4407,6 +4430,7 @@ function cityPanel(c){
     if(!p.bb){const s=Math.max(8,C.P*0.03),cap=eyeCap(c);h+=`<p class="lead">Sell internet to homes here. Starts around ${fmtG(s)} and grows toward ${fmtG(cap)} while service is good. Pays ${fmt$(EYE_RATE)} per Gbps served, every month.</p>${btn(`Launch broadband <small>${fmt$(bbCost(c))}</small>`,'launchBB',{city:c},'pink big',S.cash<bbCost(c))}`;}
     else{const eye=R.cityEye[c]||0;
       h+=`<div class="kv"><span>Eyeball demand</span><b>${fmtG(eye)} of ${fmtG(eyeCap(c))}</b></div><div class="bar me"><i style="width:${Math.min(100,eye/eyeCap(c)*100)}%"></i></div>
+      ${capWarn(c)}
       <div class="kv"><span>Served in ${C.name}</span><b style="color:${sf<0.9?'var(--bad)':'var(--eye)'}">${pct(sf)}</b></div><div class="bar ${sf<0.9?'bad':''}"><i style="width:${sf*100}%"></i></div>
       <div class="kv"><span>Revenue</span><b>${fmt$(eye*sf*EYE_RATE)}/mo</b></div>
       <div class="kv"><span>Network-wide peering ratio</span><b>${pct(R.peerShare||0)}</b></div><p class="note">More traffic over peering, PNIs and caches means lower latency, and happier users grow faster.</p>
