@@ -71,3 +71,19 @@ test('rings: the two islands that sit in open water are still drawn', () => {
   assert.ok(has(115.38, -6.91), 'Kangean is missing from the coastline');
   assert.ok(has(132.72, -5.78), 'Kai Besar is missing from the coastline');
 });
+
+test('rings: Madura and Kangean belong to Java, not Bali', () => {
+  // Both sat on rings labelled `bal` because the nearest-vertex rule matched the Bali reference
+  // point. Bali's real ring is at -8.4; these two are at -7.0, north of the strait, and are part of
+  // Java Timur. On the map they looked like a stray island glued to Bali.
+  const { ev } = load();
+  const rings = JSON.parse(ev('JSON.stringify(SEA_LANDS)'));
+  const owner = (lon, lat) => {
+    const hit = rings.filter(r => inPoly(lon, lat, r.ll));
+    return hit.length ? hit[0].id : null;
+  };
+  assert.equal(owner(113.40, -7.05), 'jav', 'Madura is filed under Bali');
+  assert.equal(owner(115.38, -6.91), 'jav', 'Kangean is filed under Bali');
+  assert.equal(owner(115.19, -8.41), 'bal', 'Bali itself must stay bal');
+  assert.equal(owner(116.35, -8.55), 'ntb', 'Lombok must stay ntb');
+});
