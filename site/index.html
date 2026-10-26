@@ -5724,8 +5724,11 @@ function seaRegion(){
   /* SEA carries five live Tier 1s, one more than before: 400 × 6/5 = 480 Gbps. */
   rules:{t1Served:480,t1Pops:8,t1Continents:2,cacheCities:null,cacheMinMul:1.2,startCash:300000,
     /* Brief 18 §F: the eyeball ceiling. A metro carries far more than its calibrated P once
-       broadband is cheap; the boost table lifts the handful of capitals that dwarf their region. */
-    eyeMul:1.9,maxRegions:1,eyeBoost:{jkt:2.6,sby:1.6,sin:1.8,bkk:1.5,mnl:1.5,hkg:1.4,tok:1.5,sel:1.3}}, 
+       broadband is cheap; the boost table lifts the handful of capitals that dwarf their region.
+       The table must be monotone in P: a city with more calibrated eyeballs than another can
+       never end up with a smaller ceiling. Every key must be a city on this map — `tok` and `sel`
+       were global-map cities and did nothing here. */
+    eyeMul:1.9,maxRegions:1,eyeBoost:{jkt:2.6,mnl:1.6,bkk:1.6,hkg:1.6,sgn:1.6,sin:1.6,sby:1.6,tpe:1.6,han:1.6}}, 
   roles:{
     hosting:{cash:120000,maxPops:4},
     nap:{cash:900000,minPops:3},
@@ -5798,8 +5801,12 @@ function idnRegion(){
  const rules={indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','btm'],cacheMinMul:1.6,
     /* Brief 18 §F: Indonesia is the densest eyeball market in the game. Jakarta alone is roughly
        a third of the country's traffic, and the multiplier lifts every city so a NAP selling
-       transit is not starved by a ceiling calibrated for the global map. */
-    eyeMul:2.4,maxRegions:1,eyeBoost:{jkt:3.2,sby:2.0,btm:1.8,bdg:1.7,mdn:1.5,smg:1.4,jog:1.4,mks:1.4,dps:1.4,pku:1.3,pdg:1.3,plm:1.3,bjm:1.2,bpn:1.2,mdc:1.2,pnk:1.2,jay:1.2,tkg:1.2,btj:1.2,djb:1.2,bks:1.2,pky:1.2,sri:1.2,tnj:1.2,koe:1.2,ami:1.2,kdi:1.2,plw:1.2,amb:1.2,ttn:1.2,soq:1.2,soc:1.2,mlg:1.3},
+       transit is not starved by a ceiling calibrated for the global map.
+       Every city on the map has an entry and the ladder is monotone in P, so two cities with the
+       same P (Singapore and Surabaya, both 450) report the same ceiling. `mks` was a typo that
+       matched no city and is gone; Singapore and Makassar are explicit instead of defaulting to
+       1.0, which is what made Singapore the cheapest big city on the map. */
+    eyeMul:2.4,maxRegions:1,eyeBoost:{jkt:3.2,sin:2.0,sby:2.0,bdg:1.7,smg:1.5,mdn:1.4,jog:1.4,plm:1.4,upg:1.4,dps:1.4,bjm:1.4,bpn:1.2,btm:1.2,mdc:1.2,pku:1.2,tkg:1.2,pnk:1.2,pdg:1.2,sri:1.2,mlg:1.2,djb:1.2,btj:1.2,soc:1.2,ami:1.2,jay:1.2,koe:1.2,amb:1.2,bks:1.2,plw:1.2,kdi:1.2,pky:1.2,tnj:1.2,soq:1.2,ttn:1.2},
     /* Brief 8 §2.1: Singapore unlock. APJII leg = 'APJII Conneck' conference stamp (no M5
        idLic yet). cost is internal USD; the IDR display converts it. */
     unlock:{sin:{req:{pops:8,served:120,apjii:true,days:365},cost:250000,
