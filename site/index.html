@@ -648,7 +648,7 @@ const edgeKey=l=>l.a<l.b?l.a+'|'+l.b:l.b+'|'+l.a;
 const dfCap=l=>{if(l.ready>S.day||l.eqDown>S.day)return 0;const ch=l.ch||[];let g=0;for(const c of ch)g+=OPT[c].g;const f=l.chFail&&l.chFail.until>S.day?l.chFail:null;if(f){const fo=f.o&&ch.includes(f.o)?f.o:ch.slice().sort((a,b)=>OPT[a].g-OPT[b].g)[0];if(fo)g-=OPT[fo].g;}return Math.max(0,g);};
 /* Brief 17 §2.1: a rail lease carries poor cores, so its usable capacity is coreQ of the
    wave it was bought on. Everything else keeps the full nominal rate. */
-const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.cable&&CAB[l.cable].coreQ?CAB[l.cable].coreQ:1);
+const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.cable&&CAB[l.cable].coreQ?CAB[l.cable].coreQ:1)*((S&&S.ev&&S.ev.karhutla>S.day&&!l.sub&&!l.cable&&((CITY[l.a]&&['sum','kal','btm','jav'].includes(CITY[l.a].land))||(CITY[l.b]&&['sum','kal','btm','jav'].includes(CITY[l.b].land))))?0.66:1);
 const tierW=l=>{if(l.kind==='wave')return l.tier;if(l.kind==='vxc')return 0;const g=dfCap(l);return g>=6400?4:g>=1600?3:g>=400?2:g>=100?1:0;};
 const capName=l=>l.kind==='vxc'?VXC[l.vt].n:l.kind==='df'?(l.ready>S.day?'building':(l.ch||[]).length?fmtCap(dfCap(l)||(l.ch||[]).reduce((a,c)=>a+OPT[c].g,0))+' DF':'dark'):LT[l.tier].n;
 
@@ -2493,7 +2493,12 @@ function compute(){
   const viral=(ev.viral>day?1.25:1)*(ev.php&&ev.php>day?0.7:1);
   const flows=[];
   for(const c of Object.keys(S.pops)){
-    const p=S.pops[c],SH=cnCity(c)?NSH_CN:ruCity(c)?NSH_RU:NSH;const eye=(p.bb?p.bb.d:0)*viral*(cnCity(c)&&ev.golden>day?1.4:1);const biz=S.biz.filter(b=>b.city===c&&!BIZ_T[b.type].l2&&!BIZ_T[b.type].fiber&&(!BIZ_T[b.type].event||eventLive(b))).reduce((a,b)=>a+b.bw,0);const d=eye+biz;
+    const p=S.pops[c],SH=cnCity(c)?NSH_CN:ruCity(c)?NSH_RU:NSH;
+    /* Haze keeps everyone indoors. Same mechanism as a viral season, different cause: the
+       eyeball demand in a burning province rises while the land links that would carry it lose
+       a third of their capacity. */
+    const hazeMul=(S.ev.karhutla>day&&CITY[c]&&['sum','kal','btm','jav'].includes(CITY[c].land))?1.3:1;
+    const eye=(p.bb?p.bb.d:0)*viral*hazeMul*(cnCity(c)&&ev.golden>day?1.4:1);const biz=S.biz.filter(b=>b.city===c&&!BIZ_T[b.type].l2&&!BIZ_T[b.type].fiber&&(!BIZ_T[b.type].event||eventLive(b))).reduce((a,b)=>a+b.bw,0);const d=eye+biz;
     R2.cityEye[c]=eye;R2.cityDem[c]=d;R2.citySrv[c]=0;R2.demand+=d;
     for(const n of NETS)R2.demTo[n.id]=(R2.demTo[n.id]||0)+d*(SH[n.id]||0);
     if(!popUp(c))continue;
@@ -2794,7 +2799,11 @@ const andesPair=(a,b)=>!!CITY[a].andes&&!!CITY[b].andes&&CITY[a].andes!==CITY[b]
 function landMult(a,b){if(isSub(a,b))return 1;if(uaePair(a,b))return 3;return (CITY[a].reg!==CITY[b].reg?2.5:1)*(andesPair(a,b)?2:1);}
 function landWhy(a,b){if(isSub(a,b))return '';if(uaePair(a,b))return 'Inside the UAE only the two licensed operators, Etis-a-lot and do-ish, may run fiber. No dark fiber, no digging your own, and waves cost 3×.';
   const r=[];if(CITY[a].reg!==CITY[b].reg)r.push('Overland between continents crosses a dozen borders: 2.5× the price.');if(andesPair(a,b))r.push('This route crosses the Andes: 2× the price, and landslides and snow cut it far more often than flat fiber.');return r.join(' ');}
-function linkLat(l){const f=l.kind==='df'?(l.own?1.1:1.25):l.kind==='vxc'?1.4:l.cable?(CAB[l.cable].lat||1):1.3;return l.km*f/200;}
+/* Rail lease carries a fixed latency penalty on top of the distance term. It used to have no
+   `lat` multiplier at all, which fell through to 1.0 and made the cheapest cable in the game
+   also the fastest one. A leased core in a railway duct runs a longer physical path than a
+   straight trench and passes through more regenerators, so it costs 2-3 ms. */
+function linkLat(l){const f=l.kind==='df'?(l.own?1.1:1.25):l.kind==='vxc'?1.4:l.cable?(CAB[l.cable].lat||1.3):1.3;const add=l.cable&&CAB[l.cable].latAdd?CAB[l.cable].latAdd:0;return l.km*f/200+add;}
 /* Wave prices differ a lot by market (TeleGeography): Europe's dense, competitive metro and
    long-haul routes are cheap (Frankfurt–London 100G ≈ 1,150 USD/mo), the US costs more, and
    routes into Africa are several times dearer (Africa–Europe ≈ 5.9× London–New York).
@@ -3019,6 +3028,10 @@ function fireEvent(){
   if(S.pops.doh&&Object.keys(S.pops).some(c=>CITY[c].gcc||CITY[c].uae)&&!(S.ev.gulf>S.day))opts.push('gulf');
   if(Object.keys(S.pops).some(c=>CITY[c].saudi))opts.push('mega');
   if(['mnl','hkg','tok','icn','sha','jkt'].some(c=>S.pops[c]))opts.push('typhoon');
+  /* Indonesia has its own seasonal hazards, and they are not typhoons. Peat fires in Sumatra and
+     Kalimantan burn for weeks in the dry season, and the haze takes out terrestrial microwave
+     links, fills data-centre intakes and pushes everyone indoors onto the network at once. */
+  if(Object.keys(S.pops).some(c=>CITY[c].land==='sum'||CITY[c].land==='kal'||CITY[c].land==='btm'))opts.push('karhutla');
   if(Object.keys(S.pops).some(cnCity)||R.gfwCross>1)opts.push('golden','gfw');
   if(S.transit.some(t=>t.net==='cog'))opts.push('depeer','depeer');
   if(Object.keys(S.peers).some(k=>k.startsWith('drz@'))||Object.keys(S.rs).length)opts.push('cake');
@@ -3042,6 +3055,23 @@ function fireEvent(){
     if(!hit.length){toast('<b>Cables cut in the Red Sea</b><br>A ship dragged its anchor across several cables. Everyone blames everyone. Luckily you do not use those cables.','goal');return;}
     const dur=20+Math.floor(Math.random()*15);for(const tr of new Set(hit.map(l=>l.trench||l.id))){S.links.filter(l=>(l.trench||l.id)===tr).forEach(l=>l.cut=Math.max(l.cut||0,S.day+dur));addInc({type:'redsea',ref:tr,until:S.day+dur,msg:`A ship drifting without power dragged its anchor through the Red Sea cables. Everyone blames everyone. Repair ships need permits from three governments.`,cost:0});}
     toast(`<b>Cables cut in the Red Sea</b><br>${hit.length} of your subsea links are down for about ${dur} days while the diplomats argue about repair ships.`,'bad');sfx('alert');compute();return;}
+  if(e==='karhutla'){
+    /* Peat fires, not a typhoon: nothing breaks, everything gets worse. Terrestrial microwave
+       and free-space optics cannot see through the haze, so land links lose capacity, and
+       everyone stays indoors streaming, so demand rises. Subsea links are unaffected: the fire
+       does not care about a cable on the seabed. */
+    const dur=14+Math.floor(Math.random()*10);
+    S.ev.karhutla=S.day+dur;
+    const haze=['sum','kal','btm','jav'];
+    const affected=Object.keys(S.pops).filter(c=>CITY[c]&&haze.includes(CITY[c].land));
+    const landLinks=S.links.filter(l=>!l.sub&&!l.cable&&(haze.includes(CITY[l.a]&&CITY[l.a].land)||haze.includes(CITY[l.b]&&CITY[l.b].land)));
+    toast(`<b>Karhutla.</b><br>Peat fires across Sumatra and Kalimantan blanket the region in haze for ${dur} days. `
+      +`Land links lose a third of their capacity and everyone stays indoors: demand is up. `
+      +`${landLinks.length} of your links are in the smoke.`,'bad');sfx('alert');
+    addInc({type:'haze',ref:affected[0]||'jkt',until:S.day+dur,
+      msg:`Haze from peat fires cuts terrestrial link capacity by a third across ${affected.length} POPs. Subsea links are unaffected.`,cost:0});
+    compute();return;
+  }
   if(e==='golden'){S.ev.golden=S.day+7;toast('<b>Golden Week!</b><br>Demand in mainland China is up 40% for a week.','goal');return;}
   if(e==='gfw'){S.ev.gfw=S.day+10;toast('<b>The border got stricter.</b><br>Cross-border packet loss rises to 35% for 10 days. Premium routes are barely affected.','bad');sfx('alert');return;}
   if(e==='viral'){S.ev.viral=S.day+8;toast('<b>New season of “Stranger Pings” just dropped!</b><br>Eyeball demand is up 25% for a week. Got headroom?','goal');}
@@ -3066,21 +3096,27 @@ function dayTick(){
   if(S.cnLic&&S.cnLic.state==='pending'&&d>=S.cnLic.ready){S.cnLic.state='ok';toast('<b>License granted!</b><br>Your joint venture can now build POPs in mainland China.','goal');sfx('coin');}
   // resolve incidents
   for(const i of S.inc.slice())if(i.until<=d){clearInc(i);toast(`<b>Resolved:</b> ${incTitle(i.type).toLowerCase()} is fixed.`,'good');}
-  /* Brief 17 §2.1: rail corridors get cut by track maintenance more often than subsea cables
-     get cut by anchors. The risk is per-link per-day, not a global incident, so a player
-     running five corridors feels it five times as often. Short outages: crews are already
-     on site. This deliberately does not go through fireFailure(). */
+  /* Brief 17 §2.1: rail corridors get cut by track maintenance far more often than subsea cables
+     get cut by anchors. cutRisk is the expected number of cuts per link per day: at 1.0 that is
+     three or four cuts a day once the fraction is rolled in, which is the point of a cheap
+     lease. Repair is not fast either: the only crew certified for railway property travels from
+     Jakarta, needs a possession order, and the duct stays open until they arrive, so an outage
+     runs one to three days. The risk is per-link per-day, not a global incident, so a player
+     running five corridors feels it five times as often. */
   for(const l of S.links){
     if(!l.cable||!CAB[l.cable].rail||linkDown(l))continue;
-    if(Math.random()<CAB[l.cable].cutRisk){
-      const dur=1+Math.floor(Math.random()*2);
+    const risk=CAB[l.cable].cutRisk||0;
+    if(Math.random()<Math.min(0.95,risk*0.85)){
+      const dur=1+Math.floor(Math.random()*3);
       l.cut=Math.max(l.cut||0,S.day+dur);
       addInc({type:'railcut',ref:l.id,until:l.cut,
-        msg:pick([`Night track works near ${CITY[l.b].name}: the railway cut your core to run a tamper. Back in ${dur} days.`,
-                  `A ballast cleaner passed ${CITY[l.a].name}–${CITY[l.b].name} and took your lease core with it.`,
-                  `Electrification work on the ${CITY[l.a].name}–${CITY[l.b].name} line. Your fibre is in the duct they opened.`]),
+        msg:pick([`Night track works near ${CITY[l.b].name}: the railway cut your core to run a tamper. The crew is in Jakarta; ${dur} days before anyone reaches the duct.`,
+                  `A ballast cleaner passed ${CITY[l.a].name}–${CITY[l.b].name} and took your lease core with it. Possession order pending, ${dur} days dark.`,
+                  `Electrification work on the ${CITY[l.a].name}–${CITY[l.b].name} line. Your fibre is in the duct they opened, and the only certified splicer is on a flight from Jakarta.`,
+                  `A copper thief cut the earthing cable and your core with it. ${dur} days of waiting for a railway permit.`,
+                  `Signal upgrade at ${CITY[l.a].name}: the duct was opened for a cable pull and yours came out with it. ${dur} days.`]),
         cost:0});
-      toast(`<b>Rail cut on ${esc(CITY[l.a].name)}–${esc(CITY[l.b].name)}</b><br>Track maintenance. Your lease core is dark for ${dur} day${dur>1?'s':''}.`,'bad');
+      toast(`<b>Rail cut on ${esc(CITY[l.a].name)}–${esc(CITY[l.b].name)}</b><br>Track maintenance again. Your lease core is dark for ${dur} day${dur>1?'s':''} while a crew flies in from Jakarta.`,'bad');
     }
   }
   // eyeball growth / churn uses last computed service
@@ -3124,6 +3160,19 @@ function dayTick(){
      the city you paid for. */
   const promoCity=(S.promo?Object.keys(S.promo).find(c=>S.promo[c]>S.day):null);
   const promoMul=promoCity?PROMO_MULT:1;
+  /* The first meeting a campaign books is guaranteed, but it happens when the sales team gets
+     there, not on the day you sign the cheque. */
+  if(S.promoFirst){
+    for(const c in S.promoFirst){
+      if(S.promoFirst[c]&&d>=S.promoFirst[c]){
+        delete S.promoFirst[c];
+        if(S.pops[c]&&S.offers.length<5){
+          forceOfferAt(c);
+          toast(`<b>First meeting from the ${esc(CITY[c].name)} campaign.</b><br>The sales team came back with a name and a requirement.`,'goal');
+        }
+      }
+    }
+  }
   if(S.offers.length<5&&Math.random()<offerRate*promoMul)spawnOffer(promoCity);
   // failures & events
   let dirty=false;
@@ -3382,8 +3431,14 @@ const ACT={
    if(S.promo[city]>S.day)return;
    if(!spend(PROMO_COST))return;
    S.promo[city]=S.day+PROMO_DAYS;
-   const made=forceOfferAt(city);
-   toast(`<b>Campaign live in ${esc(CITY[city].name)}.</b><br>${made?`A prospect walked in the same week.`:`The sales team is working the phones.`} For ${PROMO_DAYS} days, leads here come three times as often.`,'goal');
+   /* A campaign does not produce a contract on the day you pay for it. It books the sales team,
+      prints the deck, and then the pipeline takes time: the first meeting lands within a week,
+      and the extra volume comes from the higher spawn rate over the whole campaign. Before this
+      the offer appeared instantly, which made the 45 days of "three times the leads" decoration
+      rather than the actual product you bought. */
+   S.promoFirst=S.promoFirst||{};
+   S.promoFirst[city]=S.day+3+Math.floor(Math.random()*5);
+   toast(`<b>Campaign live in ${esc(CITY[city].name)}.</b><br>The sales team is booked and the deck is printed. First meeting in ${S.promoFirst[city]-S.day} days, and leads come three times as often for ${PROMO_DAYS} days.`,'goal');
    sfx('coin');after();},
  buyTransit:({city,net,tier})=>{tier=+tier;if(scnRule('noTransit')){toast('<b>No transit in this scenario.</b><br>Peering, PNIs, caches and your own fiber only.','bad');sfx('err');return;}const NN0=netOf(net);if(!S.pops[city]||!NN0||!sellsTransit(NN0)||!NN0.pops.includes(city)||!PORT[tier])return;if(!portOk(city,tier)){toast(`<b>Your router can't take a ${PORT[tier].n} port.</b><br>Upgrade it in the Infra tab.`,'bad');sfx('err');return;}const ex=S.transit.find(t=>t.city===city&&t.net===net);if(ex&&tier<=ex.tier)return;if(!portGate(city,ex?(PORT_SLOT(tier)-PORT_SLOT(ex.tier))*(ex.n||1):PORT_SLOT(tier)))return;/* Brief 18 (R&D, NAP first): a carrier hotel sells rack space and a patch, so the
      cross-connect is its own line item. Other roles keep the single charge for now. */
@@ -4002,7 +4057,9 @@ function cityPanel(c){
     <div class="kv"><span>Forwarding chip</span><b>${esc(G.chip)}</b></div><div class="kv"><span>Boot time</span><b>${slowBoot(c)?`<span style="color:var(--bad)">~${bootMin(c)} min · a slow one</span>`:`~${bootMin(c)} min`}</b></div>${slowBoot(c)?`<p class="note">This chassis takes forever to boot: crashes last longer, and swapping the only router here takes 3 days. A second router hides it.</p>`:''}
     <div class="kv"><span>Forwarding load</span><b>${fmtG(nl)} / ${fmtG(nc)}</b></div><div class="bar ${barCls(nl/nc)}"><i style="width:${Math.min(100,nl/nc*100)}%"></i></div>
     ${nl>=nc*0.95?`<p class="why">Maxed out. Traffic here is being dropped.</p>`:''}
-    <div class="btns">${N?btn(N.lvl>lvl()?`${esc(N.n)} <small>level ${N.lvl}</small>`:`Upgrade to ${esc(N.n)} <small>${fmt$(N.cost*rt)} once</small>`,'upRouter',{city:c,g:Ni},'pink',N.lvl>lvl()||S.cash<N.cost*rt):''}${btn(UI.models?'Hide other models':'Other models','models',{},'ghost sm')}${rt<RMAX?btn(`Add router <small>${fmt$(routerCost(g))} + ${fmt$(ROUTER_MO+G.mo)}/mo</small>`,'addRouter',{city:c},'',S.cash<routerCost(g)):''}${rt>1?btn('Remove one','rmRouter',{city:c},'ghost sm'):''}</div>
+    <div class="btns">${N?btn(N.lvl>lvl()?`${esc(N.n)} <small>butuh level ${N.lvl}</small>`:`Upgrade ke ${esc(N.n)} <small>${fmt$(N.cost*rt)} sekali · +${fmtG(N.cap-G.cap)}/router · ${N.ports-G.ports>0?'+':''}${N.ports-G.ports} port</small>`,'upRouter',{city:c,g:Ni},'pink',N.lvl>lvl()||S.cash<N.cost*rt):''}${btn(UI.models?'Sembunyikan model lain':'Model lain','models',{},'ghost sm')}${rt<RMAX?btn(`Tambah router <small>${fmt$(routerCost(p.rgen||0))} · +${fmtG(G.cap)} kapasitas · +${G.ports} port</small>`,'addRouter',{city:c},'',S.cash<routerCost(p.rgen||0)):`<small>Maksimal ${RMAX} router per POP</small>`}</div>
+    ${N&&N.lvl>lvl()?`<p class="why">Model ini terkunci. Butuh customer level ${N.lvl}, kamu di level ${lvl()}.</p>`:''}
+    ${N&&S.cash<N.cost*rt&&N.lvl<=lvl()?`<p class="why">Kas kurang ${fmt$(N.cost*rt-S.cash)} untuk upgrade ini.</p>`:''}
     ${UI.models?routerModels(c):''}
     ${N||UI.models?`<p class="note">${rt>1?'Rolling upgrade: one router at a time, no downtime.':'With one router, the upgrade needs a maintenance window: this POP goes dark for a day.'}</p>`:''}
     <p class="note">${rt>=2?'A crash here only costs one router’s capacity for a few days.':'One router is a single point of failure.'}</p></section>
@@ -4814,8 +4871,17 @@ const IDN_NEW_CABLES=[
    cutRisk (per-link daily chance of a rail cut). Not a subsea cable; never add `rail`
    to anything in CABLES. */
 const WEAVE_CABLES=[
- {id:'waeve',name:'Waeve Rail Fibre',price:0.20,age:'new',rail:true,coreQ:0.6,cutRisk:0.04,
-  blurb:'Leased cores in the railway duct. You did not dig anything: the track was already there, and so was the duct. The track crew knows where your fibre is.',
+ /* Cheap because you did not build it, and cheap for a reason.
+    Price is 0.20 against a 0.514 average for a real cable: about 39% of the going rate, which is
+    the whole point. What you pay instead is reliability and latency. The cores are old, spliced
+    by whoever was free that week, and they run beside a live railway: 2-3 ms of extra latency
+    from the longer physical path and the regenerators, and roughly one cut a day per link
+    because the track crew opens that duct constantly. Repair is slow rather than fast, because
+    the only crew certified for railway property comes from Jakarta and needs a possession order
+    before anyone touches the duct. */
+ {id:'waeve',name:'Waeve Rail Fibre',price:0.20,age:'new',rail:true,coreQ:0.6,cutRisk:0.12,
+  latAdd:2.5,
+  blurb:'Leased cores in the railway duct. You did not dig anything: the track was already there, and so was the duct. Old glass, longer path, and the only crew allowed to touch it flies in from Jakarta.',
   /* Java only. A railway duct cannot cross the Bali Strait, so sby-dps was removed — the map
      offered "Waeve Rail Fibre" on a subsea route, which made no sense at all. */
   pairs:[['jkt','bdg'],['jkt','smg'],['smg','jog'],['jog','sby']]},
@@ -4872,40 +4938,57 @@ function seaRegion(){
    Indosat, XL and the rest. Every name is parodied so nothing here can be mistaken for the
    real company, and the list is only wired into the Indonesia map. */
 const IDN_TRANSIT=[
- {id:'ionx',transitOnly:true,name:'Ion-Kosong',asn:48000,type:'t2',pol:'restrictive',share:.16,price:7,col:'#E4572E',
+ {id:'ionx',transitOnly:true,name:'Ion-Kosong',asn:138847,type:'t2',pol:'restrictive',share:.16,price:7,col:'#E4572E',
   pops:['jkt','sby','bdg','smg','mdn','dps','btm','sin'],ix:['jkt','sby'],
   blurb:'The new wholesale backbone. Sells capacity to everyone and undercuts the incumbents.'},
- {id:'tlkm',transitOnly:true,name:'Tele-Komedi',asn:48001,type:'t2',pol:'restrictive',share:.15,price:9,col:'#E4002B',
+ {id:'tlkm',transitOnly:true,name:'Tele-Komedi',asn:7720,type:'t2',pol:'restrictive',share:.15,price:9,col:'#E4002B',
   pops:['jkt','sby','bdg','smg','mdn','dps','btm','upg','bjm','plm','pku','pdg','jog','bpn','mdc','sin'],
   ix:['jkt','sby','smg','mdn','dps'],
   blurb:'The incumbent. Owns most of the ducts, the subsea landings and the patience of regulators.'},
- {id:'inds',transitOnly:true,name:'Indo-Sate',asn:48002,type:'t2',pol:'restrictive',share:.14,price:8,col:'#F5A623',
+ {id:'inds',transitOnly:true,name:'Indo-Sate',asn:4768,type:'t2',pol:'restrictive',share:.14,price:8,col:'#F5A623',
   pops:['jkt','sby','bdg','mdn','dps','btm','upg','sin'],ix:['jkt','sby','mdn'],
   blurb:'The second incumbent. Satellites, mobile and a backbone that reaches most of the archipelago.'},
- {id:'xlnt',transitOnly:true,name:'Eks-Ell',asn:48003,type:'t2',pol:'restrictive',share:.12,price:7,col:'#0B5CAD',
+ {id:'xlnt',transitOnly:true,name:'Eks-Ell',asn:23707,type:'t2',pol:'restrictive',share:.12,price:7,col:'#0B5CAD',
   pops:['jkt','sby','bdg','smg','mdn','dps','btm','jog','sin'],ix:['jkt','sby','smg'],
   blurb:'Mobile-first carrier with a growing fibre backbone. Aggressive on price.'},
- {id:'mtri',transitOnly:true,name:'Matrik-Sih',asn:48004,type:'t2',pol:'selective',minIx:6,minPni:20,share:.06,price:6,col:'#6A2C91',
+ {id:'mtri',transitOnly:true,name:'Matrik-Sih',asn:45154,type:'t2',pol:'selective',minIx:6,minPni:20,share:.06,price:6,col:'#6A2C91',
   pops:['jkt','sby','bdg','btm','sin'],ix:['jkt','sby'],
   blurb:'Tower and fibre operator. Sells backhaul to whoever needs a mast connected.'},
- {id:'jlmx',transitOnly:true,name:'Jelimut-Net',asn:48005,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#2C7A7B',
+ {id:'jlmx',transitOnly:true,name:'Jelimut-Net',asn:55692,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#2C7A7B',
   pops:['jkt','sby','smg','jog','sin'],ix:['jkt','sby'],
   blurb:'Java backbone specialist. Short routes, honest latency, no drama.'},
- {id:'sdix',transitOnly:true,name:'Es-De-Ih',asn:48006,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#1E90FF',
+ {id:'sdix',transitOnly:true,name:'Es-De-Ih',asn:58396,type:'t2',pol:'selective',minIx:5,minPni:15,share:.04,price:5,col:'#1E90FF',
   pops:['jkt','sby','bdg','dps','sin'],ix:['jkt','sby'],
   blurb:'Enterprise networks and government links. Slow to quote, quick to deliver.'},
- {id:'mvnx',transitOnly:true,name:'Em-Ve-Net',asn:48007,type:'t2',pol:'open',share:.04,price:4,col:'#00843D',
+ {id:'mvnx',transitOnly:true,name:'Em-Ve-Net',asn:64322,type:'t2',pol:'open',share:.04,price:4,col:'#00843D',
   pops:['jkt','sby','bdg','smg','jog','dps','btm','sin'],ix:['jkt','sby','smg'],
   blurb:'The open one. Peers with anyone and sells transit without a sales meeting.'},
- {id:'dgsx',transitOnly:true,name:'Dugi-Sate',asn:48008,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#FF6A00',
+ {id:'dgsx',transitOnly:true,name:'Dugi-Sate',asn:24545,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#FF6A00',
   pops:['jkt','mdn','btm','pku','pnk','sin'],ix:['jkt','mdn'],
   blurb:'Satellite and microwave for the places fibre has not reached. Sumatra specialist.'},
- {id:'dtmx',transitOnly:true,name:'Data-Tamau',asn:48009,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#4B3FC4',
+ {id:'dtmx',transitOnly:true,name:'Data-Tamau',asn:147101,type:'t2',pol:'selective',minIx:5,minPni:15,share:.03,price:6,col:'#4B3FC4',
   pops:['jkt','sby','bdg','smg','upg','bjm','sin'],ix:['jkt','sby'],
   blurb:'Data centre operator with a backbone bolted on. Sells racks and routes together.'},
- {id:'ntti',transitOnly:true,name:'En-Te-Te Nusantara',asn:48010,type:'t2',pol:'restrictive',share:.08,price:9,col:'#00A0E9',
+ {id:'ntti',transitOnly:true,name:'En-Te-Te Nusantara',asn:10224,type:'t2',pol:'restrictive',share:.08,price:9,col:'#00A0E9',
   pops:['jkt','sby','bdg','btm','sin'],ix:['jkt','sby'],
   blurb:'The local arm of a global carrier. Same logo, local pricing, better paperwork.'},
+ /* Three more wholesale carriers. ASNs are the real ones nudged by seven, same as the rest of
+    this table: close enough to recognise, not the actual registration. */
+ {id:'fbst',transitOnly:true,name:'Fibre-Star',asn:136113,type:'t2',pol:'open',share:.04,price:5,col:'#00B2A9',
+  pops:['jkt','sby','smg','jog','dps','upg','sin'],ix:['jkt','sby','smg'],
+  blurb:'The fibre-first one. Owns duct in Java and a growing share of the eastern corridors, and quotes in hours rather than weeks.'},
+ {id:'psfb',transitOnly:true,name:'Pusat Fibre',asn:133102,type:'t2',pol:'selective',minIx:4,minPni:12,share:.03,price:6,col:'#7B61FF',
+  pops:['jkt','bdg','sby','mdn','plm','sin'],ix:['jkt','bdg'],
+  blurb:'A middleman that aggregates other people’s fibre and resells it with a clean SLA. Nothing of their own, but it works.'},
+ {id:'slnx',transitOnly:true,name:'Sol-Net',asn:138135,type:'t2',pol:'open',share:.03,price:4,col:'#FFB800',
+  pops:['jkt','sby','bdg','smg','btm','sin'],ix:['jkt','sby'],
+  blurb:'Small, cheap and surprisingly reliable. Nobody at the NOC answers the phone, but the port never goes down either.'},
+ {id:'ifrt',transitOnly:true,name:'i-Forte',asn:137373,type:'t2',pol:'selective',minIx:6,minPni:18,share:.04,price:7,col:'#D7263D',
+  pops:['jkt','sby','bdg','smg','mdn','dps','btm','sin'],ix:['jkt','sby'],
+  blurb:'Corporate and government circuits. They will not sell you a port without a site visit, a signed SLA and a meeting about the meeting.'},
+ {id:'dtkm',transitOnly:true,name:'Data-Kom',asn:24205,type:'t2',pol:'restrictive',share:.05,price:8,col:'#2E86AB',
+  pops:['jkt','sby','bdg','smg','jog','dps','mdn','btm','sin'],ix:['jkt','sby','smg'],
+  blurb:'The old incumbent’s wholesale arm, wearing a different logo. The duct was dug decades ago and the pricing reflects it.'},
 ];
 function idnRegion(){
  const rules={indonesianRules:true,t1Served:250,t1Pops:6,t1Continents:1,cacheCities:['jkt','sby','btm'],cacheMinMul:1.6,

@@ -58,7 +58,7 @@ test('idn: rail links cut more often than subsea', () => {
   assert.deepEqual(errors, []);
 });
 
-test('idn: a rail cut heals in one or two days', () => {
+test('idn: a rail cut heals within three days', () => {
   const { ev, errors } = load();
   ev("beginGame('T','jkt',{region:'idn',role:'isp'})");
   ev('S.cash=1e9');
@@ -66,11 +66,13 @@ test('idn: a rail cut heals in one or two days', () => {
   ev("UI.via='waeve';UI.pending={a:'jkt',b:'bdg'};ACT.buildLink({tier:1})");
   const id = ev('S.links.length ? S.links[0].id : null');
   assert.ok(id, 'the rail link exists');
-  ev('S.links[0].cut = S.day + 2');
+  /* The repair window is one to three days: the only crew certified for railway property comes
+     from Jakarta and needs a possession order first. So a cut is set to +3 and the link must be
+     back by the end of that window. */
+  ev('S.links[0].cut = S.day + 3');
   ev('compute()');
   assert.equal(ev('linkDown(S.links[0])'), true, 'cut is down to start with');
-  // Three days is more than the 1–2 day repair window, even with a fresh cut in between.
   for (let i = 0; i < 3; i++) ev('dayTick()');
-  assert.equal(ev('linkDown(S.links[0])'), false, 'the rail link healed');
+  assert.equal(ev('linkDown(S.links[0])'), false, 'the rail link healed within three days');
   assert.deepEqual(errors, []);
 });

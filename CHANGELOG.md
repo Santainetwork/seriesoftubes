@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/). Each release is deployed to
 [seriesoftub.es](https://seriesoftub.es).
 
+## [1.11.1] — 2026-10-26
+
+- Campaigns are no longer instant either. Paying for one books the sales team
+  and prints the deck; the first meeting lands three to seven days later. What
+  you buy is the 45 days of triple lead rate, not a contract at the till.
+- Waeve rail fibre now behaves like the cheap lease it is: 39% of the price of a
+  real cable, 2-3 ms of extra latency from the longer path and the
+  regenerators, and three or four cuts a month. Repair takes one to three days,
+  because the only crew certified for railway property flies in from Jakarta and
+  needs a possession order before anyone touches the duct.
+- Router upgrades and extra routers now say what you get: the upgrade button
+  shows the capacity and port delta, and both buttons explain why they are
+  disabled instead of just greying out.
+- Karhutla. Peat fires in Sumatra and Kalimantan now blanket the region in haze
+  for two to three weeks. It is not a typhoon: nothing breaks, everything gets
+  worse. Land links in the smoke lose a third of their capacity, because haze
+  stops a terrestrial microwave shot, while subsea cable is on the seabed and
+  does not care. Everyone stays indoors streaming, so eyeball demand in the
+  burning provinces rises 30%. The event only fires if you run a POP in Sumatra,
+  Kalimantan or Batam.
+- Conference leads now take time. Registering buys a badge, not a contract: the
+  first lead lands on the first morning of the event, another by the closing day,
+  across a three-to-seven day window.
+- 36 conferences across all 34 Indonesian cities, up from ten events in eight
+  cities, so a player who builds outside Java can finally generate prospects.
+
 ## [1.11.0] — 2026-10-26
 
 - The map finally looks like Indonesia. The coastline used to be hand-drawn —
