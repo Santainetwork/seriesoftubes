@@ -58,6 +58,10 @@ suite hijau tidak membuktikan apa pun tentang yang di-deploy.
   bukan hanya melayani. Dengan Chonk 800 semua 34 kota melaporkan plafon identik 12.800 Gbps.
 - **`LV_REQ` menuntut benua.** Peta IDN/SEA hanya punya satu region, jadi level 4+ mustahil sebelum
   `lvReg()` dibatasi `maxRegions`.
+- **`t1Club()` menuntut benua yang tidak ada di peta.** SEA menyatakan `t1Continents:2` padahal
+  ke-49 kotanya `reg:'AS'`, jadi Tier 1 mustahil di sana — 49 POP, 3,2 Tbps dan 106 sesi tetap
+  ditolak. Ini kelas bug yang sama dengan `lvReg()`; sekarang dibatasi `mapRegionsCount()`, dan
+  nilainya di `rules` juga diperbaiki jadi 1.
 - **Tier 1 butuh PNI dengan semua T1**, dan PNI hanya bisa dibangun di kota yang punya POP jaringan
   itu. `lvl` (Level Tree) dulu hanya punya POP Eropa/Amerika, jadi T1 mustahil di peta Asia.
 - **`t1Sessions` tidak ada di `rules` region mana pun** — semua memakai literal 20, gerbang yang

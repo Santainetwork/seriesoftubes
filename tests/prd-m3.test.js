@@ -194,7 +194,13 @@ test('M3: region rules and start cash match brief 3 §3–§4', () => {
   /* Brief 19: a sixth Tier 1 lifts SEA's bar from 400 to 480 Gbps (400 × 6/5). */
   assert.equal(seaRules.t1Served, 480);
   assert.equal(seaRules.t1Pops, 8);
-  assert.equal(seaRules.t1Continents, 2);
+  /* Brief 3 §6.9 recommended 2, on the assumption the map kept Perth, Sydney and Darwin
+     (reg:'OC'). The shipped SEA map never carried them — all 49 cities are reg:'AS' — and the
+     brief said the number must become 1 if they were left out. It was pinned at 2 anyway, so
+     t1Club() asked for a second continent no player could reach. */
+  assert.equal(seaRules.t1Continents, 1);
+  assert.equal(ev("new Set(REGION.sea.cities.map(c=>c.reg)).size"), 1,
+    'SEA is one continent, so its Tier 1 continent gate must be one');
   assert.equal(seaRules.cacheCities, null);
   assert.equal(seaRules.cacheMinMul, 1.2);
   assert.equal(seaRules.startCash, 300000);
