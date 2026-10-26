@@ -1540,7 +1540,13 @@ const lvReg=i=>{
   return can?Math.min(want,can):want;
 };
 const lvl=()=>(S&&S.lvl)||1;
-function custLevel(){const pops=Object.keys(S.pops).length,pk=S.stats.peak,rc=regionsCount();let lv=1;for(let i=1;i<LV_REQ.length;i++){const q=LV_REQ[i];if(pk>=q.pk&&pops>=q.pops&&rc>=lvReg(i))lv=i+1;else break;}return lv;}
+/* Peak traffic is what the level ladder measures, and a private circuit is traffic too: an
+   L2VPN, a cloud on-ramp or an AI interconnect moves real bits and pays real money, but it never
+   passes an IP exit, so it never reached R.served. A hosting outfit could therefore sell 400G of
+   on-ramp, quadruple its revenue, and stay at level 1 forever. Both peaks are kept, and the
+   level (and every headline number) reads the larger of the two. */
+const peakTraffic=()=>Math.max((S&&S.stats&&S.stats.peak)||0,(S&&S.stats&&S.stats.peakL2)||0);
+function custLevel(){const pops=Object.keys(S.pops).length,pk=peakTraffic(),rc=regionsCount();let lv=1;for(let i=1;i<LV_REQ.length;i++){const q=LV_REQ[i];if(pk>=q.pk&&pops>=q.pops&&rc>=lvReg(i))lv=i+1;else break;}return lv;}
 /* ================= KOMDIGI (NAP licence, Indonesia only) =================
    A NAP in Indonesia does not get a licence on day one. It gets one year of grace to build the
    network it promised, then Komdigi audits four commitments. Failing the audit revokes the
@@ -1613,7 +1619,7 @@ function komdigiTax(){
 const ROLES={
  hosting:{l:'Hosting',cash:90000,maxPops:3,bb:false,types:['host','gpu','onramp','ai'],
    blurb:'Colo and AI hosting. Hosting, GPU, cloud on-ramp and AI deals only. Max 3 POPs, no home broadband.'},
- nap:{l:'NAP',cash:2000000,minPops:3,bb:false,types:['isp','hyper','ai','l2vpn','remote'],
+ nap:{l:'NAP',cash:2000000,minPops:3,bb:false,types:['isp','hyper','ai','l2vpn','remote'],early:['isp'],
    blurb:'Carrier hotel. Sells to ISPs, hyperscalers and AI. Small ISP deals from day one; wholesale contracts need 3 POPs.'},
  isp:{l:'ISP',cash:START_CASH,all:true,bb:true,
    blurb:'The classic all-rounder: home broadband, DIA, downstream ISPs, streaming, education and GPU deals. No extra limits.'},
@@ -1653,6 +1659,13 @@ const ROLE_UP=[
    why:'You already own the building. Selling broadband yourself is just a decision — but you need a terabit of eyeballs first.' },
 ];
 function roleAllowsType(t){const R=roleDef();return !!R.all||(R.types||[]).includes(t);}
+/* A restricted role used to draw straight from its own type list, which ignored the level each
+   customer type asks for: a hosting outfit at level 1 could sign an AI training interconnect that
+   the general pool only offers at level 4. The level gate applies to every role now. `early` is the
+   one deliberate exception — a NAP sells small ISP jobs from day one (brief 7 §4.1c), so ISP work
+   is allowed below its usual level. */
+function typeAtLevel(t){const T=BIZ_T[t];if(!T)return false;if(!T.lv||T.lv<=((S&&S.lvl)||1))return true;return (roleDef().early||[]).includes(t);}
+function roleOfferOk(o){if(!o||!roleAllowsType(o.type))return false;if(!typeAtLevel(o.type))return false;if(roleBlockOffers())return false;if(S.role==='rtnet'&&!S.transit.length)return false;return true;}
 /* Brief 8 §2.2: Singapore unlock for the Indonesia map. Mirrors the roleUpOffer() checklist
    pattern (items with ok flags, missing list). The APJII leg uses the 'APJII Conneck'
    conference stamp because M5 licences do not exist yet. */
@@ -1706,7 +1719,6 @@ function roleUpOffer(){
 function roleBlockOffers(){const R=roleDef();if(!R.minPops)return false;if(Object.keys(S.pops).length>=R.minPops)return false;return S.role!=='nap';}
 /* An offer is only real for this role: the right customer type, the role's POP threshold met,
    and (for RT/RW nets) a transit port already bought from another ISP. */
-function roleOfferOk(o){if(!o||!roleAllowsType(o.type))return false;if(roleBlockOffers())return false;if(S.role==='rtnet'&&!S.transit.length)return false;return true;}
 function popCap(){const R=roleDef();return R.maxPops||Infinity;}
 /* Soft cap: the role's limit is a price signal, not a wall. Beyond it every extra POP
    costs POP_COST × overMul, so the role keeps its identity without making any goal
@@ -2040,7 +2052,7 @@ function eventDealOffer(cf,t,premLo,premSpan){
 function napEventDeals(cf){
   const city=cf.c;
   if(!S.pops[city])return;                      // no POP, no deal
-  const t=pick(['isp','hyper','ai'].filter(x=>roleAllowsType(x)));
+  const t=pick(['isp','hyper','ai'].filter(x=>roleAllowsType(x)&&typeAtLevel(x)));
   if(!t)return;
   eventDealOffer(cf,t,1.4,0.6);                 // 40–100% premium: they are in town
 }
@@ -2049,9 +2061,9 @@ function napEventDeals(cf){
    of going: you come home with a name, not a brochure. */
 function eventDeals(cf){
   let t;
-  if(S.role==='nap')          t=pick(['isp','hyper','ai'].filter(x=>roleAllowsType(x)));
-  else if(S.role==='hosting') t=pick(['host','gpu'].filter(x=>roleAllowsType(x)));
-  else if(S.role==='isp')     t=pick(['dia','stream','edu'].filter(x=>roleAllowsType(x)));
+  if(S.role==='nap')          t=pick(['isp','hyper','ai'].filter(x=>roleAllowsType(x)&&typeAtLevel(x)));
+  else if(S.role==='hosting') t=pick(['host','gpu'].filter(x=>roleAllowsType(x)&&typeAtLevel(x)));
+  else if(S.role==='isp')     t=pick(['dia','stream','edu'].filter(x=>roleAllowsType(x)&&typeAtLevel(x)));
   else return;                   // RT/RW nets are too small for a conference lead (brief 10)
   if(!t)return;
   const prem=S.role==='nap'?1.4:S.role==='hosting'?1.3:1.2;
@@ -2227,8 +2239,8 @@ function shareCanvas(){const Wc=1200,Hc=630,cv=document.createElement('canvas');
   g.font='800 26px Nunito, sans-serif';g.fillText(`AS${S.asn} · ${tierLabel()} · ${dateStr(S.day)}${S.mode==='sandbox'?' · '+tr('Sandbox'):''}`,42,92);
   // stats
   const got=BADGES.filter(b=>S.ach&&S.ach[b.id]!==undefined),rk={l:0,e:1,r:2,c:3},top=got.slice().sort((a,b)=>rk[a.r]-rk[b.r]).slice(0,8);
-  const rows=[[tr('Peak traffic'),fmtG(S.stats.peak||0)],[tr('Peered'),pct(R.peerShare||0)],[tr('POPs'),tr('{n} in {r} regions',{n:Object.keys(S.pops).length,r:regionsCount()})],[tr('Links'),String(S.links.length)],[tr('Customers'),String(S.biz.length)],[tr('Incidents survived'),String(S.stats.survived||0)],[tr('Shark bites'),String(S.stats.sharks||0)],[tr('Badges'),`${got.length}/${BADGES.length}`]];
-  if(S.scn)rows.unshift([scnName(),S.scn.done?(S.scn.id==='weekly'?tr('score {v}',{v:fmtG(S.scn.score||S.stats.peak||0)}):tr('done in {d} days',{d:S.scn.done})):S.scn.failed?tr('not this time'):tr('in progress')]);
+  const rows=[[tr('Peak traffic'),fmtG(peakTraffic())],[tr('Peered'),pct(R.peerShare||0)],[tr('POPs'),tr('{n} in {r} regions',{n:Object.keys(S.pops).length,r:regionsCount()})],[tr('Links'),String(S.links.length)],[tr('Customers'),String(S.biz.length)],[tr('Incidents survived'),String(S.stats.survived||0)],[tr('Shark bites'),String(S.stats.sharks||0)],[tr('Badges'),`${got.length}/${BADGES.length}`]];
+  if(S.scn)rows.unshift([scnName(),S.scn.done?(S.scn.id==='weekly'?tr('score {v}',{v:fmtG(S.scn.score||peakTraffic())}):tr('done in {d} days',{d:S.scn.done})):S.scn.failed?tr('not this time'):tr('in progress')]);
   let y=150;for(const [k,v] of rows.slice(0,9)){g.fillStyle='#fff';g.strokeStyle='#1E2640';g.lineWidth=3;g.beginPath();g.roundRect?g.roundRect(770,y,390,42,12):g.rect(770,y,390,42);g.fill();g.stroke();g.fillStyle='#5A6280';g.font='800 18px Nunito, sans-serif';g.fillText(k,786,y+11);g.fillStyle='#1E2640';g.font='900 22px Nunito, sans-serif';const tw=g.measureText(v).width;g.fillText(v,1146-tw,y+9);y+=48;}
   g.font='34px sans-serif';top.forEach((b,i)=>g.fillText(b.i,40+i*48,520));
   g.fillStyle='#1E2640';g.font='900 30px "Baloo 2", sans-serif';g.fillText('seriesoftub.es',40,572);g.font='700 20px Nunito, sans-serif';g.fillText(tr('Build the internet, one tube at a time'),300,580);
@@ -2237,7 +2249,7 @@ function shareModal(){const cv=shareCanvas();if(!cv){toast(tr('<b>Your browser c
   UI.shareCv=cv;openModal(`<div style="display:flex;align-items:center"><div><div class="eyebrow">${tr('Share')}</div><h2 style="font-size:26px">${tr('Your network card')}</h2></div><button class="x" data-act="closeModal" aria-label="${tr('Close')}">×</button></div>${url?`<img src="${url}" alt="${tr('Stats card for {name}',{name:esc(S.name)})}" style="width:100%;border:3px solid var(--ink);border-radius:12px;margin-top:8px">`:''}<div class="btns" style="margin-top:10px">${navigator.share?btn(tr('Share…'),'shareGo',{},'pink'):''}${btn(tr('Download PNG'),'shareDl',{},navigator.share?'':'pink')}</div><p class="note">${tr('Post it wherever your peering friends hang out.')}</p>`);track('share_open');}
 function shareFile(cb){const cv=UI.shareCv;if(!cv||!cv.toBlob){cb(null);return;}cv.toBlob(b=>cb(b?new File([b],`series-of-tubes-${slug(S.name)}.png`,{type:'image/png'}):null),'image/png');}
 function scnTick(d){const sc=S.scn;if(!sc||sc.done||sc.failed)return;
-  if(sc.id==='weekly'){if(d>=sc.days){sc.done=d;const score=Math.round(S.stats.peak||0);sc.score=score;let best=null;try{const wk=JSON.parse(localStorage.getItem('sot-weekly')||'{}');best=wk[sc.key];if(!best||score>best){wk[sc.key]=score;localStorage.setItem('sot-weekly',JSON.stringify(wk));}}catch(e){}
+  if(sc.id==='weekly'){if(d>=sc.days){sc.done=d;const score=Math.round(peakTraffic());sc.score=score;let best=null;try{const wk=JSON.parse(localStorage.getItem('sot-weekly')||'{}');best=wk[sc.key];if(!best||score>best){wk[sc.key]=score;localStorage.setItem('sot-weekly',JSON.stringify(wk));}}catch(e){}
       const h=scnHof();h.weekly=h.weekly||{d:new Date().toISOString().slice(0,10)};try{localStorage.setItem('sot-scn',JSON.stringify(h));}catch(e){}
       openModal(`<div class="eyebrow">${tr('Weekly challenge {key}',{key:esc(sc.key)})}</div><h2 style="font-size:30px">${tr('Your score: {score}',{score:fmtG(score)})}</h2><p class="tagline">${best&&best>score?tr('Peak traffic served in one year. Your best this week is {best}.',{best:fmtG(best)}):best?tr('Peak traffic served in one year. A new personal best for this week!.'):tr('Peak traffic served in one year.')}</p><div class="btns">${btn(tr('Share my result'),'share',{},'pink big')}${btn(tr('Keep playing'),'closeModal',{},'ghost big')}</div>`);track('weekly_done');}return;}
   const def=SCN.find(x=>x.id===sc.id);if(!def)return;let ok=false;try{ok=def.ok();}catch(e){}
@@ -2259,7 +2271,7 @@ function newGame(name,home,region,role){
     roleUp:null,
     unlocked:{},
     ltv:2,t1v:2,seen:NETS.map(n=>n.id),spares:{},pops:{[home]:{day:0,bb:null,boost:0,down:0,routers:1,gen:false}},links:[],nni:[],transit:[],ixp:{},rs:{},peers:{},pni:[],caches:[],biz:[],offers:[],myIx:{},promo:{},
-    done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0,offersSeen:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
+    done:{},inc:[],ev:{},priceMul:1,nextFail:45,nextEvent:40,usedNames:[],stats:{survived:0,incidents:0,peak:0,peakL2:0,offersSeen:0},cnLic:{state:'none'},scrubAt:null,won:false,lost:false,neg:0,loans:[],loanOffers:[],loanStrikes:0};
 }
 
 /* ================= HELPERS ================= */
@@ -2733,7 +2745,11 @@ function compute(){
     if(old&&old.every(r=>r.keys.every(k=>edges[k]))){const prev=old.map(r=>{const path=r.keys.map(k=>edges[k]);return {path,ns:r.ns,share:r.share};});
       if(prev.reduce((x,r)=>x+cost(r),0)<=pick2.reduce((x,r)=>x+cost(r),0)*1.1)out=prev;}
     R2.l2route[key]=out.map(r=>({keys:r.path.map(e=>e.id),ns:r.ns,share:r.share}));return out;};
-  for(const b of S.biz){if(!BIZ_T[b.type].l2)continue;
+  /* Private circuits are allocated AFTER the IP flows below, not before. Both share the same
+     chassis and the same waves, and a 400G on-ramp asked for before anyone else took the whole
+     box: the hosting outfit's own IP customers then got nothing at all and its traffic went to
+     zero. IP first (eyeballs churn the same week), L2 out of what is left. */
+  const l2Alloc=()=>{for(const b of S.biz){if(!BIZ_T[b.type].l2)continue;
     // An SD-WAN is hub-and-spoke: one circuit from the first site to each of the others.
     const pairs=b.sites?b.sites.slice(1).map(x=>[b.sites[0],x]):[[b.city,b.city2]];let minF=1,maxLat=0,tot=0,noPath=false;
     for(const [A,B] of pairs){let amt=0;
@@ -2745,7 +2761,7 @@ function compute(){
         for(const l of path){res[l.id]-=a;eload[l.id]=(eload[l.id]||0)+a;const rec=R2.ef[l.id]||(R2.ef[l.id]={eg:{},net:{},dst:{}});rec.eg[ek]=(rec.eg[ek]||0)+a;rec.net.l2vpn=(rec.net.l2vpn||0)+a;rec.dst[B]=(rec.dst[B]||0)+a;}}}
     else noPath=true;
     minF=Math.min(minF,amt/b.bw);tot+=amt;}
-    R2.l2lat[b.id]=noPath?Infinity:maxLat;R2.l2[b.id]=b.bw*minF;R2.egT.l2=(R2.egT.l2||0)+tot;if((b.reqs||[]).includes('diverse'))R2.div[b.id]=diversePaths(b.city,b.city2);}
+    R2.l2lat[b.id]=noPath?Infinity:maxLat;R2.l2[b.id]=b.bw*minF;R2.egT.l2=(R2.egT.l2||0)+tot;if((b.reqs||[]).includes('diverse'))R2.div[b.id]=diversePaths(b.city,b.city2);}};
   const TE=!!(S.te&&S.te.on),TR=teRules();R2.teMoved=0;const teCache={},SPILL=TR&&TR.spill?TR.spill:1;
   const spPath=(sp,src,dst)=>{const path=[],ns=[dst];let v=dst;while(v!==src){const l=sp.prev[v];path.push(l);v=l.a===v?l.b:l.a;ns.push(v);}return {path,ns};};
   const altPath=(src,dst,base)=>{const key=src+'>'+dst,c0=teCache[key];
@@ -2795,6 +2811,8 @@ function compute(){
       }
     }
   }
+  /* IP flows first, then the private circuits out of the capacity that is left (see l2Alloc). */
+  l2Alloc();
   for(const k in edges){const e=edges[k],ld=eload[k]||0;for(const l of e.links)R2.load[l.id]=ld*capOf(l)/e.cap;}
   R2.peerShare=R2.served>0?R2.peered/R2.served:0;
   for(const e of E){if(e.k==='t')R2.useT[e.id]=e.used;else if(e.k==='ix')R2.useIx[e.id]=e.used;else if(e.k==='p')R2.usePni[e.id]=e.used;else R2.useCache[e.id]=e.used;}
@@ -2844,7 +2862,7 @@ function sanitize(s){
   s.v=1;s.name=String(s.name==null?'Packet Pals':s.name).slice(0,24);s.day=int(s.day,0,1e7,0);s.cash=num(s.cash,0);s.asn=int(s.asn,1,4294967294,200000);
   s.priceMul=num(s.priceMul,1);s.nextFail=num(s.nextFail,s.day+45);s.nextEvent=num(s.nextEvent,s.day+40);s.lvl=int(s.lvl,1,LEVELS.length,1);s.neg=int(s.neg,0,1e7,0);s.loanStrikes=int(s.loanStrikes,0,1e3,0);
   for(const k of Object.keys(s.stats)){const v=s.stats[k];if(k==='by'||k==='f'){if(!v||typeof v!=='object')s.stats[k]={};else for(const j of Object.keys(v))v[j]=num(v[j],0);}else if(typeof v!=='boolean')s.stats[k]=num(v,0);}
-  for(const k of ['survived','incidents','peak'])s.stats[k]=num(s.stats[k],0);
+  for(const k of ['survived','incidents','peak','peakL2'])s.stats[k]=num(s.stats[k],0);
   for(const c of Object.keys(s.pops)){const p=s.pops[c];if(!isCity(c)||!p||typeof p!=='object'){delete s.pops[c];continue;}p.routers=int(p.routers,1,RMAX,1);if(p.rgen!==undefined)p.rgen=int(p.rgen,0,RG.length-1,0);p.down=num(p.down,0);if(p.bb&&typeof p.bb==='object')p.bb.d=num(p.bb.d,0);else p.bb=null;}
   if(!isCity(s.home))s.home=Object.keys(s.pops)[0]||'fra';
   if(!own(REGION,s.region))s.region='global';
@@ -3410,6 +3428,9 @@ function dayTick(){
   for(const t of S.transit){(t.hist=t.hist||[]).push(R.useT[t.id]||0);if(t.hist.length>30)t.hist.shift();}
   S.cash+=(R.revMo-R.costMo)/30;
   S.stats.peak=Math.max(S.stats.peak,R.served);
+  /* An L2 circuit never touches an IP exit, so it never reaches R.served. Track it on its own so
+     a hosting outfit's on-ramps and AI interconnects count towards its level (see peakTraffic). */
+  S.stats.peakL2=Math.max(S.stats.peakL2||0,R.egT.l2||0);
   S.hist=S.hist||[];S.hist.push({d,dem:+R.demand.toFixed(2),srv:+R.served.toFixed(2),c:+(R.egT.c||0).toFixed(2),p:+(R.egT.p||0).toFixed(2),ix:+(R.egT.ix||0).toFixed(2),t:+(R.egT.t||0).toFixed(2),l2:+(R.egT.l2||0).toFixed(2),rev:Math.round(R.revMo),cost:Math.round(R.costMo),cash:Math.round(S.cash),inc:S.inc.length});if(S.hist.length>180)S.hist.shift();
   {const top=custLevel();if(top>(S.lvl||1)){for(let lv=(S.lvl||1)+1;lv<=top;lv++){track('level_'+lv);toast(tr('<b>Customer level {lv}: {name}</b><br>New customers unlocked: {unlock}',{lv,name:LEVELS[lv-1].n,unlock:LEVELS[lv-1].unlock})+`<br><i>${esc(LEVELS[lv-1].q)}</i>`,'goal');}S.lvl=top;sfx('coin');}}
   for(const l of S.links){if(l.kind!=='df')continue;
@@ -3474,7 +3495,7 @@ function spawnOffer(preferCity){const n=S.offers.length;_spawnOffer(preferCity);
 function forceOfferAt(city){
   if(!S.pops[city])return false;
   const RD=roleDef();
-  const allowed=RD.all?['dia','isp','hyper','ai']:RD.types.slice();
+  const allowed=(RD.all?['dia','isp','hyper','ai']:RD.types.slice()).filter(typeAtLevel);
   const pool=allowed.filter(x=>BIZ_T[x]&&!BIZ_T[x].event&&!BIZ_T[x].sdwan&&!BIZ_T[x].fiber&&!BIZ_T[x].mega);
   if(!pool.length)return false;
   const t=pick(pool),T=BIZ_T[t];
@@ -3503,7 +3524,7 @@ function _spawnOffer(preferCity){
   const RD=roleDef();
   /* A restricted role draws from its own list of trades, not the level-gated general pool: a NAP
      sells to ISPs from day one, a hosting outfit sells hosting from day one. */
-  const allowed=RD.all?types:RD.types.slice();
+  const allowed=RD.all?types:RD.types.slice().filter(typeAtLevel);
   if(!allowed.length)return;
   /* Brief 7 §4.1c: below its minPops a NAP still gets work, but only small downstream-ISP
      jobs — enough to pay for the next POP, not a hyperscale contract. */
@@ -3785,7 +3806,7 @@ const ACT={
  traceCopy:()=>{try{navigator.clipboard.writeText(UI.trText||'');toast(tr('<b>Copied.</b> Paste it into your favourite NOC chat.'),'good');}catch(e){}},
  share:()=>shareModal(),
  shareDl:()=>shareFile(f=>{if(!f)return;const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);track('share_download');}),
- shareGo:()=>shareFile(f=>{const d={title:'Series of Tubes',text:`${S.name} (AS${S.asn}): ${tierLabel()}, ${fmtG(S.stats.peak||0)} peak. Build your own internet at`,url:'https://seriesoftub.es/'};try{if(f&&navigator.canShare&&navigator.canShare({files:[f]}))d.files=[f];navigator.share(d).then(()=>track('share_done')).catch(()=>{});}catch(e){}}),
+ shareGo:()=>shareFile(f=>{const d={title:'Series of Tubes',text:`${S.name} (AS${S.asn}): ${tierLabel()}, ${fmtG(peakTraffic())} peak. Build your own internet at`,url:'https://seriesoftub.es/'};try{if(f&&navigator.canShare&&navigator.canShare({files:[f]}))d.files=[f];navigator.share(d).then(()=>track('share_done')).catch(()=>{});}catch(e){}}),
  confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day)return;if(!spend(confCost()))return;S.confReg[key]=true;
    /* Registering is the point where you meet people, so the lead arrives now rather than on the
       day of the event. Waiting until the conference starts meant a player who registered and
@@ -4708,14 +4729,14 @@ const SCN_PROG={stg:()=>[pSrv(200)],redsea:()=>[pChk(tr('A path from Marseille t
   flood:()=>{const ok=S.stats.ddosOk||0,big=S.stats.ddosOkBig||0,a=S.ev.ddos&&S.ev.ddos.until>S.day?S.ev.ddos:null;
     return [{l:tr('Floods held'),v:ok,max:20,txt:`${ok} / 20`},{l:tr('Terabit floods held'),v:big,max:5,txt:`${big} / 5`},{l:tr('Floods that got through'),v:0,max:0,txt:String(S.stats.ddosLost||0)}].concat(a?[{l:tr('Under attack now'),v:0,max:0,txt:`${fmtG(a.gbps)} · ${CITY[a.city].name} · ${pct(a.worst===undefined?1:a.worst)}`}]:[]);},baltic:()=>[{l:tr('Days in a row with 99.5% served'),v:S.stats.clean||0,max:90,txt:tr('{n} of {m}',{n:S.stats.clean||0,m:90})}]};
 function scnProg(){const sc=S&&S.scn;if(!sc)return null;
-  if(sc.id==='weekly')return {goal:tr('Serve as much traffic as you can in one year.'),items:[{l:tr('Your score: peak traffic'),v:0,max:0,txt:fmtG(S.stats.peak||0)}],f:Math.min(1,S.day/sc.days)};
+  if(sc.id==='weekly')return {goal:tr('Serve as much traffic as you can in one year.'),items:[{l:tr('Your score: peak traffic'),v:0,max:0,txt:fmtG(peakTraffic())}],f:Math.min(1,S.day/sc.days)};
   const def=SCN.find(x=>x.id===sc.id),fn=SCN_PROG[sc.id];if(!def)return null;let items=[];try{items=fn?fn():[];}catch(e){items=[];}
   const meas=items.filter(x=>x.max),f=sc.done?1:meas.length?meas.reduce((a,x)=>a+Math.min(1,x.v/x.max),0)/meas.length:0;return {goal:def.goal,items,f};}
 const pRow=x=>`<div class="kv"><span>${esc(x.l)}</span><b>${esc(x.txt)}</b></div>${x.max?`<div class="bar ${x.v>=x.max?'':'warn'}"><i style="width:${Math.min(100,x.max?x.v/x.max*100:0)}%"></i></div>`:''}`;
 function scnCard(){const sc=S.scn,P=scnProg();if(!sc||!P)return '';const left=Math.max(0,sc.days-S.day);
   const st=sc.done?`<b style="color:var(--eye)">${tr('Done in {d} days!',{d:sc.done})}</b>`:sc.failed?`<b style="color:var(--bad)">${tr("Time's up")}</b>`:tr('{n} days left',{n:left});
   return `<div class="pcard"><div class="eyebrow">${tr('Scenario')} · ${Math.round(P.f*100)}%</div><div class="pt">${esc(sc.name)}</div><div class="meta">🎯 ${esc(P.goal)}</div>${P.items.map(pRow).join('')}<div class="kv"><span>${tr('Time')}</span><b>${st}</b></div><div class="bar ${!sc.done&&left<sc.days*0.2?'bad':''}"><i style="width:${Math.min(100,S.day/sc.days*100)}%"></i></div></div>`;}
-function lvlItems(){const lv=S.lvl||1,pk=S.stats.peak||0,pops=Object.keys(S.pops).length,G=(l,v,max,txt)=>({l,v,max,txt}),q=LV_REQ[lv];if(!q)return [];
+function lvlItems(){const lv=S.lvl||1,pk=peakTraffic(),pops=Object.keys(S.pops).length,G=(l,v,max,txt)=>({l,v,max,txt}),q=LV_REQ[lv];if(!q)return [];
   const out=[G(tr('Peak traffic'),pk,q.pk,`${fmtG(pk)} / ${fmtG(q.pk)}`),G(tr('POPs'),pops,q.pops,`${pops} / ${q.pops}`)],rg=lvReg(lv);if(rg)out.push(G(tr('Continents'),regionsCount(),rg,`${regionsCount()} / ${rg}`));return out;}
 function lvlCard(){const lv=S.lvl||1,nx=LEVELS[lv];
   return `<div class="pcard lv"><div class="eyebrow">${tr('Customer level {lv} of {max}',{lv,max:LEVELS.length})}</div><div class="pt">${esc(LEVELS[lv-1].n)}</div><div class="meta"><i>${esc(LEVELS[lv-1].q)}</i></div>${nx?`<div class="meta">${tr('Next: {name} unlocks {what}',{name:esc(nx.n),what:esc(lc1(nx.unlock))})}</div>${lvlItems().map(pRow).join('')}`:`<div class="meta">${tr('Every customer type is unlocked. Go get those terabits.')}</div>`}</div>`;}
@@ -4804,7 +4825,7 @@ function renderDash(){checkLayer();
   const net=R.revMo-R.costMo,tot=Object.values(R.egT).reduce((a,b)=>a+b,0)||1;
   const tile=(l,v,sub)=>`<div class="tile"><div class="lbl">${l}</div><div class="val">${v}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`;
   let h=`<div style="display:flex;align-items:center;gap:10px"><div><div class="eyebrow">AS${S.asn} · ${esc(S.name)} · ${tierLabel()}</div><h2 style="font-size:28px">${tr('NOC dashboard')}</h2></div><button class="x" data-act="dashClose" aria-label="${tr('Close')}">×</button></div>`+dashTabs();const DT=UI.dtab||'overview';if(DT==='overview')h+=`
-  <div class="dgrid">${tile(tr('Traffic now'),fmtG(R.served),tr('of {g} wanted',{g:fmtG(R.demand)}))}${tile(tr('Peak'),fmtG(S.stats.peak))}${tile(tr('Delivered, 30 days'),(up*100).toFixed(1)+'%',up>=0.999?tr('five nines-ish'):up>=0.99?tr('two nines and change'):tr('customers are upset'))}${tile(tr('Peering ratio'),pct(R.peerShare||0),tr('caches, PNIs and IX'))}${tile(tr('Monthly P&L'),`<span style="color:${net>=0?'var(--eye)':'var(--bad)'}">${net>=0?'+':''}${fmt$(net)}</span>`,tr('{in} in · {out} out',{in:fmt$(R.revMo),out:fmt$(R.costMo)}))}${tile(tr('Incidents'),S.stats.incidents,tr('{n} shrugged off',{n:S.stats.survived}))}</div>
+  <div class="dgrid">${tile(tr('Traffic now'),fmtG(R.served),tr('of {g} wanted',{g:fmtG(R.demand)}))}${tile(tr('Peak'),fmtG(peakTraffic()))}${tile(tr('Delivered, 30 days'),(up*100).toFixed(1)+'%',up>=0.999?tr('five nines-ish'):up>=0.99?tr('two nines and change'):tr('customers are upset'))}${tile(tr('Peering ratio'),pct(R.peerShare||0),tr('caches, PNIs and IX'))}${tile(tr('Monthly P&L'),`<span style="color:${net>=0?'var(--eye)':'var(--bad)'}">${net>=0?'+':''}${fmt$(net)}</span>`,tr('{in} in · {out} out',{in:fmt$(R.revMo),out:fmt$(R.costMo)}))}${tile(tr('Incidents'),S.stats.incidents,tr('{n} shrugged off',{n:S.stats.survived}))}</div>
   <div class="dcols"><div class="panel2"><h3>${tr('Traffic by way out')}</h3>${svgChart(rows,['c','p','ix','t','l2'],[{k:'dem',col:'#1E2640',dash:true}],v=>fmtCap(Math.round(v)))}<div class="legend">${Object.keys(EGC).map(k=>`<span><i style="background:${EGC[k][1]}"></i>${EGC[k][0]} ${pct((R.egT[k]||0)/tot)}</span>`).join('')}<span><i style="background:#fff;border-style:dashed"></i>${tr('Demand')}</span></div></div>
   <div class="panel2"><h3>${tr('Money per month')}</h3>${svgChart(rows,[],[{k:'rev',col:'#16A866'},{k:'cost',col:'#FF4D5E'}],v=>fmt$(v))}<div class="legend"><span><i style="background:#16A866"></i>${tr('Revenue')}</span><span><i style="background:#FF4D5E"></i>${tr('Costs')}</span></div>
   <h3 style="margin-top:8px">${tr('Where the money goes')}</h3>${Object.entries(R.cost).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="kv"><span>${{pops:tr('POPs and routers'),links:tr('Waves and fiber'),transit:tr('Transit'),ix:tr('IX ports'),pni:tr('PNIs'),caches:tr('Cache power'),nni:tr('Fabric ports'),optical:tr('Amp huts and spares'),loans:tr('Loan repayments'),revshare:tr('Investor revenue share'),extras:tr('Licenses and scrubbing')}[k]||k}</span><b>${tr('{price}/mo',{price:fmt$(v)})}</b></div>`).join('')}</div></div>`;
@@ -4988,7 +5009,7 @@ function showWin(){
   openModal(`<h1 style="font-family:var(--display);font-size:44px;margin:0">You're a <span style="color:var(--me)">${esc(R.l)}</span>!</h1><p class="tagline">${story[S.role]||story.isp} ${tail}</p>${btn('Keep building','keepPlaying',{},'pink big')}`);sfx('coin');
 }
 /* A bankrupt run must not come back from the backup slot either (PRD §5.1). */
-function showLose(){try{localStorage.removeItem('sot-save-backup');}catch(e){}openModal(`<h1 style="font-family:var(--display);font-size:40px;margin:0">Bankrupt</h1><p class="tagline">The bank repossessed your routers and sold them on eBuy. ${esc(S.name)} lasted ${S.day} days and peaked at ${fmtG(S.stats.peak)}.</p>${btn('Try again','newgame',{},'pink big')}`);clearSave(S.region||UI.region);}
+function showLose(){try{localStorage.removeItem('sot-save-backup');}catch(e){}openModal(`<h1 style="font-family:var(--display);font-size:40px;margin:0">Bankrupt</h1><p class="tagline">The bank repossessed your routers and sold them on eBuy. ${esc(S.name)} lasted ${S.day} days and peaked at ${fmtG(peakTraffic())}.</p>${btn('Try again','newgame',{},'pink big')}`);clearSave(S.region||UI.region);}
 function openLinkModal(a,b){
   if([a,b].includes('kyv')&&[a,b].includes('mos')){openModal(`<div style="display:flex;align-items:center"><h2 style="font-size:24px">${tr('Not happening')}</h2><button class="x" data-act="closeModal" aria-label="${tr('Close')}">×</button></div><p class="lead" style="margin-top:8px">${tr('Nobody sells capacity between Kyiv and Moscow, and nobody is going to. Route through Warsaw, Bucharest or Helsinki instead.')}</p>`);return;}
   if((cnCity(a)||cnCity(b))&&!cnOk()){openModal(`<div style="display:flex;align-items:center"><h2 style="font-size:24px">${tr('Not without a license')}</h2><button class="x" data-act="closeModal" aria-label="${tr('Close')}">×</button></div><p class="lead" style="margin-top:8px">${tr('Building into mainland China needs a joint venture and an operating license. Open {city} to apply.',{city:CITY[cnCity(a)?a:b].name})}</p>`);return;}

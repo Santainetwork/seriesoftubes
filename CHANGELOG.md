@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+- A hosting outfit could not level up. Peak traffic — the number the customer levels are built on
+  — was fed only by IP traffic, and a private circuit never passes an IP exit: a cloud on-ramp or
+  an AI interconnect moved hundreds of gigabits, paid for them, and counted for nothing. Signing a
+  400G on-ramp could even make peak traffic fall, because the circuit was allocated before the IP
+  customers and took the whole chassis. Private circuits now count towards peak traffic, and they
+  are allocated after IP traffic instead of before it. A restricted role also obeys the level each
+  customer type asks for, so a level-1 hosting outfit can no longer sign an AI interconnect that
+  the rest of the game only offers at level 4.
 - A bigger router no longer invents broadband demand. The eyeball ceiling was `max(calibrated,
   chassis)`, so a single Chonk 800 gave all 34 Indonesian cities the same 12,800 Gbps ceiling and
   Manado — 1.2 million people, a calibrated ceiling of 144 Gbps — could sell 1,768 Gbps off two
