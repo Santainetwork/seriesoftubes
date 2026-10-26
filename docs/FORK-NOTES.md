@@ -62,6 +62,17 @@ suite hijau tidak membuktikan apa pun tentang yang di-deploy.
   ke-49 kotanya `reg:'AS'`, jadi Tier 1 mustahil di sana — 49 POP, 3,2 Tbps dan 106 sesi tetap
   ditolak. Ini kelas bug yang sama dengan `lvReg()`; sekarang dibatasi `mapRegionsCount()`, dan
   nilainya di `rules` juga diperbaiki jadi 1.
+- **Goal dan badge yang mustahil di peta tetap ditampilkan.** `c3`, `c5` dan badge `six` minta benua
+  yang tidak ada di SEA/IDN; hasil sweep yang sama menemukan 14 lainnya (kabel/kota yang tidak ada
+  di peta, "POP 50 kota" di peta 34 kota, `bingo` yang `[].every()`-nya selalu true). Sekarang tiap
+  goal/badge menyatakan `needs:{...}` dan `mapHas()` membandingkannya dengan isi peta; yang mustahil
+  tidak dirender, bukan dibatasi (cap akan mengubah "Go global" jadi no-op $50.000).
+- **`renderLeft()` merender `GOALS`, bukan `goalsFor()`.** Tab menghitung 19, daftar menampilkan 31,
+  termasuk ladder role lain dan goal broadband yang tidak bisa dibeli role itu.
+- **`spawnMega()` menggantungkan deal fiber-pairs pada kampus AI.** `if(!megaMine.length)return;` di
+  atas cabang `pairs` yang tidak memakai kampus, jadi IDN (0 kampus) tidak pernah bisa menjual fiber
+  pairs — `gi`, `landlord`, `gigawatt` ikut mati. Daftar `others` juga menyimpan kampus di luar peta,
+  sehingga `kmBetween()` membaca `CITY[undefined]` dan `dayTick` throw: 300 dari 300 panggilan di SEA.
 - **Tier 1 butuh PNI dengan semua T1**, dan PNI hanya bisa dibangun di kota yang punya POP jaringan
   itu. `lvl` (Level Tree) dulu hanya punya POP Eropa/Amerika, jadi T1 mustahil di peta Asia.
 - **`t1Sessions` tidak ada di `rules` region mana pun** — semua memakai literal 20, gerbang yang

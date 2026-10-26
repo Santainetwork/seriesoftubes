@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+- Goals and badges that a map can never satisfy are no longer shown on it. On the Southeast Asia and
+  Indonesia maps a player was told to "have POPs on 3 continents" and shown a "Six Continents" badge
+  when the whole map is one continent, so neither could ever be claimed. Seventeen goals and badges
+  were impossible there, including three that named cables or cities the map does not have. They now
+  disappear from the panel on maps that cannot supply them, and stay on the map that can.
+- The goals panel showed every role's goals to every role. An ISP saw all 31 goals while the counter
+  said 19, including three other roles' private ladders and a broadband goal it cannot even buy.
+- A DE-KICKS badge was handed out on day one on the regional maps. "Ports at all six DE-KICKS
+  exchanges" was checked against an empty list, which counts as satisfied, so a brand new network
+  with one POP and no ports got an Epic badge for nothing.
+- Hyperscaler fiber deals were unreachable on the Indonesia map, and threw an error on the Southeast
+  Asia one. A fiber-pairs deal was gated behind an AI campus it does not use, so a map with no campus
+  could never sell one; and the AI WAN deal could pick a campus that is not on the map, which failed
+  the whole day instead of offering a contract.
 - Tier 1 was unreachable on the Southeast Asia map. The club asked for POPs on two continents, but
   every city on that map is in one, so no amount of traffic or peering could open the door: a
   player with all 49 POPs, 3.2 Tbps served and 106 peering sessions was still refused for a
