@@ -1748,12 +1748,12 @@ const GOALS=[
  {id:'ca',t:tr('Host an embedded cache'),d:tr('Big CDNs give you free cache boxes once you send them enough traffic. Free bandwidth, just add power.'),r:12500,ok:()=>S.caches.length>0},
  {id:'pn',t:tr('Set up a PNI'),d:tr('A private cross-connect to one network in the same data center, for when traffic outgrows the IX.'),r:15000,ok:()=>S.pni.length>0},
  {id:'scrub',t:tr('Stand up DDoS defences'),d:tr('Build a scrubbing center from a POP\'s Infra tab. It cleans attacks up to its capacity and lets you sell DDoS protection.'),r:20000,ok:()=>!!S.scrubAt},
- {id:'c3',t:tr('Go global'),d:tr('Have POPs on 3 continents. Subsea cables cost a fortune, so plan the route.'),r:50000,ok:()=>regionsCount()>=3},
+ {id:'c3',needs:{regions:3},t:tr('Go global'),d:tr('Have POPs on 3 continents. Subsea cables cost a fortune, so plan the route.'),r:50000,ok:()=>regionsCount()>=3},
  {id:'t2',by:['isp','nap'],t:tr('Become a Tier 2'),d:tr('5+ POPs, ports on 3+ IXs and 15+ peering sessions.'),r:50000,ok:()=>isTier2()},
  {id:'tb',by:['isp','nap'],t:tr('Serve 1 Tbps'),d:tr('A terabit per second of happy traffic.'),r:75000,ok:()=>R.served>=1000},
  {id:'df',t:tr('Light your own dark fiber'),d:tr('Lease or dig dark fiber, put a DWDM system on it and light a channel. Cheaper per bit than waves, once it works.'),r:40000,ok:()=>S.links.some(l=>l.kind==='df'&&dfCap(l)>0)},
  {id:'m2',t:tr('Be in two buildings at once'),d:tr('Add a second site in a metro from the Infra tab, so one power cut no longer takes the whole city dark.'),r:30000,ok:()=>Object.values(S.pops).some(p=>p.site2)},
- {id:'c5',by:['isp','nap'],t:tr('Five continents'),d:tr('POPs in five of the six regions on the map.'),r:100000,ok:()=>regionsCount()>=5},
+ {id:'c5',by:['isp','nap'],needs:{regions:5},t:tr('Five continents'),d:tr('POPs in five of the six regions on the map.'),r:100000,ok:()=>regionsCount()>=5},
  {id:'gi',by:['nap','isp'],t:tr('Sign a giant'),d:tr('Land an AI WAN, a multi-site training run or a fiber-pairs deal with a hyperscaler. Customer level 4 and a POP near their campus required.'),r:150000,ok:()=>S.biz.some(b=>BIZ_T[b.type]&&BIZ_T[b.type].mega&&!BIZ_T[b.type].event)},
  {id:'t10',by:['isp','nap'],t:tr('Serve 10 Tbps'),d:tr('Ten terabits per second of happy traffic. The giants will notice.'),r:250000,ok:()=>R.served>=10000},
  {id:'t1',by:['isp'],win:true,t:tr('Go transit-free: Tier 1!'),d:tr('Peer with every Tier 1 over PNIs and cancel every transit port. Then nobody charges you to reach the internet.'),r:0,win:true,ok:()=>isTier1()},
@@ -1794,8 +1794,9 @@ const GOALS=[
   d:'Two years, no debt, customers who pay. Most neighbourhood networks do not make it this far.',
   r:0,ok:()=>S.day>=730&&S.cash>0&&S.transit.length>0}
 ];;
-/* Goals are filtered per role; a goal without `by` is open to everyone. */
-const goalsFor=(role)=>GOALS.filter(g=>!g.by||g.by.includes(role||(S&&S.role)||'isp'));
+/* Goals are filtered per role; a goal without `by` is open to everyone. A goal the map cannot
+   supply is filtered out entirely: see mapHas()/goalShown(). */
+const goalsFor=(role)=>GOALS.filter(g=>goalShown(g)&&(!g.by||g.by.includes(role||(S&&S.role)||'isp')));
 
 /* ================= STATE ================= */
 let S=null, R=emptyR();
@@ -2239,7 +2240,7 @@ function shareCanvas(){const Wc=1200,Hc=630,cv=document.createElement('canvas');
   g.font='800 26px Nunito, sans-serif';g.fillText(`AS${S.asn} · ${tierLabel()} · ${dateStr(S.day)}${S.mode==='sandbox'?' · '+tr('Sandbox'):''}`,42,92);
   // stats
   const got=BADGES.filter(b=>S.ach&&S.ach[b.id]!==undefined),rk={l:0,e:1,r:2,c:3},top=got.slice().sort((a,b)=>rk[a.r]-rk[b.r]).slice(0,8);
-  const rows=[[tr('Peak traffic'),fmtG(peakTraffic())],[tr('Peered'),pct(R.peerShare||0)],[tr('POPs'),tr('{n} in {r} regions',{n:Object.keys(S.pops).length,r:regionsCount()})],[tr('Links'),String(S.links.length)],[tr('Customers'),String(S.biz.length)],[tr('Incidents survived'),String(S.stats.survived||0)],[tr('Shark bites'),String(S.stats.sharks||0)],[tr('Badges'),`${got.length}/${BADGES.length}`]];
+  const rows=[[tr('Peak traffic'),fmtG(peakTraffic())],[tr('Peered'),pct(R.peerShare||0)],[tr('POPs'),tr('{n} in {r} regions',{n:Object.keys(S.pops).length,r:regionsCount()})],[tr('Links'),String(S.links.length)],[tr('Customers'),String(S.biz.length)],[tr('Incidents survived'),String(S.stats.survived||0)],[tr('Shark bites'),String(S.stats.sharks||0)],[tr('Badges'),`${got.length}/${badgeList(hof()).length}`]];
   if(S.scn)rows.unshift([scnName(),S.scn.done?(S.scn.id==='weekly'?tr('score {v}',{v:fmtG(S.scn.score||peakTraffic())}):tr('done in {d} days',{d:S.scn.done})):S.scn.failed?tr('not this time'):tr('in progress')]);
   let y=150;for(const [k,v] of rows.slice(0,9)){g.fillStyle='#fff';g.strokeStyle='#1E2640';g.lineWidth=3;g.beginPath();g.roundRect?g.roundRect(770,y,390,42,12):g.rect(770,y,390,42);g.fill();g.stroke();g.fillStyle='#5A6280';g.font='800 18px Nunito, sans-serif';g.fillText(k,786,y+11);g.fillStyle='#1E2640';g.font='900 22px Nunito, sans-serif';const tw=g.measureText(v).width;g.fillText(v,1146-tw,y+9);y+=48;}
   g.font='34px sans-serif';top.forEach((b,i)=>g.fillText(b.i,40+i*48,520));
@@ -2318,6 +2319,52 @@ const popUp=c=>S.pops[c]&&!(S.pops[c].down>S.day);
 const regionsCount=()=>new Set(Object.keys(S.pops).map(c=>CITY[c].reg)).size;
 /* The most continents any player could ever reach on the current map: the gate ceiling. */
 const mapRegionsCount=()=>new Set(CITIES.map(c=>c.reg)).size;
+/* What the current map can actually supply, measured once per region. A goal or badge that asks
+   for something here that the map does not have can never complete, so it is not shown at all:
+   a goal you can never claim is worse than an absent one, because the player stops trusting the
+   panel. Cached because goalsFor()/badgesFor() run on every render and every day tick. */
+let MAPCAP=null;
+function mapCap(){
+  if(MAPCAP&&MAPCAP.region===curRegion)return MAPCAP;
+  const ids=new Set(CITIES.map(c=>c.id));
+  MAPCAP={region:curRegion,
+    cities:CITIES.length,
+    citySet:ids,
+    cableSet:new Set(CABLES.map(c=>c.id)),
+    regions:new Set(CITIES.map(c=>c.reg)).size,
+    ix:CITIES.filter(c=>c.ix).length,
+    campuses:new Set(MEGA.filter(m=>ids.has(m.c)).map(m=>m.c)).size,
+    cn:CITIES.some(c=>c.cn),
+    uae:CITIES.filter(c=>c.uae).length,
+    andes:new Set(CITIES.filter(c=>c.andes).map(c=>c.andes)).size,
+    /* Every DE-KICKS exchange present, not just some: the badge is all six. */
+    dk:DK_CITIES.every(c=>CITY[c]&&CITY[c].ix)};
+  return MAPCAP;
+}
+/* Read a `needs` declaration against the map. Unknown keys are ignored on purpose: a typo in a
+   declaration must not silently hide a goal that does work, and the test below pins the keys. */
+function mapHas(n){
+  const c=mapCap();
+  if(n.regions!=null&&c.regions<n.regions)return false;
+  if(n.pops!=null&&c.cities<n.pops)return false;
+  if(n.cities&&!n.cities.every(x=>c.citySet.has(x)))return false;
+  if(n.cables&&!n.cables.every(x=>c.cableSet.has(x)))return false;
+  if(n.nets&&!n.nets.every(x=>!!NET[x]))return false;
+  if(n.ix!=null&&c.ix<n.ix)return false;
+  if(n.campuses!=null&&c.campuses<n.campuses)return false;
+  if(n.cn&&!c.cn)return false;
+  if(n.uae!=null&&c.uae<n.uae)return false;
+  if(n.andes!=null&&c.andes<n.andes)return false;
+  if(n.dk&&!c.dk)return false;
+  return true;
+}
+/* Something already earned stays on the wall even if this map cannot offer it again. */
+const goalShown=g=>!g.needs||mapHas(g.needs);
+const badgeShown=b=>!b.needs||mapHas(b.needs);
+/* What the badge wall draws: everything this map can offer, plus anything already earned here or
+   on this device, so switching maps never looks like the game lost a badge. `h` is passed in
+   because badgeGrid() already has the hall of fame and this runs once per badge. */
+const badgeList=h=>BADGES.filter(b=>badgeShown(b)||(S&&S.ach&&S.ach[b.id]!==undefined)||!!(h&&h[b.id]));
 const ixCity=x=>String(x).split('~')[0];
 function ixIdsIn(c){const o=ixStatic(c);if(S&&S.myIx&&S.myIx[c]&&!o.includes(c))o.unshift(c);return o;}
 const hasIxAt=c=>ixIdsIn(c).some(x=>S.ixp[x]!==undefined);
@@ -2424,6 +2471,10 @@ function ixPriceWar(d){if(!S.ixp||Math.random()>=1/120)return;
    No price list, personalised quotes, haggling, yearly "harmonisation", auto-enrolled add-ons
    you have to opt out of, and a retention offer when you try to leave. */
 const DK_CITIES=['fra','mad','mrs','dxb','bom','nyc'];
+/* The DE-KICKS exchanges this map actually has. Empty on a regional map, which is why the badge
+   needs a length check: `[].every(...)` is true, so the old form handed out an Epic badge for
+   owning nothing at all. */
+const dkCities=()=>DK_CITIES.filter(c=>CITY[c]&&CITY[c].ix);
 const isDk=c=>(DK_CITIES.includes(c)||scnRule('dkAll'))&&!!CITY[c]&&!!CITY[c].ix&&!S.myIx[c];
 const DK_ADDONS=[['Blackholing Plus™',tr('Like blackholing, but with a Plus.')],['Route Server Gold',tr('The same route server, in a gold-coloured portal.')],['Premium Port LEDs',tr('Your port light now blinks in brand colours.')],['Strategic Peering Insights',tr('A monthly PDF of your own traffic graphs.')],['GlobePeer Ready™',tr('Makes your port "ready" for a product you did not buy.')],['Cloud Exchange Readiness Fee',tr('A fee for being ready for the cloud.')],['Account Manager Lunch Fund',tr('Your account manager is hungry.')]];
 const DK_STALL=[tr('Your account manager would love to "align on value" first. Strategic call booked for next week.'),tr('Pricing is reviewed by the Global Commercial Council, who meet on the next full moon.'),tr('They sent a 14-page NDA before they can even repeat the price. Lawyers estimate a week.'),tr('Your account manager is at a conference in Dubai. And then one in Madrid.')];
@@ -2989,16 +3040,22 @@ function eventTick(b,d){if(!BIZ_T[b.type].event)return false;if(d<b.start)return
 /* Where the giants actually build: gigawatt AI campuses and cloud regions, mapped to the nearest city on the map. */
 const MEGA=[{c:'ash',n:'Data Center Alley'},{c:'ash',n:'Prome-the-mess Ohio'},{c:'dal',n:'Star-Gait Abilene'},{c:'dal',n:'Hyperbole Louisiana'},{c:'dal',n:'Colossal Ego Memphis'},{c:'chi',n:'Fairweather Wisconsin'},{c:'chi',n:'Project Rainy-er Indiana'},{c:'chi',n:'Cornfield Cluster Iowa'},{c:'nyc',n:'Neocloud New Jersey'},{c:'sto',n:'Star-Gait Fjord-way'},{c:'mad',n:'Aragón Mega-shed'},{c:'dub',n:'Bring-Your-Own-Power Dublin'},{c:'auh',n:'Star-Gait UAE'},{c:'ruh',n:'Desert Kingdom AI Campus'},{c:'doh',n:'Lusail Data Oasis'},{c:'kul',n:'Johor Overflow'},{c:'hyd',n:'Vizag AI Hub'},{c:'icn',n:'Ulsan AI Campus'},{c:'tok',n:'Hokkaido Snow DC'},{c:'syd',n:'Star-Gait Down Under'},{c:'mex',n:'Querétaro Cluster'},{c:'for',n:'Short-Video Ceará Campus'},{c:'scl',n:'Quilicura Region'}];
 function spawnMega(t,T,nm,mine){
-  const megaMine=MEGA.filter(m=>mine.includes(m.c));if(!megaMine.length)return;
-  if(t==='ingest'){const m=pick(megaMine),bw=pick(T.opts),dur=3+Math.floor(Math.random()*4),start=S.day+10+Math.floor(Math.random()*12);
+  /* A campus only exists where this map has its city: MEGA is a global list, and on a regional
+     map most of it is off-map. Reading CITY[m.c] for one of those threw inside dayTick, so a SEA
+     player with a campus POP got "the simulation hit a snag" instead of a deal. */
+  const megaMine=MEGA.filter(m=>mine.includes(m.c)&&CITY[m.c]);
+  if(t==='ingest'){if(!megaMine.length)return;const m=pick(megaMine),bw=pick(T.opts),dur=3+Math.floor(Math.random()*4),start=S.day+10+Math.floor(Math.random()*12);
     S.offers.push({id:uid(),city:m.c,city2:null,name:tr('{name} at {site}',{name:nm(),site:m.n}),type:t,bw,rate:0,reqs:[],start,dur,fee:Math.round(bw*dur*55),exp:start-2,mega:true});return;}
-  if(t==='aiwan'||t==='agi'){const a=pick(megaMine),others=MEGA.filter(m=>m.c!==a.c&&(Math.random()<0.7?mine.includes(m.c):true));if(!others.length)return;const b=pick(others),km=kmBetween(a.c,b.c),bw=pick(T.opts);
+  if(t==='aiwan'||t==='agi'){if(!megaMine.length)return;
+    const a=pick(megaMine),others=MEGA.filter(m=>m.c!==a.c&&CITY[m.c]&&(Math.random()<0.7?mine.includes(m.c):true));if(!others.length)return;const b=pick(others),km=kmBetween(a.c,b.c),bw=pick(T.opts);
     const reqs=['diverse'];if(Math.random()<0.4)reqs.push('metro');
     S.offers.push({id:uid(),city:a.c,city2:b.c,name:`${nm()}: ${a.n} ⇄ ${b.n}`,type:t,bw,rate:Math.round((150+km*0.08)*T.km),reqs,exp:S.day+45,mega:true});return;}
-  if(t==='mtrain'){const hub=pick(megaMine),reg=CITY[hub.c].reg,pool=[...new Set(MEGA.filter(m=>m.c!==hub.c&&CITY[m.c].reg===reg).map(m=>m.c))];if(pool.length<2)return;
+  if(t==='mtrain'){if(!megaMine.length)return;const hub=pick(megaMine),reg=CITY[hub.c].reg,pool=[...new Set(MEGA.filter(m=>m.c!==hub.c&&CITY[m.c]&&CITY[m.c].reg===reg).map(m=>m.c))];if(pool.length<2)return;
     const sites=[hub.c];while(sites.length<Math.min(4,pool.length+1)&&pool.length)sites.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
     const avg=sites.slice(1).reduce((x,c)=>x+kmBetween(hub.c,c),0)/(sites.length-1),bw=pick(T.opts);
     S.offers.push({id:uid(),city:hub.c,city2:null,sites,name:tr('{name} (hub: {site})',{name:nm(),site:hub.n}),type:t,bw,rate:Math.round((150+avg*0.08)*0.6),reqs:[],exp:S.day+45,mega:true});return;}
+  /* A fiber-pairs deal is about the trench you dug, not about an AI campus: it must not inherit
+     the campus gate above, or a map with no campus can never sell a pair of fibers. */
   if(t==='pairs'){const ls=S.links.filter(l=>l.kind==='df'&&l.own&&l.ready<=S.day&&!S.biz.some(b=>(b.type==='pairs'||b.type==='dfpair')&&b.link===l.id)&&!S.offers.some(o=>o.link===l.id));if(!ls.length)return;const l=pick(ls),n=100+50*Math.floor(Math.random()*7);
     S.offers.push({id:uid(),city:l.a,city2:l.b,link:l.id,what:tr('{n} fiber pairs in your {a}–{b} trench. Trenching was the expensive part, so they want all of it',{n,a:CITY[l.a].name,b:CITY[l.b].name}),name:nm(),type:t,bw:1,rate:Math.round(dfLeaseMo(l.km)*n*0.2),reqs:[],exp:S.day+30,mega:true});}
 }
@@ -3586,22 +3643,22 @@ const BADGES=[
  {id:'unsub',i:'📭',t:tr('Unsubscribed'),d:tr('Opt out of 3 auto-enrolled add-ons.'),r:'r',ok:()=>(st().optouts||0)>=3},
  {id:'read',i:'💔',t:tr('Left on Read'),d:tr('Get de-peered by a big network.'),r:'r',ok:()=>(st().depeered||0)>=1},
  {id:'couch',i:'🛋️',t:tr('Peering From the Couch'),d:tr('Peer at an IX remotely.'),r:'r',ok:()=>Object.keys(S.ixp).some(c=>isRemote(c)&&ixSessions(c).size>0)},
- {id:'sender',i:'🇰🇷',t:tr('Sender Pays'),d:tr('Paid PNIs with all three Korean incumbents.'),r:'e',ok:()=>['ktt','skb','lgu'].every(n=>S.pni.some(p=>p.net===n))},
+ {id:'sender',i:'🇰🇷',needs:{nets:['ktt','skb','lgu']},t:tr('Sender Pays'),d:tr('Paid PNIs with all three Korean incumbents.'),r:'e',ok:()=>['ktt','skb','lgu'].every(n=>S.pni.some(p=>p.net===n))},
  {id:'oink',i:'🐖',t:tr('Pig Whisperer'),d:tr('Run a slow-booting PacketOinker chassis.'),r:'r',ok:()=>Object.keys(S.pops).some(c=>/Oinker/.test(RG[S.pops[c].rgen||0].chip)&&slowBoot(c))},
- {id:'gap',i:'🌴',t:tr('Mind the Gap'),d:tr('Link Panama City and Bogotá.'),r:'r',ok:()=>S.links.some(l=>[l.a,l.b].includes('pan')&&[l.a,l.b].includes('bog'))},
- {id:'andes',i:'🏔️',t:tr('Over the Mountains'),d:tr('Build fiber across the Andes.'),r:'r',ok:()=>S.links.some(l=>!l.sub&&andesPair(l.a,l.b))},
- {id:'duo',i:'🏜️',t:tr('Duopoly Customer'),d:tr('Buy a wave inside the UAE.'),r:'r',ok:()=>S.links.some(l=>uaePair(l.a,l.b))},
+ {id:'gap',i:'🌴',needs:{cities:['pan','bog']},t:tr('Mind the Gap'),d:tr('Link Panama City and Bogotá.'),r:'r',ok:()=>S.links.some(l=>[l.a,l.b].includes('pan')&&[l.a,l.b].includes('bog'))},
+ {id:'andes',i:'🏔️',needs:{andes:2},t:tr('Over the Mountains'),d:tr('Build fiber across the Andes.'),r:'r',ok:()=>S.links.some(l=>!l.sub&&andesPair(l.a,l.b))},
+ {id:'duo',i:'🏜️',needs:{uae:2},t:tr('Duopoly Customer'),d:tr('Buy a wave inside the UAE.'),r:'r',ok:()=>S.links.some(l=>uaePair(l.a,l.b))},
  {id:'shed',i:'🔌',t:tr('Stage Six'),d:tr('Ride out load shedding on your own generator.'),r:'r',ok:()=>(st().shed||0)>=1},
  {id:'metro3',i:'🏢',t:tr('Two Buildings, Three Cities'),d:tr('Have a second site in 3 metros.'),r:'r',ok:()=>Object.values(S.pops).filter(p=>p.site2).length>=3},
- {id:'penguin',i:'🐧',t:tr('Lonely Penguin'),d:tr('Light a wave on the Humboldt cable to Sydney.'),r:'e',ok:()=>S.links.some(l=>l.cable==='humb')},
- {id:'horn',i:'⛵',t:tr('The Long Way Round'),d:tr('Run a link round Cape Horn.'),r:'e',ok:()=>S.links.some(l=>l.cable==='sam1'&&[l.a,l.b].includes('bue')&&[l.a,l.b].includes('scl'))},
- {id:'six',i:'🌍',t:tr('Six Continents'),d:tr('POPs in every region on the map.'),r:'e',ok:()=>regionsCount()>=6},
- {id:'giants',i:'🏭',t:tr('Friend of Giants'),d:tr('Hold deals at 3 different AI campuses at once.'),r:'e',ok:()=>new Set(S.biz.filter(b=>BIZ_T[b.type]&&BIZ_T[b.type].mega).flatMap(b=>bCities(b))).size>=3},
+ {id:'penguin',i:'🐧',needs:{cables:['humb']},t:tr('Lonely Penguin'),d:tr('Light a wave on the Humboldt cable to Sydney.'),r:'e',ok:()=>S.links.some(l=>l.cable==='humb')},
+ {id:'horn',i:'⛵',needs:{cities:['bue','scl'],cables:['sam1']},t:tr('The Long Way Round'),d:tr('Run a link round Cape Horn.'),r:'e',ok:()=>S.links.some(l=>l.cable==='sam1'&&[l.a,l.b].includes('bue')&&[l.a,l.b].includes('scl'))},
+ {id:'six',i:'🌍',needs:{regions:6},t:tr('Six Continents'),d:tr('POPs in every region on the map.'),r:'e',ok:()=>regionsCount()>=6},
+ {id:'giants',i:'🏭',needs:{campuses:3},t:tr('Friend of Giants'),d:tr('Hold deals at 3 different AI campuses at once.'),r:'e',ok:()=>new Set(S.biz.filter(b=>BIZ_T[b.type]&&BIZ_T[b.type].mega).flatMap(b=>bCities(b))).size>=3},
  {id:'landlord',i:'🧵',t:tr('Trench Landlord'),d:tr('Lease hundreds of fiber pairs to a hyperscaler.'),r:'e',ok:()=>S.biz.some(b=>b.type==='pairs')},
  {id:'t1',i:'👑',t:tr('Tier 1'),d:tr('Go transit-free.'),r:'e',ok:()=>!!S.won},
  {id:'bait',i:'🎣',t:tr('Shark Bait'),d:tr('Get bitten by sharks 3 times in one game.'),r:'l',ok:()=>(st().sharks||0)>=3},
  {id:'nines',i:'💎',t:tr('Five Nines'),d:tr('Serve 99.5% of demand every single day for a whole year.'),r:'l',ok:()=>(st().clean||0)>=365},
- {id:'fifty',i:'🗺️',t:tr('Everywhere at Once'),d:tr('Have POPs in 50 cities.'),r:'l',ok:()=>Object.keys(S.pops).length>=50},
+ {id:'fifty',i:'🗺️',needs:{pops:50},t:tr('Everywhere at Once'),d:tr('Have POPs in 50 cities.'),r:'l',ok:()=>Object.keys(S.pops).length>=50},
  {id:'unicorn',i:'🦄',t:tr('Unicorn'),d:tr('Hold a billion dollars in cash.'),r:'l',ok:()=>S.cash>=1e9},
  {id:'clean',i:'🧼',t:tr('Debt-Free Tier 1'),d:tr('Win without ever taking a loan.'),r:'l',ok:()=>!!S.won&&!(st().loans||0)&&!(S.loans||[]).length},
  {id:'speed',i:'⚡',t:tr('Speedrun'),d:tr('Reach Tier 1 within three years.'),r:'l',ok:()=>!!S.won&&S.day<=1095},
@@ -3609,12 +3666,12 @@ const BADGES=[
  {id:'street',i:'🚧',t:tr('Same Street'),d:tr('Lose a metro ring to one backhoe.'),r:'r',ok:()=>(st().by||{}).ring>=1},
  {id:'anchor',i:'⚓',t:tr('Anchors Aweigh'),d:tr('Have a cable cut by a dragged anchor.'),r:'r',ok:()=>!!(st().f||{}).anchor},
  {id:'retained',i:'🎁',t:tr('Customer Success Story'),d:tr('Take a DE-KICKS retention offer.'),r:'r',ok:()=>!!st().retained},
- {id:'brrr',i:'🇧🇷',t:tr('Samba Peering'),d:tr('Ports on all three IX.brrr exchanges.'),r:'e',ok:()=>['sao','rio','for'].every(c=>S.ixp[c]!==undefined)},
- {id:'bingo',i:'🎰',t:tr('DE-KICKS Bingo'),d:tr('Ports at all six DE-KICKS exchanges. They thank you for your continued partnership.'),r:'e',ok:()=>DK_CITIES.filter(c=>CITY[c]&&CITY[c].ix).every(c=>S.ixp[c]!==undefined)},
- {id:'fire',i:'🌋',t:tr('Ring of Fire'),d:tr('POPs all the way round the Pacific: Los Angeles, Tokyo, Taipei, Manila, Jakarta, Sydney, Auckland and Santiago.'),r:'e',ok:()=>['lax','tok','tpe','mnl','jkt','syd','akl','scl'].every(c=>S.pops[c])},
- {id:'curtain',i:'🎭',t:tr('Iron Curtain Call'),d:tr('POPs in Warsaw, Prague, Vienna, Budapest, Bucharest, Sofia, Belgrade and Tallinn.'),r:'e',ok:()=>['waw','prg','vie','bud','buh','sof','beg','tll'].every(c=>S.pops[c])},
- {id:'islands',i:'🏝️',t:tr('Island Hopper'),d:tr('POPs in Reykjavik, Dublin, London, Colombo, Taipei, Manila, Tokyo and Auckland.'),r:'e',ok:()=>['rek','dub','lon','cbo','tpe','mnl','tok','akl'].every(c=>S.pops[c])},
- {id:'wall',i:'🧱',t:tr('Through the Wall'),d:tr('Run a licensed POP in mainland China.'),r:'e',ok:()=>cnOk()&&Object.keys(S.pops).some(cnCity)},
+ {id:'brrr',i:'🇧🇷',needs:{cities:['sao','rio','for']},t:tr('Samba Peering'),d:tr('Ports on all three IX.brrr exchanges.'),r:'e',ok:()=>['sao','rio','for'].every(c=>S.ixp[c]!==undefined)},
+ {id:'bingo',i:'🎰',needs:{dk:true},t:tr('DE-KICKS Bingo'),d:tr('Ports at all six DE-KICKS exchanges. They thank you for your continued partnership.'),r:'e',ok:()=>dkCities().length>0&&dkCities().every(c=>S.ixp[c]!==undefined)},
+ {id:'fire',i:'🌋',needs:{cities:['lax','tok','tpe','mnl','jkt','syd','akl','scl']},t:tr('Ring of Fire'),d:tr('POPs all the way round the Pacific: Los Angeles, Tokyo, Taipei, Manila, Jakarta, Sydney, Auckland and Santiago.'),r:'e',ok:()=>['lax','tok','tpe','mnl','jkt','syd','akl','scl'].every(c=>S.pops[c])},
+ {id:'curtain',i:'🎭',needs:{cities:['waw','prg','vie','bud','buh','sof','beg','tll']},t:tr('Iron Curtain Call'),d:tr('POPs in Warsaw, Prague, Vienna, Budapest, Bucharest, Sofia, Belgrade and Tallinn.'),r:'e',ok:()=>['waw','prg','vie','bud','buh','sof','beg','tll'].every(c=>S.pops[c])},
+ {id:'islands',i:'🏝️',needs:{cities:['rek','dub','lon','cbo','tpe','mnl','tok','akl']},t:tr('Island Hopper'),d:tr('POPs in Reykjavik, Dublin, London, Colombo, Taipei, Manila, Tokyo and Auckland.'),r:'e',ok:()=>['rek','dub','lon','cbo','tpe','mnl','tok','akl'].every(c=>S.pops[c])},
+ {id:'wall',i:'🧱',needs:{cn:true},t:tr('Through the Wall'),d:tr('Run a licensed POP in mainland China.'),r:'e',ok:()=>cnOk()&&Object.keys(S.pops).some(cnCity)},
  {id:'croc',i:'🐊',t:tr('Darwin Award'),d:tr('Have your fiber bitten by a crocodile.'),r:'l',ok:()=>!!(st().f||{}).croc},
  {id:'unbreak',i:'🛡️',t:tr('Unbreakable'),d:tr('Survive 100 incidents without customer impact.'),r:'l',ok:()=>(st().survived||0)>=100},
  {id:'lv13',i:'🌐',t:tr('Is This the Internet?'),d:tr('Reach customer level 13.'),r:'l',ok:()=>(S.lvl||1)>=13},
@@ -3644,13 +3701,16 @@ const BADGES=[
 ];
 function hof(){try{return JSON.parse(localStorage.getItem('sot-badges')||'{}')||{};}catch(e){return {};}}
 function checkBadges(){S.ach=S.ach||{};if(S.mode==='sandbox')return;let h=null;
-  for(const b of BADGES){if(S.ach[b.id]!==undefined)continue;let ok=false;try{ok=b.ok();}catch(e){}
+  /* A badge the map cannot offer is skipped rather than evaluated: some of them would throw on a
+     regional map (a cable that is not there, a campus city that is not there), and an impossible
+     badge must not sit on the wall taunting the player either. */
+  for(const b of BADGES){if(S.ach[b.id]!==undefined||!badgeShown(b))continue;let ok=false;try{ok=b.ok();}catch(e){}
     if(!ok)continue;S.ach[b.id]=S.day;const R0=RARITY[b.r];
     if(!h)h=hof();if(!h[b.id])h[b.id]={d:new Date().toISOString().slice(0,10),n:S.name};
     toast(`<b>${b.i} ${tr('Badge unlocked: {name}',{name:esc(b.t)})}</b><br><span style="color:${R0.col};font-weight:900">${R0.n}</span> · ${esc(b.d)}`,'goal');sfx('coin');track('badge_'+b.id);}
   if(h)try{localStorage.setItem('sot-badges',JSON.stringify(h));}catch(e){}}
-function badgeGrid(){const h=hof(),got=BADGES.filter(b=>S.ach&&S.ach[b.id]!==undefined).length;
-  return `<h3 style="font-size:15px;margin:14px 0 6px">${tr('Badges')} <span class="meta">${tr('{got}/{total} this game · {ever} ever',{got,total:BADGES.length,ever:Object.keys(h).filter(k=>BADGES.some(b=>b.id===k)).length})}</span></h3><div class="badges">${BADGES.map(b=>{const on=S.ach&&S.ach[b.id]!==undefined,ever=!!h[b.id],R0=RARITY[b.r],hide=b.secret&&!on&&!ever;
+function badgeGrid(){const h=hof(),list=badgeList(h),got=list.filter(b=>S.ach&&S.ach[b.id]!==undefined).length;
+  return `<h3 style="font-size:15px;margin:14px 0 6px">${tr('Badges')} <span class="meta">${tr('{got}/{total} this game · {ever} ever',{got,total:list.length,ever:Object.keys(h).filter(k=>list.some(b=>b.id===k)).length})}</span></h3><div class="badges">${list.map(b=>{const on=S.ach&&S.ach[b.id]!==undefined,ever=!!h[b.id],R0=RARITY[b.r],hide=b.secret&&!on&&!ever;
     return `<div class="bdg ${on?'on':ever?'ever':''}" style="--rc:${R0.col}" title="${esc(hide?tr('A secret badge'):b.t+': '+b.d)}"><span class="bi">${hide?'❔':b.i}</span><span class="bt">${esc(hide?'???':b.t)}</span><span class="br">${R0.n}${ever&&!on?' · '+tr('earned before'):''}</span>${hide?'':`<span class="bd">${esc(b.d)}</span>`}</div>`;}).join('')}</div>`;}
 function checkGoals(){checkBadges();
   for(const g of goalsFor()){if(S.done[g.id]!==undefined)continue;let ok=false;try{ok=g.ok();}catch(e){}
@@ -4286,11 +4346,11 @@ function renderMega(){const el=$('mega');if(!el)return;const on=!!(S&&S.ev&&S.ev
 const isPhone=()=>innerWidth<=760||(innerHeight<=500&&matchMedia('(pointer:coarse)').matches);
 const SPEEDS=[0.5,1,2,4,8];
 function renderTabbar(){const tb=$('tabbar');if(!tb||(pressing&&UI.ticking))return;if(!isPhone()||!S||!UI.started){tb.hidden=true;document.body.classList.remove('sheet-open');return;}tb.hidden=false;
-  const open=UI.leftOpen&&!UI.sel,cur=UI.left||'goals',ndone=GOALS.filter(g=>S.done[g.id]!==undefined).length;
+  const open=UI.leftOpen&&!UI.sel,cur=UI.left||'goals',ndone=goalsFor().filter(g=>S.done[g.id]!==undefined).length;
   const tab=(k,ic,l,cnt,red)=>`<button class="${open&&cur===k?'on':''}" data-act="phoneTab" data-args='{"t":"${k}"}' aria-label="${esc(l)}"><span class="ic" aria-hidden="true">${ic}</span>${esc(l)}${cnt?`<span class="cnt${red?' red':''}">${cnt}</span>`:''}</button>`;
   const h=`<button class="play${UI.speed?'':' paused'}" data-act="phonePlay" aria-label="${UI.speed?tr('Pause'):tr('Play')}"><span class="ic" aria-hidden="true">${UI.speed?'❚❚':'▶'}</span>${UI.speed?tr('Pause'):tr('Play')}</button>`+
     `<button data-act="phoneSpeed" aria-label="${tr('Game speed')}"><span class="ic" aria-hidden="true">${UI.speed===0.5?'½':(UI.lastSpeed||UI.speed||1)}×</span>${tr('Speed')}</button>`+
-    (()=>{const P=scnProg();return tab('goals','🎯',tr('Goals'),P&&!S.scn.done&&!S.scn.failed?`${Math.round(P.f*100)}%`:`${ndone}/${GOALS.length}`);})()+(()=>{const u=custStats().unhappy;return u?tab('deals','💼',tr('Deals'),u,true):tab('deals','💼',tr('Deals'),S.offers.length||'');})()+tab('noc','🚨','NOC',S.inc.length||'',true)+tab('nets','🌐',tr('Networks'));
+    (()=>{const P=scnProg();return tab('goals','🎯',tr('Goals'),P&&!S.scn.done&&!S.scn.failed?`${Math.round(P.f*100)}%`:`${ndone}/${goalsFor().length}`);})()+(()=>{const u=custStats().unhappy;return u?tab('deals','💼',tr('Deals'),u,true):tab('deals','💼',tr('Deals'),S.offers.length||'');})()+tab('noc','🚨','NOC',S.inc.length||'',true)+tab('nets','🌐',tr('Networks'));
   if(h!==UI._tb){UI._tb=h;tb.innerHTML=h;}
   document.body.classList.toggle('sheet-open',!!(UI.sel||UI.leftOpen));}
 function haptic(ms){if(UI.muted)return;try{navigator.vibrate&&navigator.vibrate(ms||12);}catch(e){}}
@@ -4397,8 +4457,8 @@ function renderLeft(){
   let h='';
   if(UI.left==='goals'){
     h+=scnCard()+lvlCard();
-    const cur=GOALS.find(g=>S.done[g.id]===undefined);
-    h+=GOALS.map(g=>{const d=S.done[g.id]!==undefined,c=g===cur;return `<div class="goal ${d?'done':''} ${c?'cur':''}"><div class="ck">${d?'✓':''}</div><div><div class="gt">${esc(g.t)}</div>${c||!d?`<div class="gd">${esc(g.d)}</div>`:''}${!d&&g.r?`<div class="gr">${tr('Reward {cash}',{cash:fmt$(g.r)})}</div>`:''}</div></div>`;}).join('');
+    const myG=goalsFor(),cur=myG.find(g=>S.done[g.id]===undefined);
+    h+=myG.map(g=>{const d=S.done[g.id]!==undefined,c=g===cur;return `<div class="goal ${d?'done':''} ${c?'cur':''}"><div class="ck">${d?'✓':''}</div><div><div class="gt">${esc(g.t)}</div>${c||!d?`<div class="gd">${esc(g.d)}</div>`:''}${!d&&g.r?`<div class="gr">${tr('Reward {cash}',{cash:fmt$(g.r)})}</div>`:''}</div></div>`;}).join('');
     h+=badgeGrid();
     h+=roleUpSection();
     h+=unlockSection();
