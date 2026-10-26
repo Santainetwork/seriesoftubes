@@ -127,3 +127,21 @@ test('paint: no land polygon spills past the map edge', () => {
     assert.deepEqual(spill, [], id + ' draws land outside the canvas: ' + spill.join(', '));
   }
 });
+
+test('paint: Timor and its neighbours are not clipped at the bottom edge', () => {
+  // The projection mapped 26N..-9S onto 1200px, so Dili landed at y=1176 and Kupang at 1184 —
+  // inside the canvas but with their coastlines cut off, which at zoom-out read as Timor Leste
+  // being sliced in half. There must be margin below the southernmost city.
+  const { ev } = region('sea', 'mnl');
+  const H = ev('H');
+  for (const id of ['dil', 'koe']) {
+    const y = ev(`CITY.${id}.y`);
+    assert.ok(y < H - 40, id + ' sits at y=' + Math.round(y) + ' of ' + H + ' — too close to the edge');
+  }
+  const deepest = ev(`(() => {
+    let m = -Infinity;
+    for (const l of LANDS) { if (l.hide) continue; for (const p of l.pts) if (p[1] > m) m = p[1]; }
+    return m;
+  })()`);
+  assert.ok(deepest <= H, 'a land polygon is drawn below the canvas: y=' + Math.round(deepest));
+});
