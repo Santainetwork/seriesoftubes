@@ -426,3 +426,160 @@ test('#22 Tier 1 networks can lay their own subsea cable', () => {
   assert.match(ev("ownCabWhy('sha','sea')"), /China/);
   assert.deepEqual(errors, []);
 });
+
+test('#76 Kansas City, Calgary, Vancouver and Ottawa, with two more Canadian giants and their beavers', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'})");
+  for (const c of ['kcy', 'cal', 'van', 'ott']) {
+    assert.equal(ev(`CITY.${c}.land`), 'am');
+    assert.ok(ev(`CITY.${c}.ix.length>0&&CITY.${c}.dc.length>0`), `${c} has an IX and a data center`);
+  }
+  assert.equal(ev('CITY.ott.blackout'), true, 'Ottawa gets frequent power cuts');
+  assert.equal(ev("['tor','mtl','cal','van','ott'].every(c=>CITY[c].ca)&&!CITY.kcy.ca"), true);
+  // Canadian eyeballs come through the Tier 1s they buy transit from, so a Tier 1 keeps its reach
+  ev("S.transit=[];S.ixp={};S.pni=[];for(const n of t1Need())S.pni.push({id:n.id,net:n.id,city:'fra',tier:0});compute()");
+  assert.equal(ev("t1Need().every(n=>n.pops.includes('fra'))"), true);
+  assert.equal(ev("R.reachable.tlu&&R.reachable.rgc"), true, 'reachable over PNIs with their upstream Tier 1s');
+  assert.equal(ev("NET.tlu.up.every(id=>NET[id].type==='t1')&&NET.rgc.up.every(id=>NET[id].type==='t1')"), true);
+  // a cut on a Canadian link is often a beaver
+  ev("ACT.buildPop({city:'van'});ACT.buildPop({city:'cal'});S.links=[];UI.via=null;openLinkModal('van','cal');ACT.buildLink({tier:1});closeModal()");
+  const src = ev('fireFailure.toString()').replace(/^function fireFailure/, 'function');
+  ev('window.__ff=' + src.replace('type=pick(f);}', "type='cut';}"));
+  ev("for(let i=0;i<40&&!(S.stats.f&&S.stats.f.beaver);i++){for(const l of S.links)l.cut=0;S.inc=[];__ff();}");
+  assert.ok(ev("!!(S.stats.f&&S.stats.f.beaver)"), 'a beaver chewed through it');
+  ev('checkBadges()');
+  assert.ok(ev("(S.badges||[]).includes('beaver')||!!(S.badge&&S.badge.beaver)||BADGES.find(b=>b.id==='beaver').ok()"), 'Dam It');
+  assert.deepEqual(errors, []);
+});
+
+test('#70 Goggle throttling in Russia no longer counts as traffic you failed to deliver', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'});ACT.buildPop({city:'mos'});ACT.launchBB({city:'mos'})");
+  ev("S.pops.fra.rgen=S.pops.mos.rgen=3;S.pops.fra.routers=S.pops.mos.routers=3;ACT.buyTransit({city:'fra',net:'cog',tier:4});ACT.lagT({id:S.transit[0].id,d:1});UI.via=null;UI.lmode='wave';openLinkModal('fra','mos');ACT.buildLink({tier:4});closeModal();S.pops.mos.bb.d=300;compute()");
+  assert.equal(ev('S.links.length'), 1);
+  assert.ok(ev("sfOf(R,'mos')") > 0.99, `Moscow is fully served (${ev("sfOf(R,'mos')")})`);
+  // demand toward Goggle is half of what it would be without the throttle
+  const g = ev("NSH_RU.ggl"), d0 = ev("R.cityEye.mos");
+  assert.ok(Math.abs(ev("R.cityDem.mos") - d0 * (1 - g / 2)) < 1e-6);
+  // a game-server customer judged on the city's service stays happy
+  ev("S.biz.push({id:'gs',name:'Startup #384',type:'game',city:'mos',bw:5,rate:120,reqs:[],mood:0.5,day:0});compute()");
+  assert.equal(ev("bizWhy(S.biz.find(b=>b.id==='gs')).length"), 0, 'no complaint about bandwidth');
+  assert.deepEqual(errors, []);
+});
+
+test('#79 Benelux: Brussels red tape, the Flanders duopoly, Oostkamp trawlers and a wood-fired Bettembourg', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'})");
+  for (const c of ['bru', 'oos', 'bet']) assert.equal(ev(`CITY.${c}.land`), 'eu');
+  // red tape: a pricier POP and pricier transit than Amsterdam
+  assert.equal(ev("popCost('bru')-popCost('ams')"), ev('BE_TAPE'));
+  assert.equal(ev("regionMult('bru')"), 1.5);
+  assert.equal(ev("regionMult('ams')"), 1);
+  // the duopoly: Belgian eyeballs barely grow until you advertise
+  ev("ACT.buildPop({city:'bru'});ACT.launchBB({city:'bru'});ACT.buildPop({city:'ams'});ACT.launchBB({city:'ams'})");
+  const grow = (ad) => ev(`(()=>{const p=S.pops.bru;p.bb.d=20;p.boost=${ad ? 'S.day+30' : '0'};R.cityDem={bru:1,ams:1};R.citySrv={bru:1,ams:1};const t=compute;compute=()=>{};S.day++;dayTick();compute=t;return S.pops.bru.bb.d-20;})()`);
+  const quiet = grow(false), loud = grow(true);
+  assert.ok(loud > quiet * 4, `an ad campaign cracks the duopoly (${quiet.toFixed(3)} vs ${loud.toFixed(3)})`);
+  // the new networks are reachable through Tier 1s, so Tier 1 players keep their reach
+  ev("S.transit=[];S.ixp={};S.pni=[];for(const n of t1Need())S.pni.push({id:n.id,net:n.id,city:'fra',tier:0});compute()");
+  for (const n of ['tny', 'pxm', 'bgs', 'cit', 'cms']) assert.equal(ev(`R.reachable.${n}`), true, `${n} reachable`);
+  // Clementine lands at Oostkamp; trawlers love it
+  assert.ok(ev("cablesFor('lon','oos').some(c=>c.cid==='clementine')"));
+  ev("ACT.buildPop({city:'lon'});ACT.buildPop({city:'oos'});S.links=[];UI.lmode='wave';UI.via='clementine';openLinkModal('lon','oos');ACT.buildLink({tier:1});closeModal()");
+  assert.equal(ev("S.links.length&&S.links[0].sub"), true);
+  const src = ev('fireFailure.toString()').replace(/^function fireFailure/, 'function');
+  ev('window.__ff=' + src.replace('type=pick(f);}', "type='cut';}"));
+  ev("for(let i=0;i<30&&!S.log.some(e=>/trawler|wind-farm/.test(e.t));i++){for(const l of S.links)l.cut=0;S.inc=[];__ff();}");
+  assert.ok(ev("S.log.some(e=>/trawler|wind-farm/.test(e.t))"), 'a North Sea boat found the cable');
+  // Bettembourg's chillers run on steam from burning waste wood
+  ev("S.pops={bet:{day:0,bb:null,boost:0,down:0,routers:1,gen:false,rgen:0}};window.__ac=" + src.replace('type=pick(f);}', "type='ac';}"));
+  ev("for(let i=0;i<20&&!S.log.some(e=>/waste-wood/.test(e.t));i++){S.pops.bet.hot=0;S.inc=[];__ac();}");
+  assert.ok(ev("S.log.some(e=>/waste-wood/.test(e.t))"), 'the forestry strike');
+  assert.deepEqual(errors, []);
+});
+
+test('Stuttgart sits between Frankfurt and Zurich, and Hamburg and Munich are on the map', () => {
+  const { ev, errors } = load();
+  const y = c => ev(`CITY.${c}.y`), x = c => ev(`CITY.${c}.x`);
+  assert.ok(y('fra') < y('stg') && y('stg') < y('zrh'), 'north to south: Frankfurt, Stuttgart, Zurich');
+  assert.ok(Math.abs(x('stg') - x('fra')) < 16, 'not pushed off towards Prague');
+  assert.ok(x('stg') < x('prg') - 20);
+  assert.ok(x('stg') < x('muc') && x('muc') < x('vie') && y('muc') > y('prg') && y('muc') < y('mil'), 'Munich: east of Stuttgart, west of Vienna, south of Prague');
+  assert.equal(ev("CITY.muc.ix"), 'Brezn-IX');
+  assert.ok(y('ham') < y('ber') && y('ham') < y('fra'), 'Hamburg is up north');
+  assert.equal(ev("CITY.ham.ix"), 'Moin-IX');
+  assert.equal(ev("NET.lvl.pops.includes('ham')&&NET.dtk.pops.includes('ham')"), true);
+  assert.deepEqual(errors, []);
+});
+
+test('Brazil has every IX.brrr location, in the right order on the map', () => {
+  const { ev, errors } = load();
+  start(ev);
+  const br = JSON.parse(ev('JSON.stringify(CITIES.filter(c=>c.br).map(c=>c.id))'));
+  assert.equal(br.length, 40, 'the forty IX.br locations');
+  const y = c => ev(`CITY.${c}.y`), x = c => ev(`CITY.${c}.x`);
+  for (const [n, s] of [['bsb', 'bhz'], ['bhz', 'rio'], ['vix', 'rio'], ['ssa', 'vix'], ['nat', 'jpa'], ['jpa', 'rec'], ['rec', 'mcz'], ['sao', 'cwb'], ['cwb', 'poa'], ['cpq', 'sao'], ['cxj', 'poa']])
+    assert.ok(y(n) < y(s), `${n} is north of ${s}`);
+  for (const [w, e] of [['mao', 'bel'], ['rbr', 'pvh'], ['cgb', 'gyn'], ['mgf', 'ldb'], ['poa', 'fln']]) assert.ok(x(w) < x(e), `${w} is west of ${e}`);
+  for (const c of br) {
+    assert.ok(ev(`CITY.${c}.ix.startsWith('IX.brrr')&&CITY.${c}.ixCheap===0.3`), `${c} has a cheap IX.brrr`);
+    assert.ok(ev(`NETS.some(n=>n.price&&n.pops.includes('${c}'))`), `${c} has a transit seller`);
+    assert.ok(ev(`ixMembers('${c}').includes('viv')&&ixMembers('${c}').includes('oio')`), `${c} IX has the national networks`);
+  }
+  assert.ok(ev("ixPortMo('cwb',1)") < ev("PORT[1].ix*0.5"), 'nonprofit IX ports are cheap');
+  assert.deepEqual(errors, []);
+});
+
+test('the Amazon doubles overland fiber, and there is a national-operator scenario', () => {
+  const { ev, errors } = load();
+  start(ev);
+  assert.equal(ev("landMult('sao','bsb')"), 1);
+  assert.equal(ev("landMult('bsb','mao')"), 2);
+  assert.equal(ev("landMult('mao','bel')"), 2);
+  assert.match(ev("landWhy('bsb','mao')"), /Amazon/);
+  assert.equal(ev("landMult('lpb','sao')"), 2, 'La Paz is across the Andes');
+  assert.equal(ev("isSub('gua','mex')"), false, 'Central America is overland');
+  for (const c of ['mvd', 'asu', 'cor', 'lpb', 'uio', 'mde', 'ccs', 'gua', 'sjo', 'qro', 'mty', 'gdl'])
+    assert.ok(ev(`NETS.some(n=>n.price&&n.pops.includes('${c}'))`), `${c} has a transit seller`);
+  assert.ok(ev("CABLE_PAIRS.some(p=>p.cid==='sam1'&&p.a==='ssa')&&CABLE_PAIRS.some(p=>p.cid==='tannat'&&p.b==='mvd')"), 'Salvador and Montevideo have cables');
+  ev("ACT.startScn({id:'ixbr',sure:1})");
+  assert.equal(ev('S.scn.id'), 'ixbr');
+  assert.equal(ev('brIxN()'), 0);
+  ev("S.cash=1e9;for(const c of ['sao','rio','mao'])ACT.buildPop({city:c});S.ixp.sao=1;S.ixp.mao=1;compute()");
+  assert.equal(ev('brIxN()'), 2);
+  assert.equal(ev("scnProg().items[1].v"), 1, 'Manaus step done');
+  assert.deepEqual(errors, []);
+});
+
+test('a Tier 1 reaches every Latin American and African network through the carriers they buy transit from', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e9;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'});S.transit=[];S.ixp={};S.pni=[];for(const n of t1Need())S.pni.push({id:n.id,net:n.id,city:'fra',tier:0});compute()");
+  for (const n of ['oio', 'tmt', 'bsn', 'mvs', 'llt', 'ant', 'tgo', 'liq', 'scm', 'agc', 'djt', 'mtx', 'art', 'eth', 'mrc']) {
+    assert.equal(ev(`NET.${n}.up.every(id=>NET[id].type==='t1')`), true, `${n} buys from Tier 1s`);
+    assert.equal(ev(`R.reachable.${n}`), true, `${n} is reachable`);
+  }
+  assert.deepEqual(errors, []);
+});
+
+test('Africa: more countries, cables along both coasts, border costs and Cape to Cairo', () => {
+  const { ev, errors } = load();
+  start(ev);
+  const af = JSON.parse(ev("JSON.stringify(CITIES.filter(c=>c.reg==='AF').map(c=>c.id))"));
+  assert.ok(af.length >= 26);
+  for (const c of af) {
+    assert.ok(ev(`!!CITY.${c}.cc&&!!CITY.${c}.ix`), `${c} has a country and an IX`);
+    assert.ok(ev(`NETS.some(n=>n.price&&n.pops.includes('${c}'))`), `${c} has a transit seller`);
+  }
+  for (const c of ['dkr', 'abj', 'acc', 'dla', 'lad', 'cas', 'alg', 'tun', 'jib', 'mba', 'dar', 'mpm', 'dur', 'wdh'])
+    assert.ok(ev(`CABLE_PAIRS.some(p=>p.a==='${c}'||p.b==='${c}')`), `${c} has a cable`);
+  assert.ok(ev("CABLE_PAIRS.some(p=>p.cid==='sail'&&p.a==='for'&&p.b==='dla')"), 'Brazil to Cameroon');
+  assert.ok(ev("CABLE_PAIRS.some(p=>p.cid==='sacs'&&p.b==='lad')"), 'Brazil to Angola');
+  assert.ok(ev("CABLE_PAIRS.some(p=>p.cid==='seacm'&&p.a==='jib'&&p.b==='bom')"), 'Djibouti to Mumbai');
+  assert.equal(ev("landMult('nbo','kla')"), 2, 'Kenya to Uganda crosses a border');
+  assert.equal(ev("landMult('jnb','dur')"), 1, 'inside South Africa');
+  assert.match(ev("landWhy('nbo','kla')"), /border/);
+  ev("ACT.startScn({id:'c2c',sure:1})");
+  assert.equal(ev('S.scn.id'), 'c2c');
+  assert.equal(ev('scnProg().items.length'), 4);
+  assert.deepEqual(errors, []);
+});

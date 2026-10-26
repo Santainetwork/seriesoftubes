@@ -13,7 +13,7 @@ You start with one router in one city and grow into a transit-free Tier 1:
 - **Interconnection:** IP transit billed on the 95th percentile, internet exchanges
   with route servers, open/selective/restrictive/paid peering, PNIs, embedded CDN
   caches, and NNI fabrics for virtual circuits and remote peering.
-- **Infrastructure:** leased waves on around 40 real-ish subsea cable systems,
+- **Infrastructure:** leased waves on around 40 subsea cable systems modelled on real ones,
   dark fiber (leased or self-built) lit with DWDM and ZR+ optics, router
   generations that cap your port speeds, and LAGs to bundle ports when one isn't enough.
 - **Traffic engineering:** see exactly what fills each link, tune link metrics and
@@ -44,17 +44,23 @@ open site/index.html          # or: npm run serve
 
 Progress is saved in your browser's local storage.
 
+The game speaks English, Italian and Portuguese. It follows your browser's language the first time
+and remembers the one you pick under Settings or on the title screen.
+
 ## Development
 
 ```sh
 npm ci
 npm test       # headless tests: boot, geography, a year of play, every incident, every panel
 npm run build  # writes the deployable site to _site/ with version and date stamped in
+npm run i18n:check  # lists text missing from (or stale in) the translations
 ```
 
 ```
 site/                  everything that is deployed
   index.html           the whole game (HTML, CSS and JS in one file)
+  i18n/it.js           Italian translation, loaded only when the game runs in Italian
+  i18n/pt.js           Portuguese (Brazil) translation, loaded only when the game runs in Portuguese
   images/og-image.png  social preview (1200×630)
   favicon.*, icon-*    favicons, app icons, manifest
   robots.txt, sitemap.xml, llms.txt, 404.html, CNAME
@@ -63,16 +69,34 @@ tests/                 node:test + jsdom
 .github/workflows/     ci.yml (pushes to main and PRs) and release.yml (Pages deploy)
 ```
 
+## Translations
+
+English is the source text. Player-facing strings in `index.html` go through
+`tr('Unlocks at level {n}.', {n})` (or `trn(one, other, n)` for plurals); static markup
+uses `data-i18n`, and `aria-label`/`title` are translated at boot. Each language is a
+`site/i18n/<lang>.js` file mapping the English text to its translation, plus an entry in
+`SOT_LANGS` (the language loader at the top of the page). Missing entries fall back to
+English, so new English text never breaks the game; `npm run i18n:check` lists what
+needs translating, and the tests make sure every translation keeps its `{placeholders}`
+and HTML tags.
+
 ## Releasing
 
-Only published releases reach [seriesoftub.es](https://seriesoftub.es). Pushes to
-`main` run CI and nothing else.
+Only published releases reach [seriesoftub.es](https://seriesoftub.es). Ordinary
+pushes to `main` run CI and nothing else; a version bump is the release button.
 
-1. Bump `version` in `package.json` (semver) and add a `CHANGELOG.md` entry.
-   Write the bullets for players: the build turns that section into the in-game
-   "What's new" card and into `/version.json`, which open games poll to offer a reload.
-2. Merge to `main`.
-3. Publish a GitHub release tagged `v<version>`, e.g. `gh release create v1.1.0 --generate-notes`.
+1. Bump `version` in `package.json` (semver) and rename the changelog's
+   `[Unreleased]` section to `## [<version>] — <date>`. Write the bullets for
+   players: the build turns that section into the in-game "What's new" card and
+   into `/version.json`, which open games poll to offer a reload.
+2. Push or merge to `main`.
+
+The **Auto-release** workflow then runs the tests, tags `v<version>`, publishes a
+GitHub release with that changelog section as notes, and starts the deploy. It
+does nothing when the tag already exists, and refuses a version older than the
+latest release or one without changelog notes. A version with a pre-release
+suffix (`1.2.0-beta.1`) becomes a pre-release and is not deployed. You can still
+publish a release by hand; the deploy runs the same way.
 
 The release workflow checks that the tag matches `package.json`, runs the tests,
 builds, deploys to GitHub Pages and pings IndexNow. It refuses to build when the
@@ -122,3 +146,17 @@ sites:
   - domain: seriesoftub.es
     origins: ["https://seriesoftub.es", "https://www.seriesoftub.es"]
 ```
+
+## Community
+
+Come hang out in the **[Series of Tubes Signal group](https://signal.group/#CjQKIJwvEt5fYt1pvw7J2pV664CyUyGJXmAJLV8ia3nUdAD7EhA_FzdxflEzkNmcvDHdVgLQ)**. Share screenshots of your
+network, report bugs, suggest cities, and argue about peering policy with other players.
+There are fewer backhoes there than in the real thing.
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Frederic Jung

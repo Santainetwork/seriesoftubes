@@ -88,18 +88,26 @@ test('NSH sums to 1 in every region', () => {
 test('global NETS untouched after visiting sea', () => {
   const ev = region('global');
   ev("applyRegion('sea')");
-  assert.equal(ev('NETS.length'), 134, 'NETS must not be spliced in place');
+  assert.equal(ev('NETS.length'), 157, 'NETS must not be spliced in place');
   assert.equal(ev('REGION.global.nets===NETS'), true, 'global nets still aliases NETS');
   ev("applyRegion('global')");
-  assert.equal(ev('NETS.length'), 134);
-  assert.equal(ev('Object.keys(NSH).length'), 134);
-  assert.equal(ev('CABLE_PAIRS.length'), 145);
+  assert.equal(ev('NETS.length'), 157);
+  assert.equal(ev('Object.keys(NSH).length'), 157);
+  assert.equal(ev('CABLE_PAIRS.length'), 209);
 });
 
-test('live network counts match the brief (40 SEA, own IDN list)', () => {
+test('live network counts match the brief (45 SEA, own IDN list)', () => {
   const ev = region('sea');
-  assert.equal(ev('Object.keys(NET).length'), 43);
-  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 5);
+  /* 44 rather than 43 since v1.28 added B.I.G.S. (Proxyminus's wholesale arm) with a POP in
+     Singapore, which is on the SEA map. The five Tier 1s are unchanged. 45 since the v1.29 merge:
+     Level Tree keeps the Singapore, Jakarta and Hong Kong POPs the fork added in 1.27.6 (the
+     prd-t1reach fix), and upstream's own Level Tree list never had them. */
+  assert.equal(ev('Object.keys(NET).length'), 45);
+  /* Six since the v1.29 merge: Level Tree is live on the Asia maps again, because the fork's
+     prd-t1reach fix gave it Singapore, Jakarta and Hong Kong POPs. The union in the NETS hunk
+     keeps them, and prd-t1reach requires them: without a POP on the map a PNI is impossible and
+     the Tier 1 win condition is unreachable. */
+  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 6);
   ev("applyRegion('idn')");
   /* Brief 18 §G: the Indonesia map no longer inherits the global T1/T2 carriers — a domestic
      NAP buys from Tele-Komedi, Indo-Sate and friends. CDNs and eyeball networks stay. */
@@ -127,7 +135,7 @@ test('live network counts match the brief (40 SEA, own IDN list)', () => {
 
 test('exchange member lists only include live networks', () => {
   const ev = region('sea');
-  assert.equal(ev('Object.keys(NET).length'), 43);
+  assert.equal(ev('Object.keys(NET).length'), 45);
   assert.equal(ev(`XIX.every(x=>x.members.every(id=>!!NET[id]))`), true);
   ev("applyRegion('idn')");
   /* Brief 18 §G: on the Indonesia map every global Tier 1 and Tier 2 is an exchange member even
@@ -154,9 +162,9 @@ test('the 5 cities with zero PeeringDB IX keep none', () => {
 
 test('global baseline unchanged', () => {
   const ev = region('global');
-  assert.equal(ev('CITIES.length'), 99);
-  assert.equal(ev('CABLES.length'), 83);
-  assert.equal(ev('CABLE_PAIRS.length'), 145);
-  assert.equal(ev('NETS.length'), 134);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 71);
+  assert.equal(ev('CITIES.length'), 178);
+  assert.equal(ev('CABLES.length'), 91);
+  assert.equal(ev('CABLE_PAIRS.length'), 209);
+  assert.equal(ev('NETS.length'), 157);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 94);
 });
