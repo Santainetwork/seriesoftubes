@@ -1,3 +1,19 @@
+## [Unreleased]
+
+- A bigger router no longer invents broadband demand. The eyeball ceiling was `max(calibrated,
+  chassis)`, so a single Chonk 800 gave all 34 Indonesian cities the same 12,800 Gbps ceiling and
+  Manado — 1.2 million people, a calibrated ceiling of 144 Gbps — could sell 1,768 Gbps off two
+  Absolute Units, 12.3x what the city justifies. A chassis may now lift a city's ceiling to at
+  most three times its calibrated figure, and no further than it can forward. Raising the
+  regional multiplier instead would not have worked: 30 of the 34 cities were pinned by the
+  chassis, not the multiplier.
+- Singapore is no longer the cheapest big city on the Indonesia map. The boost table that lifts
+  the biggest cities had a dead key (`mks`, which matched no city — Makassar is `upg`) and no
+  entry at all for Singapore or Makassar, so both defaulted to 1.0: Singapore reported a 1,080
+  Gbps ceiling while Surabaya reported 2,160 at the same 450 Gbps of calibrated traffic. The
+  table now has an entry for every city and is monotone in P, so more traffic can never mean a
+  lower ceiling and two cities with the same traffic report the same number.
+
 ## [1.27.6] — 2026-10-26
 
 - Papua was drawn twice. Its easternmost islands reached x=2558 on a 2000px canvas, and SEA/IDN
