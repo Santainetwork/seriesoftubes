@@ -273,6 +273,25 @@ test('M3: NSH sums to 1 after a SEA and an IDN rebind', () => {
   assert.ok(Math.abs(sum2 - 1) < 1e-9, `IDN NSH sum ${sum2}`);
 });
 
+test('M3: every derived city index follows the region', () => {
+  /* CIDX maps a city id to its position in CITIES, and compute() keeps every per-city array by that
+     position (router load, served traffic, the per-destination breakdown). It was built once at
+     load from the global 178-city table and never rebuilt, so after applyRegion() swapped in the
+     49-city SEA map it still answered with global positions: CIDX.jkt was 35 while CITIES[35] was
+     pky, and a POP in Jakarta read its router load off another city's slot. Nothing failed until
+     tests/prd-t1regions.test.js built a POP in every city on a region map and compute() walked the
+     node list. CITY, CAB, CABLE_PAIRS and NETS are all rebuilt in rebuildDerived(); CIDX now is too. */
+  for (const [region, city] of [['sea', 'jkt'], ['idn', 'jkt'], ['global', 'fra']]) {
+    const { ev, errors } = load();
+    ev(`beginGame('X',${JSON.stringify(city)},{region:${JSON.stringify(region)}})`);
+    assert.equal(ev('Object.keys(CIDX).length'), ev('CITIES.length'), `${region}: CIDX has a stale size`);
+    const bad = ev(`CITIES.map((c,i)=>CIDX[c.id]===i?null:c.id).filter(Boolean).join(',')`);
+    assert.equal(bad, '', `${region}: CIDX disagrees with CITIES for ${bad}`);
+    assert.equal(ev(`CITIES[CIDX[${JSON.stringify(city)}]].id`), city, `${region}: CIDX points at another city`);
+    assert.deepEqual(errors, []);
+  }
+});
+
 test('M3: switching back to global restores the untouched world', () => {
   const ev = sea();
   /* Capture the global tables before visiting SEA, then assert they come back intact. The counts

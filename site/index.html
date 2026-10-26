@@ -3302,7 +3302,6 @@ function compute(){
   for(const i of NORD)R2.nodeLoad[CITIES[i].id]=NLOAD[i];
   l2Alloc();
   for(const i of NORD)R2.nodeLoad[CITIES[i].id]=NLOAD[i];
-  for(const i of NORD)R2.nodeLoad[CITIES[i].id]=NLOAD[i];
   for(const c of Object.keys(S.pops))R2.citySrv[c]=SRV[CIDX[c]];
   // R.ef is read for the link you inspect: each edge's record is put together the first time it is asked for. Scenic
   // routing only needs the egress amounts, so R.efg keeps those as they are (not listed, so R reads the same).
@@ -6352,6 +6351,12 @@ function rebuildDerived(){
  DECOR=DECOR_LL.map(poly=>poly.map(q=>proj(q[0],q[1])));
  for(const c of CITIES){const q=CITY_LL[c.id];if(q){c.lon=q[0];c.lat=q[1];const pt=proj(q[0],q[1]),n=CITY_NUDGE[c.id]||[0,0];c.x=pt[0]+n[0];c.y=pt[1]+n[1];}}
  CITY=Object.fromEntries(CITIES.map(c=>[c.id,c]));
+ /* CIDX is the city id -> index into CITIES table compute() uses for every array it keeps per city
+    (node load, served traffic, the per-destination breakdown). It was built once at load from the
+    global 178 cities, so after applyRegion() swapped in a 49-city map it still answered with the
+    global positions: on SEA, CIDX.jkt was 35 and CITIES[35] was pky, and a POP in Jakarta read its
+    router load off another city's slot. It has to follow CITIES, exactly like CITY and CAB below. */
+ CIDX=Object.fromEntries(CITIES.map((c,i)=>[c.id,i]));
  CAB=Object.fromEntries(CABLES.map(c=>[c.id,c]));
  CABLE_PAIRS=CABLES.flatMap(c=>c.pairs.map(([a,b,mid])=>{const A=CITY[a],B=CITY[b];const near=(x,ref)=>x+W*Math.round((ref-x)/W);
   const routed=(A&&B&&typeof cablePts==="function")?cablePts(c.id,a,b):null;
