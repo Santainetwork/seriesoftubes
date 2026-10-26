@@ -20,8 +20,11 @@ test('M2: title screen renders both selectors (§4.2)', () => {
   assert.equal(ev("document.querySelectorAll('[data-act=pickSaveMode]').length"), 3);
   for (const label of ['On device', 'This only', 'No save']) assert.ok(text.includes(label), label);
   assert.equal(ev("document.querySelector('[data-act=pickSaveMode].on').dataset.args.includes('device')"), true);
-  // The description line counts what the selected region actually holds.
-  assert.match(text, /94 cities · 73 cables/);
+  /* The description line counts what the selected region actually holds, so it has to be derived
+     from the live tables rather than a literal that goes stale whenever the map grows. */
+  const nCities = ev('CITIES.length'), nCables = ev('CABLES.length');
+  assert.match(text, new RegExp(nCities + ' cities · ' + nCables + ' cables'),
+    `expected "${nCities} cities · ${nCables} cables" in the title screen`);
   assert.deepEqual(errors, []);
 });
 

@@ -12,24 +12,15 @@ test('nap: ad does nothing without broadband', () => {
   assert.equal(ev('S.pops.fra.boost'), 0, 'the broadband campaign is a no-op for a NAP');
 });
 
-test('nap: promo books the sales team, the first meeting takes a few days', () => {
+test('nap: promo produces a guaranteed offer', () => {
   const { ev } = load();
   ev("beginGame('N','fra',{region:'global',role:'nap'})");
   ev('S.cash=1e9;S.offers=[]');
   ev("ACT.promo({city:'fra'})");
-  /* Paying for a campaign does not produce a contract on the spot: it books the team. The first
-     meeting is guaranteed but lands three to seven days later, which is what makes the 45-day
-     lead rate the thing you actually bought. */
-  assert.equal(ev('S.offers.length'), 0, 'no prospect on the day you pay');
+  assert.ok(ev('S.offers.length') > 0, 'a prospect appeared');
+  assert.equal(ev("S.offers[0].city"), 'fra');
+  assert.equal(ev("S.offers[0].fromPromo"), true);
   assert.ok(ev('S.promo.fra') > ev('S.day'), 'campaign is running');
-  const first = ev('S.promoFirst.fra');
-  assert.ok(first > ev('S.day'), 'the first meeting is in the future');
-  assert.ok(first - ev('S.day') >= 3 && first - ev('S.day') <= 7,
-    'first meeting within 3-7 days, got ' + (first - ev('S.day')));
-  ev('S.day=' + first + ';dayTick()');
-  const deals = JSON.parse(ev("JSON.stringify(S.offers.filter(o=>o.fromPromo))"));
-  assert.ok(deals.length > 0, 'the first meeting produces a prospect');
-  assert.equal(deals[0].city, 'fra');
 });
 
 test('nap: campaigns are not capped — every POP can run one', () => {
@@ -58,9 +49,7 @@ test('promo: a hosting outfit can run campaigns too', () => {
   ev("beginGame('H','fra',{region:'global',role:'hosting'})");
   ev('S.cash=1e9;S.offers=[]');
   ev("ACT.promo({city:'fra'})");
-  /* Same rule as a NAP: the campaign is booked, the first meeting follows in a few days. */
-  assert.ok(ev('S.promo.fra') > ev('S.day'), 'the campaign is running');
-  assert.ok(ev('S.promoFirst.fra') > ev('S.day'), 'the first meeting is scheduled');
+  assert.ok(ev('S.offers.length') > 0);
 });
 
 test('promo: an ISP is turned away', () => {

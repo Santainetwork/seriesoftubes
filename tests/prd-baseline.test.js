@@ -1,5 +1,7 @@
 // Baseline assertions for PRD.md §16.1 — "Global must not change".
-// These pin the v1.10.0 numbers so a region refactor cannot silently shrink the world.
+// These pin the numbers after the upstream merge (v1.27 base) so a region refactor cannot
+// silently shrink the world. Bumped from the v1.10.0 figures: upstream added cities, cables,
+// rival exchanges and networks in v1.14-v1.26.
 // Run: node --test tests/prd-baseline.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -7,16 +9,16 @@ const { load } = require('./harness');
 
 test('PRD §16.1: global region baseline is unchanged', () => {
   const { ev, errors } = load();
-  assert.equal(ev('CITIES.length'), 94, 'cities');
-  assert.equal(ev('CABLES.length'), 73, 'cables');
-  assert.equal(ev('CABLE_PAIRS.length'), 134, 'cable pairs');
-  assert.equal(ev('XIX.length'), 25, 'rival exchanges');
+  assert.equal(ev('CITIES.length'), 99, 'cities');
+  assert.equal(ev('CABLES.length'), 83, 'cables');
+  assert.equal(ev('CABLE_PAIRS.length'), 145, 'cable pairs');
+  assert.equal(ev('XIX.length'), 26, 'rival exchanges');
   assert.equal(ev('TAIL.length'), 60, 'long tail');
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 68, 'non-tail networks');
-  assert.equal(ev('NETS.length'), 131, 'all networks');
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 71, 'non-tail networks');
+  assert.equal(ev('NETS.length'), 134, 'all networks');
   assert.equal(ev('LENSES.length'), 7, 'lenses');
   assert.equal(ev('LANDS_LL.length'), 14, 'land polygons');
-  assert.equal(ev('Object.keys(CITY_LL).length'), 94, 'city coordinates');
+  assert.equal(ev('Object.keys(CITY_LL).length'), 99, 'city coordinates');
   assert.equal(ev('regionMult("sin")'), 2.5, 'Asia multiplier');
   assert.equal(ev('kmBetween("fra","ams")'), 364, 'reference distance');
   // Cross-realm arrays: compare via JSON, not deepEqual.

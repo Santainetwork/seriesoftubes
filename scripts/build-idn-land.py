@@ -145,13 +145,27 @@ def assign_islands(rings):
     belongs to, so its closest vertex is always the right one."""
     assigned = []
     for ring in rings:
-        best, lid = 1e18, 'jav'
-        for cx, cy, cand in IDN_CENTRES:
-            # Squared distance from the reference point to the nearest vertex of this ring.
-            d = min((p[0] - cx) ** 2 + (p[1] - cy) ** 2 for p in ring)
-            if d < best:
-                best, lid = d, cand
-        assigned.append((ring_area(ring), ring, lid))
+        area = ring_area(ring)
+        # A big island is decided by its centre. Using the nearest vertex there is what filed all
+        # of Sumatra under `btm`: one eastern-coast vertex happens to sit close to the Batam
+        # reference point, so an 82-vertex ring covering 95-106E was labelled Batam and Sumatra
+        # ended up drawn twice. Small islands keep the nearest-vertex rule, because their centre
+        # can fall in open water between scattered islets.
+        if area >= 1.0:
+            lon = sum(p[0] for p in ring) / len(ring)
+            lat = sum(p[1] for p in ring) / len(ring)
+            best, lid = 1e18, 'jav'
+            for cx, cy, cand in IDN_CENTRES:
+                d = (lon - cx) ** 2 + (lat - cy) ** 2
+                if d < best:
+                    best, lid = d, cand
+        else:
+            best, lid = 1e18, 'jav'
+            for cx, cy, cand in IDN_CENTRES:
+                d = min((p[0] - cx) ** 2 + (p[1] - cy) ** 2 for p in ring)
+                if d < best:
+                    best, lid = d, cand
+        assigned.append((area, ring, lid))
     return assigned
 
 

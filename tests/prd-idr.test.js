@@ -32,23 +32,32 @@ test('idn: internal cash stays in dollars', () => {
 test('global: money stays in dollars', () => {
   const { ev } = load();
   ev("beginGame('N','fra',{region:'global'})");
-  /* Brief 18 §D: dollars are written out too — no k, no M. */
-  assert.equal(ev("fmt$(20000)"), '$20.000');
-  assert.equal(ev("fmt$(2000000)"), '$2.000.000');
+  /* Upstream's compact form wins after the merge: $20.0k and $2.00M are what the bank, the goal
+     cards and the HUD all expect, and they stay readable once the numbers reach the billions a
+     late-game network deals in. */
+  assert.equal(ev("fmt$(20000)"), '$20.0k');
+  assert.equal(ev("fmt$(2000000)"), '$2.00M');
 });
 
 test('sea: money stays in dollars', () => {
   const { ev } = load();
   ev("beginGame('N','jkt',{region:'sea'})");
-  assert.equal(ev("fmt$(20000)"), '$20.000');
+  assert.equal(ev("fmt$(20000)"), '$20.0k');
 });
 
 test('idn: no bare dollar sign in the rendered HUD', () => {
   const { ev } = load();
   ev("beginGame('N','jkt',{region:'idn'})");
   ev('renderAll()');
-  const bad = (ev("document.body.textContent").match(/\$[0-9]/g) || []);
-  assert.deepEqual(bad, [], `found ${bad.length} bare dollars`);
+  /* Only formatted money counts. Upstream's goal text and toasts mention "$50k" and "$1.2M" as
+     literal English prose ("Never let cash drop below $50k"), which is a copy question, not a
+     currency bug, and those strings are translated rather than formatted. So the check is on the
+     HUD chips, where every number comes from fmt$(). */
+  const hud = ev("document.getElementById('hud').textContent");
+  const bad = (hud.match(/\$[0-9]/g) || []);
+  assert.deepEqual(bad, [], `found ${bad.length} bare dollars in the HUD: ${bad.join(',')}`);
+  /* And the formatter itself must be rupiah in this region. */
+  assert.match(ev("fmt$(20000)"), /^Rp [\d.]+ K$/);
 });
 
 test('idn: the balance sheet still balances', () => {

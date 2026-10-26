@@ -67,8 +67,11 @@ test('Flowspec is a router-model capability, and each tool answers a flood', () 
   const http = ev("RG[0].fs=2;S.ev.ddos.vec='http';compute();const s=R.served;RG[0].fs=0;s");
   assert.ok(Math.abs(http - none) < 1, 'Flowspec is useless against HTTP');
 
-  // Scrubbing cleans any vector, regardless of router.
-  ev("S.ev.ddos.vec='dns';S.scrubAt='fra';compute()");
+  /* Scrubbing cleans any vector regardless of router, but the center has a capacity: a 100G
+     center cannot swallow a 300G flood whole. Upstream models that, so the test asks for a center
+     big enough to hold the attack rather than assuming any center will do. */
+  ev("S.ev.ddos.vec='dns';S.scrubAt='fra';S.scrubTier=1;S.scrubMode='always';compute()");
+  assert.ok(ev('scrubG()') >= 300, 'the center can hold a 300G flood');
   assert.ok(ev('R.served') > none, 'scrubbing recovers real traffic');
   assert.deepEqual(errors, []);
 });

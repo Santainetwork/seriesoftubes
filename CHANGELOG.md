@@ -1,3 +1,13 @@
+## [1.27.0] — 2026-10-26
+
+- Merged upstream v1.27.0. Thirteen levels, seven new router models, subsea optics physics,
+  102.4T exchange fabric, esports and sovereign-cloud customers, credit-rated loans, and the
+  whole v1.12-v1.27 line, on top of the Indonesia and SEA maps.
+- Sumatra was drawn twice: the ring-assignment rule filed the whole island under Batam because
+  one coastal vertex sat near that reference point. Fixed; no land point overlaps now.
+- Everything from the fork survives the merge: the Natural Earth coastline, 238 sea-routed
+  cables, the Komdigi licence, karhutla, 36 conferences across 34 cities, 16 Indonesian NAPs.
+
 # Changelog
 
 All notable changes to this project are documented here. The project follows

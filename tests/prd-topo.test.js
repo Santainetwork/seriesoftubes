@@ -88,12 +88,12 @@ test('NSH sums to 1 in every region', () => {
 test('global NETS untouched after visiting sea', () => {
   const ev = region('global');
   ev("applyRegion('sea')");
-  assert.equal(ev('NETS.length'), 131, 'NETS must not be spliced in place');
+  assert.equal(ev('NETS.length'), 134, 'NETS must not be spliced in place');
   assert.equal(ev('REGION.global.nets===NETS'), true, 'global nets still aliases NETS');
   ev("applyRegion('global')");
-  assert.equal(ev('NETS.length'), 131);
-  assert.equal(ev('Object.keys(NSH).length'), 131);
-  assert.equal(ev('CABLE_PAIRS.length'), 134);
+  assert.equal(ev('NETS.length'), 134);
+  assert.equal(ev('Object.keys(NSH).length'), 134);
+  assert.equal(ev('CABLE_PAIRS.length'), 145);
 });
 
 test('live network counts match the brief (40 SEA, own IDN list)', () => {
@@ -154,9 +154,9 @@ test('the 5 cities with zero PeeringDB IX keep none', () => {
 
 test('global baseline unchanged', () => {
   const ev = region('global');
-  assert.equal(ev('CITIES.length'), 94);
-  assert.equal(ev('CABLES.length'), 73);
-  assert.equal(ev('CABLE_PAIRS.length'), 134);
-  assert.equal(ev('NETS.length'), 131);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 68);
+  assert.equal(ev('CITIES.length'), 99);
+  assert.equal(ev('CABLES.length'), 83);
+  assert.equal(ev('CABLE_PAIRS.length'), 145);
+  assert.equal(ev('NETS.length'), 134);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 71);
 });

@@ -55,11 +55,16 @@ test('goals: every role has a reachable first goal', () => {
   }
 });
 
-test('goals: isp keeps all 18', () => {
+test('goals: isp keeps every general goal plus its ladder', () => {
   const { ev } = load();
   ev("beginGame('X','fra',{region:'global',role:'isp'})");
-  assert.equal(ev('goalsFor().length'), 18);
-  assert.equal(ev('GOALS.length'), 30, 'the other roles keep their own goals in the master list');
+  /* Nineteen, not eighteen: upstream added the Tier-1 goal (`t1`) to the general set. The number
+     is derived from GOALS rather than hard-coded so the next upstream addition does not break
+     this test for no reason. */
+  const general = ev("GOALS.filter(g=>!g.by||g.by.includes('isp')).length");
+  assert.equal(ev('goalsFor().length'), general);
+  assert.ok(ev('GOALS.length') > 19, 'the other roles keep their own goals in the master list');
+  assert.equal(ev("GOALS.filter(g=>g.win).length"), 4, 'one win goal per role');
 });
 
 test('goals: hosting never sees the broadband goal', () => {
@@ -100,10 +105,10 @@ test('goals: renderLeft shows the role goal count, not 18', () => {
   ev("beginGame('X','fra',{region:'global',role:'hosting'})");
   ev('renderLeft()');
   const txt = ev("document.getElementById('leftTabs').textContent");
-  assert.ok(txt.includes('/15'), `hosting shows its own 15 goals, got: ${txt}`);
+  assert.ok(txt.includes('/16'), `hosting shows its own 16 goals, got: ${txt}`);
   ev("beginGame('X','fra',{region:'global',role:'isp'})");
   ev('renderLeft()');
-  assert.ok(ev("document.getElementById('leftTabs').textContent").includes('/18'));
+  assert.ok(ev("document.getElementById('leftTabs').textContent").includes('/19'));
 });
 
 test('win: the win screen names the role, not Tier 1', () => {

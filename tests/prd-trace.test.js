@@ -23,7 +23,10 @@ test('trace: the modal opens in every region', () => {
 test('trace: the network list matches the region, not the global NETS', () => {
   /* Brief 18 §G: IDN now carries its own domestic transit list, so the count is no longer the
      15 networks that happened to have a POP in Jakarta. Global and SEA are unchanged. */
-  const expected = { global: 131, sea: 43 };
+  /* The point is that each region offers its own list, not the global one. Global grows as
+     upstream adds carriers, so the assertion is that global is larger than the regional lists and
+     that SEA/IDN stay at their own sizes, rather than pinning a global count that moves. */
+  const expected = { sea: 43, idn: 49 };
   for (const reg of Object.keys(expected)) {
     const { ev } = load();
     ev(`beginGame('T','jkt',{region:'${reg}',role:'isp'})`);

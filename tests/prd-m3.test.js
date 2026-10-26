@@ -66,11 +66,13 @@ test('M3: SEA canvas is 2000×1200 with the documented projection', () => {
     '[[106.8,-6.2],[103.8,1.3],[121,14.6]]');
 });
 
-test('M3: SEA has real land polygons and 49 cities', () => {
+test('M3: SEA has a real coastline and 49 cities', () => {
   const ev = sea();
-  /* Natural Earth 1:50m, simplified: 156 rings for 20 landmasses, 2,631 points. The old
-     hand-drawn map had 25 rings and lost every island below Sardinia size. */
-  assert.ok(ev('LANDS_LL.length') > 100, 'real coastlines, not 25 hand-drawn rings');
+  /* The coastline used to be 25 hand-drawn rings. It is now Natural Earth 1:50m, which gives 158
+     rings and 3,600+ points for this map, so the count is a floor rather than a literal: what
+     matters is that the table is real and the cities are all on it. */
+  assert.ok(ev('LANDS_LL.length') >= 100, 'a real coastline, got ' + ev('LANDS_LL.length'));
+  assert.ok(ev('LANDS_LL.reduce((a,l)=>a+l.ll.length,0)') >= 2000, 'enough detail to read');
   assert.equal(ev('CITIES.length'), 49);
   assert.equal(ev('Object.keys(CITY).length'), 49);
   assert.equal(ev("Object.keys(CITY).filter(c=>!isFinite(CITY[c].lon)||!isFinite(CITY[c].lat)).length"), 0);
@@ -122,9 +124,7 @@ test('M3: IDN has 34 cities (33 Indonesian plus Singapore) and P total 4027', ()
   /* 33 Indonesian cities start at 292 Gbps; Singapore adds its own 8 Gbps of starting broadband. */
   assert.ok(Math.abs(eye - 305) < 3, `eyeball ${eye}`);
   const lands = [...new Set(JSON.parse(ev('JSON.stringify(CITIES.map(c=>c.land))')))].sort();
-  /* btm and kep ride with their parent landmass: Batam and Bintan are below map scale, so
-     they are drawn as part of Sumatra rather than as their own rings. */
-  assert.deepEqual(lands, ['bal', 'jav', 'kal', 'mlk', 'ntb', 'ntt', 'pap', 'sg', 'sul', 'sum']);
+  assert.deepEqual(lands, ['bal', 'btm', 'jav', 'kal', 'kep', 'mlk', 'ntb', 'ntt', 'pap', 'papw', 'sg', 'sul', 'sum']);
 });
 
 test('M3: bwn is Brunei, not Kalimantan', () => {
@@ -265,16 +265,26 @@ test('M3: NSH sums to 1 after a SEA and an IDN rebind', () => {
 
 test('M3: switching back to global restores the untouched world', () => {
   const ev = sea();
+  /* Capture the global tables before visiting SEA, then assert they come back intact. The counts
+     themselves grow with upstream, so pinning literals here means every map addition breaks a
+     test that has nothing to do with map additions. */
+  ev("applyRegion('global')");
+  const gCities = ev('CITIES.length'), gCables = ev('CABLE_PAIRS.length');
+  ev("applyRegion('sea')");
   ev("applyRegion('global')");
   assert.equal(ev('W'), 2000);
   assert.equal(ev('H'), 1000);
-  assert.equal(ev('CITIES.length'), 94);
+  /* Counts move as upstream grows the map; the invariant is that switching back restores the
+     global tables rather than leaving the SEA ones in place. So the check is against the values
+     captured before the switch, not against numbers baked in when this test was written. */
+  assert.equal(ev('CITIES.length'), gCities);
   assert.equal(ev('LANDS_LL.length'), 14);
   assert.equal(ev('LENSES.length'), 7);
-  assert.equal(ev('CABLE_PAIRS.length'), 134);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 68);
-  assert.equal(ev('XIX.length'), 25);
+  assert.equal(ev('CABLE_PAIRS.length'), gCables);
+  assert.ok(ev('NETS.filter(n=>!n.tail).length') >= 68, 'the global network list is back');
+  assert.ok(ev('XIX.length') >= 25, 'the global exchange list is back');
   assert.equal(ev('TAIL.length'), 60);
+  assert.equal(ev('CITIES.length') > 49, true, 'not the SEA city table');
   assert.equal(JSON.stringify(ev('proj0(0,0)')), '[1000,537.6]');
   assert.equal(ev('wrapDx(100,1900)'), -200, 'global still wraps the short way');
   assert.equal(ev("regionMult('sin')"), 2.5);
