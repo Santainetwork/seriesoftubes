@@ -17,7 +17,10 @@ fi
 mkdir -p "$OUT"
 find "$OUT" -mindepth 1 -delete
 cp -a site/. "$OUT"/
-for f in "$OUT/index.html" "$OUT/sitemap.xml" "$OUT/llms.txt"; do
+for f in "$OUT/index.html" "$OUT/sitemap.xml" "$OUT/llms.txt" "$OUT/sw.js"; do
+  # sw.js is here because it caches the dictionaries with a ?v=__VERSION__ stamp: a release that
+  # changes strings has to hand the player a fresh dictionary, not the cached old one. The check
+  # below fails the build if a placeholder is ever added to a file missing from this list.
   sed -i.bak -e "s/__VERSION__/${VERSION}/g" -e "s/__BUILD_DATE__/${BUILD_DATE}/g" "$f"
   rm -f "$f.bak"
 done
