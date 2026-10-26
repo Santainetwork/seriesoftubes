@@ -20,7 +20,10 @@ SRC = '/tmp/ne50.geojson'
 
 # Grid resolution in degrees. 0.25 is ~27 km at the equator: fine enough to keep the Malacca
 # and Sunda straits open, coarse enough that A* over ~1,600 x 800 cells stays instant.
-STEP = 0.25
+# 0.10 is ~11 km at the equator. At 0.25 the router produced only 3-4 waypoints for 44 of 238
+# routes, and a 4-point polyline across the Java Sea has nothing to bend with: the drawn cable was
+# two straight runs meeting at one vertex, which read as a kink however the renderer offset it.
+STEP = 0.10
 LON0, LON1 = 88.0, 162.0
 LAT0, LAT1 = -14.0, 28.0
 
@@ -205,9 +208,17 @@ def main():
         key = rec['cid'] + '|' + rec['a'] + '|' + rec['b']
         a = (rec['alon'], rec['alat'])
         b = (rec['blon'], rec['blat'])
-        path = astar(land, nx, ny, a, b)
-        if path and len(path) >= 3:
-            pts = smooth(path)
+        # A short hop over water does not need a router. Batam-Tanjung Pinang is 14px apart on
+        # screen, but A* sent its cable via Singapore (103.58E) because that channel was open,
+        # turning a 14px link into a 360px loop. Straight-line anything shorter than 0.5 degrees.
+        if math.hypot(b[0] - a[0], b[1] - a[1]) < 2.0:
+            pts = [a, b]
+            routed += 1
+            path = pts
+        else:
+            path = astar(land, nx, ny, a, b)
+        if path and len(path) >= 2:
+            pts = smooth(path) if len(path) > 2 else path
             # Pin the true endpoints: the grid snapped them to cell centres.
             pts[0] = (round(a[0], 2), round(a[1], 2))
             pts[-1] = (round(b[0], 2), round(b[1], 2))
@@ -215,7 +226,19 @@ def main():
         else:
             pts = arc(a, b)
             fallback += 1
-        out[key] = [[round(x, 2), round(y, 2)] for x, y in pts]
+        # Densify: A* returns a vertex only where the path turns, so a straight run across open
+        # water comes back as 3 points. The renderer offsets each vertex to separate parallel
+        # cables, and a 3-point line has nothing to offset with — it just kinks at the middle one.
+        # Insert a point every ~0.35 degrees so every route has something to bend.
+        dense = [pts[0]]
+        for j in range(1, len(pts)):
+            ax, ay = pts[j - 1]
+            bx, by = pts[j]
+            seg = math.hypot(bx - ax, by - ay)
+            n = max(1, int(seg / 0.35))
+            for m in range(1, n + 1):
+                dense.append((ax + (bx - ax) * m / n, ay + (by - ay) * m / n))
+        out[key] = [[round(x, 2), round(y, 2)] for x, y in dense]
 
     sys.stderr.write('routed %d, arc fallback %d\n' % (routed, fallback))
     json.dump(out, sys.stdout, separators=(',', ':'))

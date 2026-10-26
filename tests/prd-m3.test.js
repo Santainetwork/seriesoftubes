@@ -56,11 +56,15 @@ test('M3: SEA canvas is 2000×1200 with the documented projection', () => {
   const ev = sea();
   assert.equal(ev('W'), 2000);
   assert.equal(ev('H'), 1200);
-  // proj0(lon,lat) = [(lon-92)/50*W, (26-lat)/35*H] — 40 px/degree on both axes.
-  assert.equal(JSON.stringify(ev('proj0(92,26)')), '[0,0]');
-  assert.equal(JSON.stringify(ev('proj0(142,-9)')), '[2000,1200]');
-  assert.equal(ev('proj0(93,26)[0] - proj0(92,26)[0]'), 40);
-  assert.equal(ev('proj0(92,25)[1] - proj0(92,26)[1]'), 1200 / 35);
+  /* proj0(lon,lat) = [(lon-90)/66*W, (28-lat)/40*H]. The span widened twice: to 66 degrees of
+     longitude so Papua's eastern islands stop spilling past the canvas (they reached x=2558 on a
+     2000px map and, with wrapX off, drew a second Papua in the corner), and to 40 degrees of
+     latitude so Timor and Kupang are not sliced by the bottom edge. */
+  assert.equal(JSON.stringify(ev('proj0(90,28)')), '[0,0]');
+  assert.equal(JSON.stringify(ev('proj0(156,-12)')), '[2000,1200]');
+  // 2000px over 66 degrees of longitude, 1200px over 40 of latitude.
+  assert.ok(Math.abs(ev('proj0(93,26)[0] - proj0(92,26)[0]') - 2000 / 66) < 1e-9);
+  assert.ok(Math.abs(ev('proj0(92,25)[1] - proj0(92,26)[1]') - 1200 / 40) < 1e-9);
   assert.equal(ev('LENSES.length'), 3);
   assert.equal(JSON.stringify(ev('LENSES.map(l=>[l.lon,l.lat])')),
     '[[106.8,-6.2],[103.8,1.3],[121,14.6]]');
