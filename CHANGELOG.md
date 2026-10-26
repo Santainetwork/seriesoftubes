@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/). Each release is deployed to
 [seriesoftub.es](https://seriesoftub.es).
 
+## [1.11.2] — 2026-10-26
+
+- Waeve rail fibre is now the cheap lease it claims to be, and it hurts. 39% of
+  the price of a real cable, +2.5 ms of latency, and it is cut three or four
+  times a day with a one-to-three day repair: the only crew certified for
+  railway property flies in from Jakarta and needs a possession order first. The
+  route picker says so before you buy, because at that cut rate the link is dark
+  most of the time and that is the trade, not a bug.
+- A rail cut's repair deadline is set from the tick's own day instead of S.day.
+  dayTick() has already advanced the clock, so every outage was silently one day
+  longer than the message claimed.
+- Sixteen Indonesian NAPs now carry their real ASN nudged by seven, and five more
+  were added: Fibre-Star, Pusat Fibre, Sol-Net, i-Forte and Data-Kom. Thirty-seven
+  Tier-2 carriers in the Indonesian map.
+
 ## [1.11.1] — 2026-10-26
 
 - Campaigns are no longer instant either. Paying for one books the sales team

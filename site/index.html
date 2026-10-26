@@ -2825,7 +2825,7 @@ function waveRoute(a,b,mult,border){const cabs=cablesOk(a,b),sub=isSub(a,b);let 
   const c=cabs.find(x=>x.cid===via);return {via,cabs,cab:via,km:c.km,sub:true,wm:bf*CAB[via].price*waveMarket(a,b,true).m};}
 function viaSeg(a,b){const cabs=cablesOk(a,b),sub=isSub(a,b);if(!cabs.length)return landMult(a,b)>1?`<p class="note">${landWhy(a,b)}</p>`:'';const wr=waveRoute(a,b,1,false);
   const opts=(sub?[]:[{v:'land',l:`Overland <small>${landMult(a,b)>1?landMult(a,b)+'× · ':''}${(kmBetween(a,b)*1.3/200).toFixed(1)} ms</small>`}]).concat(cabs.map(c=>({v:c.cid,l:`${esc(CAB[c.cid].name)} <small>${CAB[c.cid].price}× · ${(c.km*(CAB[c.cid].lat||1)/200).toFixed(1)} ms${CAB[c.cid].age==='old'?' · old, cuts often':''}</small>`})));
-  return `<h4 class="sub4">Route</h4><div class="seg">${opts.map(o=>btn(o.l,'via',{v:o.v},wr&&wr.via===o.v?'pink':'ghost')).join('')}</div>${wr&&wr.cab?`<p class="note">${esc(CAB[wr.cab].blurb)} All your waves on one cable share its fate when it is cut.</p>`:''}`;}
+  return `<h4 class="sub4">Route</h4><div class="seg">${opts.map(o=>btn(o.l,'via',{v:o.v},wr&&wr.via===o.v?'pink':'ghost')).join('')}</div>${wr&&wr.cab?`<p class="note">${esc(CAB[wr.cab].blurb)}${CAB[wr.cab].rail?` <b style="color:var(--bad)">This is a railway lease: expect it dark three or four times a day, and one to three days each time while a crew flies in from Jakarta. At that rate the link is rarely up.</b>`:' All your waves on one cable share its fate when it is cut.'}</p>`:''}`;}
 function bestLat(a,b){const ls=S.links.filter(l=>!linkDown(l));const dist={[a]:0},done=new Set();for(;;){let u=null,ud=Infinity;for(const k in dist)if(!done.has(k)&&dist[k]<ud){u=k;ud=dist[k];}if(u===null)break;if(u===b)return ud;done.add(u);for(const l of ls){if(l.a!==u&&l.b!==u)continue;const v=l.a===u?l.b:l.a,nd=ud+linkLat(l)+0.05;if(nd<(dist[v]??Infinity))dist[v]=nd;}}return Infinity;}
 const RT={normal:'Follow metrics',fast:'Lowest latency',scenic:'Scenic (quietest links)'};
 function routeCtl(b){const lt=R.l2lat[b.id];return `<div class="btns"><span class="meta" style="align-self:center">Route:</span>${Object.keys(RT).map(m=>btn(RT[m],'setRoute',{id:b.id,m},(b.route||'normal')===m?'pink sm':'ghost sm')).join('')}</div><div class="meta">Path latency: <b>${lt!==undefined&&isFinite(lt)?lt.toFixed(1)+' ms one-way':'no path right now'}</b>${b.latMax?` · budget ${b.latMax} ms`:''}</div>`;}
@@ -3106,9 +3106,19 @@ function dayTick(){
   for(const l of S.links){
     if(!l.cable||!CAB[l.cable].rail||linkDown(l))continue;
     const risk=CAB[l.cable].cutRisk||0;
-    if(Math.random()<Math.min(0.95,risk*0.85)){
+    /* cutRisk is cuts per day, not a probability, so it is rolled that many times: at 0.85 the
+       link is checked four times a day and cut roughly three or four times, which is the deal
+       you accept for a lease at 39% of a real cable. Each cut is set from today, so a fresh hit
+       while the crew is still flying in extends the outage instead of stacking incidents. */
+    let hits=0;
+    const rolls=Math.min(8,Math.ceil(risk*4));
+    for(let k=0;k<rolls;k++) if(Math.random()<Math.min(0.95,risk*0.85)) hits++;
+    if(hits>0){
+      /* Set the repair deadline from the tick's own day, not from S.day: dayTick() has already
+         advanced the clock by the time this runs, so using S.day silently adds a day to every
+         outage and the link ends up permanently dark. */
       const dur=1+Math.floor(Math.random()*3);
-      l.cut=Math.max(l.cut||0,S.day+dur);
+      l.cut=Math.max(l.cut||0,d+dur);
       addInc({type:'railcut',ref:l.id,until:l.cut,
         msg:pick([`Night track works near ${CITY[l.b].name}: the railway cut your core to run a tamper. The crew is in Jakarta; ${dur} days before anyone reaches the duct.`,
                   `A ballast cleaner passed ${CITY[l.a].name}–${CITY[l.b].name} and took your lease core with it. Possession order pending, ${dur} days dark.`,
@@ -3116,7 +3126,7 @@ function dayTick(){
                   `A copper thief cut the earthing cable and your core with it. ${dur} days of waiting for a railway permit.`,
                   `Signal upgrade at ${CITY[l.a].name}: the duct was opened for a cable pull and yours came out with it. ${dur} days.`]),
         cost:0});
-      toast(`<b>Rail cut on ${esc(CITY[l.a].name)}–${esc(CITY[l.b].name)}</b><br>Track maintenance again. Your lease core is dark for ${dur} day${dur>1?'s':''} while a crew flies in from Jakarta.`,'bad');
+      toast(`<b>Rail cut on ${esc(CITY[l.a].name)}–${esc(CITY[l.b].name)}</b><br>Track maintenance${hits>1?` (${hits} times today)`:''}. Your lease core is dark for ${dur} day${dur>1?'s':''} while a crew flies in from Jakarta.`,'bad');
     }
   }
   // eyeball growth / churn uses last computed service
@@ -4879,7 +4889,7 @@ const WEAVE_CABLES=[
     because the track crew opens that duct constantly. Repair is slow rather than fast, because
     the only crew certified for railway property comes from Jakarta and needs a possession order
     before anyone touches the duct. */
- {id:'waeve',name:'Waeve Rail Fibre',price:0.20,age:'new',rail:true,coreQ:0.6,cutRisk:0.12,
+ {id:'waeve',name:'Waeve Rail Fibre',price:0.20,age:'new',rail:true,coreQ:0.6,cutRisk:0.85,
   latAdd:2.5,
   blurb:'Leased cores in the railway duct. You did not dig anything: the track was already there, and so was the duct. Old glass, longer path, and the only crew allowed to touch it flies in from Jakarta.',
   /* Java only. A railway duct cannot cross the Bali Strait, so sby-dps was removed — the map
