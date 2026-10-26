@@ -2882,7 +2882,18 @@ function compute(){
   const ekN={};for(const e of E){e.ek=e.k+':'+e.id;ekN[e.ek]=(ekN[e.ek]||0)+1;}
   // dup: shares its key with another exit (a hand-edited save), so R.egDesc shows whichever pushed last.
   for(const e of E){e.desc={lab:e.lab,city:e.city,k:e.k};e.dup=ekN[e.ek]>1;e.told=false;e.hp=e.pref==='high'?0:1;e.ci=CIDX[e.city];e.cn=cnCity(e.city);e.vis=0;for(const n of e.nets||NET_IDS){const L=okBy[n];if(L&&L[L.length-1]!==e&&e.ok(n))L.push(e);}}
-  for(const n of NETS){R2.reachable[n.id]=okBy[n.id].some(e=>e.rank>0);if(R2.reachable[n.id])R2.reach+=NSH[n.id];}
+  /* A cache is not a path, and neither is a dead POP: when every exit is gone (the only POP is
+     down, or an outage took the transit with it) there is nothing to evaluate, and scoring reach
+     at 0 made every customer read as unserved — satisfaction followed it down and the contract was
+     cancelled within three days. Hold the previous reach instead; the exits are back when the POP
+     is. Caches never count as an exit either (rank 0), the same way a Netflix box is not netflix.com. */
+  const anyExit=E.some(e=>e.rank>0);
+  if(anyExit){
+    for(const n of NETS){R2.reachable[n.id]=okBy[n.id].some(e=>e.rank>0);if(R2.reachable[n.id])R2.reach+=(NSH[n.id]||0);}
+  }else{
+    R2.reach=typeof R.reach==='number'?R.reach:1;
+    for(const n of NETS)R2.reachable[n.id]=R2.reach>0.999;
+  }
   const cacheNets=new Set(S.caches.filter(c=>popUp(c.city)).map(c=>c.net));
   const viral=(ev.viral>day?1.25:1)*(ev.php&&ev.php>day?0.7:1);
   // Every flow has the same shape and carries what routing asks about it again and again (nj: its network's index).
@@ -4157,7 +4168,11 @@ const ACT={
  buildLink:({tier})=>{tier=+tier;const p=UI.pending;if(!p)return;const {a,b}=p;const km=kmBetween(a,b),sub=isSub(a,b),sib=pairLinks(a,b).filter(l=>l.kind!=='vxc'),jn=sib.length?routeJoin(a,b):null,same=!!jn,border=cnCity(a)!==cnCity(b),mult=(sib.length&&!(jn&&jn.k===(landTrenches(a,b)[0]||{}).k)?DIVERSE:1)*(border?3*(UI.cnPrem&&(a==='hkg'||b==='hkg')?1.6:1):1);
    if((cnCity(a)||cnCity(b))&&!cnOk())return;
    if(!waveOk(a,b,tier)){toast(tr('<b>A {wave} wave needs {need} at both ends.</b>',{wave:LT[tier].n,need:esc(waveNeed(tier))}),'bad');sfx('err');return;}
-   const wr=waveRoute(a,b,mult,border);if(!wr){toast(tr('<b>No cable available for that route right now.</b>'),'bad');sfx('err');return;}{const w=subWaveWhy(tier,wr.km,wr.sub);if(w){toast(tr('<b>No {wave} waves on this cable.</b><br>{why}',{wave:LT[tier].n,why:esc(w)}),'bad');sfx('err');return;}}const base=Math.round(waveMo(wr.km,wr.sub,tier)*wr.wm),cost=base+(S.pops[b]?0:popCost(b));
+   const wr=waveRoute(a,b,mult,border);if(!wr){toast(tr('<b>No cable available for that route right now.</b>'),'bad');sfx('err');return;}{const w=subWaveWhy(tier,wr.km,wr.sub);if(w){toast(tr('<b>No {wave} waves on this cable.</b><br>{why}',{wave:LT[tier].n,why:esc(w)}),'bad');sfx('err');return;}}
+   /* A link can create the POP at the far end, and that POP counts against the role's soft cap
+      exactly like one bought in the Infra tab. Charging list price here made the cap optional. */
+   const over=popOverMul();if(!S.pops[b]&&Object.keys(S.pops).length>=popCap())toast(`<b>Beyond your role's footprint.</b><br>POP ${Object.keys(S.pops).length+1} costs ${fmt$(popCost(b)*over)} — ${Math.round((over-1)*100)}% over the list price.`,'warn');
+   const base=Math.round(waveMo(wr.km,wr.sub,tier)*wr.wm),cost=base+(S.pops[b]?0:popCost(b)*over);
    if(!portGate(a,1)||!portGate(b,1))return;if(!spend(cost))return;if(!S.pops[b])S.pops[b]={day:S.day,bb:null,boost:0,down:0,routers:1,gen:false};
    const id=uid();const l={id,a,b,kind:'wave',border,premium:border&&!!UI.cnPrem&&(a==='hkg'||b==='hkg'),tier,km:wr.km,sub:wr.sub,cable:wr.cab,mo:base,mult:wr.wm,trench:wr.cab?'cab:'+wr.cab:(jn?jn.k:id),cut:0,day:S.day};S.links.push(l);closeModal();
    if(sib.length){UI.sel={type:'link',id};}else{UI.sel={type:'city',id:b};UI.tab='cust';}
