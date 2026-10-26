@@ -1,16 +1,34 @@
-## [Unreleased]
+## [1.27.6] — 2026-10-26
 
-- Restored the credit to Thomas Kjær Aabo's *How the Internet Works*. The upstream
-  merge for 1.27.0 dropped the "Learn how it really works" section from `README.md`,
-  the "Learn how the internet really works" section from `site/llms.txt`, and the
-  in-game links on the title, help and victory screens, so the fork had stopped
-  pointing players at the guide it is built on. `README.md`, `site/llms.txt`,
-  `site/index.html` and the Italian dictionary carry it again, and
-  `tests/attribution.test.js` fails if any of them loses it.
-- The fork's `CHANGELOG.md` has no sections for upstream 1.12.0 through 1.26.1 and
-  1.28.0/1.29.0, so the 1.12.0 note that first credited How the Internet Works is
-  absent here. The credit is stated in `README.md` instead, which is the copy that
-  ships with the repo.
+- Papua was drawn twice. Its easternmost islands reached x=2558 on a 2000px canvas, and SEA/IDN
+  set wrapX:false, so the overflow was not wrapped away — it was drawn where it landed and a
+  player saw a second Papua in the bottom-left corner. The projection now spans 90-156E: maxX
+  1999, nothing outside the canvas, all 34 cities still on land.
+- Levels 4 and up were unreachable on the SEA and Indonesia maps. LV_REQ asks for continents —
+  three at level 4, five at 7, six at 10 — but those maps cover one projection region, so
+  regionsCount() could never exceed 1 and a player stopped at level 3 however large the network
+  grew. A player put it plainly: "itu 3 continent ganti dengan pulau, gak bisa leveling tuh".
+  lvReg() now caps the requirement at what the map can offer.
+- Tier 1 was unwinnable on both Asia maps. isTier1() needs a PNI with every Tier 1, and a PNI can
+  only be built where that network has a POP; Level Tree's POPs were all in Europe and the
+  Americas. Singapore, Jakarta and Hong Kong added.
+- Madura and Kangean were filed under Bali and read as one stray island glued to it. Both belong
+  to Java Timur.
+- The decorative polygons of the Global map stayed loaded after switching to SEA or Indonesia:
+  23 rings projected with the regional lens, landing thousands of pixels off-map and drawing a
+  coarse second outline over the Natural Earth coastline.
+- The canvas renderer crashed on every frame after the coastline fix — `const LANDP` declared
+  below its own use — and separately after a cable-worker edit left bowCables() closed early,
+  which stopped the whole script from parsing.
+- Restored what the 1.27.0 merge had dropped: 24 upstream files (.github workflows and issue
+  templates, CLAUDE.md, CONTRIBUTING.md, LICENSE, docs/ARCHITECTURE.md, the perf scripts, pt.js,
+  and two test suites), the i18n support in the test harness, and the in-game credit to Thomas
+  Kjær Aabo's *How the Internet Works*.
+- A capacity countdown in the city panel: a fresh ISP in Semarang carries 8 Gbps against a
+  400 Gbps router and grows 2.5% a day, so the wall is 156 days out — three weeks of real play at
+  8x. Players were meeting it with no warning.
+- New suites: prd-paint (8), prd-rings (4), prd-capwarn (5), prd-update (3), prd-t1reach (3),
+  prd-cablebow (3).
 
 ## [1.27.5] — 2026-10-26
 
