@@ -111,3 +111,23 @@ test('cables: routes do not wander far from the direct line', () => {
   })()`);
   assert.ok(detour < 4, 'average cable is ' + detour.toFixed(2) + 'x its direct distance');
 });
+
+test('cables: no cable is drawn across land', () => {
+  // The raw sea routes are 0.9% over land. With the fan, lane and corridor offsets applied it was
+  // 30%: a 16px sideways shove moves a cable in a 10km strait straight onto the beach, and a
+  // player reported cables crossing Borneo. Every offset is now checked against onLand() and
+  // shrunk until the point is back in water, so the drawn line stays at sea.
+  const { ev } = idn();
+  const bad = ev(`(() => {
+    let n = 0, tot = 0;
+    for (const cp of CABLE_PAIRS) {
+      for (let i = 1; i < cp.pts.length - 1; i++) {
+        tot++;
+        if (onLand(cp.pts[i][0], cp.pts[i][1])) n++;
+      }
+    }
+    return { n, tot };
+  })()`);
+  assert.ok(bad.n / bad.tot < 0.01,
+    (bad.n / bad.tot * 100).toFixed(1) + '% of cable points are on land (' + bad.n + '/' + bad.tot + ')');
+});

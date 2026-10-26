@@ -1372,11 +1372,15 @@ function cablePts(cid,a,b){
   const mp=raw.map(q=>proj(q[0],q[1]));const pts=[[near(A.x,mp[0][0]),A.y]].concat(mp,[[near(B.x,mp[mp.length-1][0]),B.y]]);
   const ll=[[A.lon,A.lat]].concat(raw,[[B.lon,B.lat]]);let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);
   return {cid:c.id,a,b,pts,km:Math.round(L)};}));
- bowCables();
 /* Eighteen cables leave Jakarta and fifteen leave Batam, all drawn as straight lines from the same
    pixel, so the middle of the map looks like a bowl of noodles. Give each pair a bow whose
    direction alternates and whose depth scales with how many cables share that city, so two cables
    between the same places never overlap and a hub spreads its fan instead of stacking it. */
+/* Declared here, not next to its other use far below: bowCables() runs during boot and calls this,
+   and a `const` in the temporal dead zone throws "Cannot access 'onLand' before initialization"
+   even though the declaration exists later in the file. ALLPOLY is built before this point. */
+let onLand=(x,y)=>false;
+ bowCables();
 function bowCables(){
  /* Two things made the fan collapse back into a pile.
     1. Order is not direction. Handing out slots in CABLE_PAIRS order, with an alternating sign,
@@ -1584,7 +1588,20 @@ function bowCables(){
    const lat=l*LANE*env2;
    if(!w)return [q[0]+nx*d+nx*lat,q[1]+ny*d+ny*lat];
    const pr=cp.pts[j],nxr=q[0]-pr[0],nyr=q[1]-pr[1],rl=Math.hypot(nxr,nyr)||1;
-   return [q[0]+nx*d+nx*lat-nyr/rl*w*env2,q[1]+ny*d+ny*lat+nxr/rl*w*env2];
+   const px=q[0]+nx*d+nx*lat-nyr/rl*w*env2, py=q[1]+ny*d+ny*lat+nxr/rl*w*env2;
+   /* Never push a cable onto land. The raw sea route is 0.9% over land, but with the fan, lane
+      and corridor offsets applied it was 30%: a 16px sideways shove moves a cable in a 10km strait
+      straight onto the beach, and a player saw cables crossing Borneo. Shrink the offset until the
+      point is back in water, keeping direction. */
+   if(typeof onLand==='function'&&onLand(px,py)){
+     for(let k=1;k<=6;k++){
+       const f2=1-k/7;
+       const tx=q[0]+(nx*d+nx*lat-nyr/rl*w*env2)*f2, ty=q[1]+(ny*d+ny*lat+nxr/rl*w*env2)*f2;
+       if(!onLand(tx,ty))return [tx,ty];
+     }
+     return [q[0],q[1]];
+   }
+   return [px,py];
   }),[cp.pts[cp.pts.length-1]]);
  }
 }
@@ -1921,7 +1938,12 @@ const LV_REQ=[null,{pk:200,pops:3},{pk:1000,pops:6},{pk:3000,pops:10,reg:3},{pk:
    what the map can actually offer, so the gate still means something where it can be met. */
 const lvReg=i=>{
   const want=Math.max(0,...LV_REQ.slice(1,i+1).map(q=>q.reg||0));
-  const can=(typeof REGION!=='undefined'&&REGION[curRegion]&&REGION[curRegion].rules&&REGION[curRegion].rules.maxRegions)||0;
+  /* REGION is declared far below this line (const, ~line 6266), so reading it here throws
+     "Cannot access 'REGION' before initialization" — lvReg is called during boot, before the
+     declaration is evaluated. Go through a try/catch instead of a typeof guard: typeof does not
+     protect against a temporal dead zone. */
+  let can=0;
+  try{can=(REGION[curRegion]&&REGION[curRegion].rules&&REGION[curRegion].rules.maxRegions)||0;}catch(e){can=0;}
   return can?Math.min(want,can):want;
 };
 const lvl=()=>(S&&S.lvl)||1;
@@ -5829,7 +5851,7 @@ const LANDP_ALL=COAST.map(smoothPath);
 const ringArea=p=>{let a=0;for(let i=0,j=p.length-1;i<p.length;j=i++)a+=(p[j][0]+p[i][0])*(p[j][1]-p[i][1]);return Math.abs(a/2);};
 const LANDP_FAR=COAST.map((p,i)=>ringArea(p)>=600||CITIES.some(c=>inPoly(c.x,c.y,p))?LANDP_ALL[i]:null).filter(Boolean);
 let ALLPOLY=COAST;
-const onLand=(x,y)=>ALLPOLY.some(p=>inPoly(x,y,p));
+
 let R1=rng(7);let WAVES=[],HILLS=[];
 while(WAVES.length<220){const x=R1()*W,y=R1()*H;if(!onLand(x,y)&&!onLand(x+12,y)&&!onLand(x-12,y))WAVES.push([x,y,R1()]);}
 while(HILLS.length<130){const x=R1()*W,y=R1()*H;if(LANDS.some(l=>inPoly(x,y,l.pts))&&!CITIES.some(c=>Math.hypot(c.x-x,c.y-y)<40))HILLS.push([x,y,6+R1()*10,R1()]);}
