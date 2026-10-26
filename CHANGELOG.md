@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/). Each release is deployed to
 [seriesoftub.es](https://seriesoftub.es).
 
+## [1.11.3] — 2026-10-26
+
+- Prices read as whole numbers. Rupiah was printed as "Rp 2.802,60 K", which is
+  either 2.8 million or 2,802 thousand depending on how you parse the K, and a
+  price button should not need parsing. It is now "Rp 45.402 K" with no
+  decimals, and dollars are whole too: $2.803 instead of $2.802,60.
+
 ## [1.11.2] — 2026-10-26
 
 - Waeve rail fibre is now the cheap lease it claims to be, and it hurts. 39% of

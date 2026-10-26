@@ -2112,12 +2112,17 @@ function fmtNum(n){
    so the economy, the balance sheet and the save format do not change — only the label and
    the scale the player reads. */
 function fmt$(v){
-  /* Brief 18 §L: rupiah is quoted in thousands with a K suffix — Rp 1.000,00 K is one million
+  /* Brief 18 §L: rupiah is quoted in thousands with a K suffix — Rp 1.000 K is one million
      rupiah. Dollars stay whole. The scale is a display convention only; every stored number is
-     still dollars. */
+     still dollars.
+     Rupiah is rounded to whole thousands: "Rp 2.802,60 K" reads as either 2.8 million or 2,802
+     thousand, and no player should have to work that out from a price button. Whole thousands
+     keep the K suffix honest. */
   const c=curInfo(),s=v<0?'-':'';
-  if(c.code==='IDR')return s+'Rp '+fmtNum(Math.abs(v)*c.rate/1000)+' K';
-  return s+'$'+fmtNum(Math.abs(v));
+  if(c.code==='IDR')return s+'Rp '+fmtNum(Math.round(Math.abs(v)*c.rate/1000))+' K';
+  /* Whole dollars for the same reason: a price button that reads "$2.802,60" invites a second
+     look, and cents never matter at this scale. */
+  return s+'$'+fmtNum(Math.round(Math.abs(v)));
 }
 const fmtG=g=>g>=1000?(g/1000).toFixed(g>=10000?1:2)+' Tbps':(g>=100?g.toFixed(0):g.toFixed(1))+' Gbps';
 const pct=x=>Math.round(x*100)+'%';
