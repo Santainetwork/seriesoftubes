@@ -1280,7 +1280,7 @@ function bowCables(){
        other. Those need a lane of their own.
    So: rank each distinct route by bearing around the hub (that is the order the fan actually
    opens in), and give duplicate routes a parallel lane offset. */
- const PITCH=14,FRAC=0.35,LANE=12,CORRIDOR=24;
+ const PITCH=14,FRAC=0.35,LANE=12;
  const key=new Map(),byRoute=new Map();
  for(const cp of CABLE_PAIRS){
   const k=cp.a<cp.b?cp.a+'>'+cp.b:cp.b+'>'+cp.a;
@@ -1292,67 +1292,86 @@ function bowCables(){
   list.forEach((cp,i)=>lane.set(cp,i-(list.length-1)/2));
  }
  /* Arcello: separate routes still pile up where their routed waypoints share a corridor — the
-   Sunda Strait, the Java Sea, the Malacca approach. A bow only spreads the fan at the hub, so
-   mid-route the lines converge back onto the same waypoints. Corridor fix: for each pair of
-   distinct routes, find stretches where the two run close together (nearest-point match, so
-   routes with different waypoint counts still pair up), and accumulate a push-apart VECTOR for
-   each member: the direction from the other cable's nearest point to this one, scaled by
-   CORRIDOR. Pushing away (not a fixed side per pair) is what keeps three cables in one strait
-   from being shoved onto each other by an alternating sign. Offsets are applied per point in
-   the drawing pass below, and a smoothing kernel feathers them in and out, so the separation
-   follows the corridor's bends and never kinks where it starts or stops. The sine envelope is
-   NOT applied to corridor offsets — the feathering already ramps them — and endpoints are never
-   touched, which the endpoint test locks. */
- const corrVec=new Map();
+    Sunda Strait, the Java Sea, the Malacca approach. A bow only spreads the fan at the hub, so
+    mid-route the lines converge back onto the same waypoints — often the LITERALLY same ones,
+    because two cables whose CABLE_PTS reuse a strait's coordinate list sit point on point, where
+    a radial push has no direction to push along. The previous pass pushed each point directly
+    away from its nearest neighbour and let pushes accumulate over overlapping runs, so every
+    extra neighbour made the corridor wider: at CORRIDOR=80 routes wandered 15.8x their
+    straight-line length and crossed each other 1546 times. This pass works like road lanes
+    instead. Each route through a shared stretch gets a CONSTANT lateral offset — half a lane
+    width, one side or the other — along its own tangent-perpendicular, so two cables through the
+    Sunda Strait end up as two parallel lanes that follow the strait's bends, and a three-way
+    strait spreads into three lanes (+L, 0, -L) because partners accumulate, instead of three
+    cables shoving each other out to sea. Which side a route takes is decided deterministically
+    (its order in CABLE_PAIRS, flipped to keep opposite-direction runs on opposite geographic
+    sides), so a re-render never flips a cable across its corridor. The feather kernel below
+    ramps the offsets in and out at the ends of a stretch — that is the lane merge — and
+    endpoints are never touched, which the endpoint test locks. */
+ const corrOff=new Map();
  {
-  const NEAR=55,MINRUN=4,SAMPLE=3;
-  const vecOf=cp=>{let v=corrVec.get(cp);if(!v){v=cp.pts.map(()=>[0,0]);corrVec.set(cp,v);}return v;};
+  const NEAR=55,MINRUN=4,CLANE=16;
+  const offOf=cp=>{let v=corrOff.get(cp);if(!v){v=cp.pts.map(()=>0);corrOff.set(cp,v);}return v;};
+  const nearest=(pt,Q)=>{let best=Infinity,bi=-1;for(let u=1;u<Q.length-1;u++){const d=Math.hypot(pt[0]-Q[u][0],pt[1]-Q[u][1]);if(d<best){best=d;bi=u;}}return [best,bi];};
   for(let i=0;i<CABLE_PAIRS.length;i++)for(let j=i+1;j<CABLE_PAIRS.length;j++){
    const p=CABLE_PAIRS[i],q=CABLE_PAIRS[j];
    if(key.get(p)===key.get(q))continue; // duplicate routes already have their own lane
    const P=p.pts,Q=q.pts;
    if(Math.min(P.length,Q.length)<MINRUN+2)continue;
-   for(let s=1;s<P.length-1;s+=SAMPLE){
-    let run=0;
-    for(let t=s;t<P.length-1;t++){
-     const a=P[t];
-     let best=Infinity,bi=-1;
-     for(let u=1;u<Q.length-1;u++){const d=Math.hypot(a[0]-Q[u][0],a[1]-Q[u][1]);if(d<best){best=d;bi=u;}}
-     if(best>=NEAR)break;
-     run++;
+   let t=1;
+   while(t<P.length-1){
+    const [d0]=nearest(P[t],Q);
+    if(d0>=NEAR){t++;continue;}
+    let e=t;const bis=[];
+    while(e<P.length-1){const [de,be]=nearest(P[e],Q);if(de>=NEAR)break;bis.push(be);e++;}
+    if(e-t>=MINRUN){
+     /* Side assignment. Same direction: the first route takes the left lane, the second the
+        right. Opposite directions: the perpendicular flips with the tangent, so BOTH take +1
+        and still land on opposite geographic sides of the shared channel. */
+     const mid=t+((e-t)>>1);
+     const pa=P[Math.max(0,mid-1)],pb=P[Math.min(P.length-1,mid+1)];
+     const qi=bis[mid-t],qa=Q[Math.max(0,qi-1)],qb=Q[Math.min(Q.length-1,qi+1)];
+     const anti=(qb[0]-qa[0])*(pb[0]-pa[0])+(qb[1]-qa[1])*(pb[1]-pa[1])<0;
+     const vp=offOf(p),vq=offOf(q);
+     for(let k=t;k<e;k++)vp[k]+=CLANE/2;
+     /* q is indexed by its OWN nearest points; several p samples can share one q waypoint, so
+        each q waypoint takes the lane offset once per run, not once per p sample. */
+     const got=new Set();
+     for(let k=t;k<e;k++){const u=bis[k-t];if(!got.has(u)){got.add(u);vq[u]+=(anti?1:-1)*CLANE/2;}}
     }
-    if(run<MINRUN)continue;
-    for(let t=s;t<s+run;t++){
-     const a=P[t];
-     let best=Infinity,bi=-1;
-     for(let u=1;u<Q.length-1;u++){const d=Math.hypot(a[0]-Q[u][0],a[1]-Q[u][1]);if(d<best){best=d;bi=u;}}
-     /* Direction from the other cable's nearest point to this one: push each member away from
-        the other. A cross-corridor pair contributes once; overlapping runs of several pairs
-        accumulate, which is exactly what a three-way strait needs. */
-     let vx=a[0]-Q[bi][0],vy=a[1]-Q[bi][1];
-     const vl=Math.hypot(vx,vy)||1;
-     const vp=vecOf(p),vq=vecOf(q);
-     vp[t][0]+=vx/vl*CORRIDOR;vp[t][1]+=vy/vl*CORRIDOR;
-     vq[bi][0]-=vx/vl*CORRIDOR;vq[bi][1]-=vy/vl*CORRIDOR;
-    }
+    t=e;
    }
   }
  }
  /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Smooth each
-    vector over its neighbours with a small kernel, so the separation ramps in and out and the
-    route never kinks where a corridor starts or stops. Endpoint vectors stay zero. */
- for(const [cp,v] of [...corrVec]){
-  const n=v.length,sm=v.map(()=>[0,0]);
+     scalar over its neighbours with a small kernel, so the lane ramps in and out and the route
+     never kinks where a corridor starts or stops. Endpoint offsets stay zero. */
+ for(const [cp,v] of [...corrOff]){
+  const n=v.length,sm=v.map(()=>0);
   for(let t=1;t<n-1;t++){
-   let ax=0,ay=0,w=0;
-   for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);ax+=v[u][0]*wt;ay+=v[u][1]*wt;w+=wt;}
-   sm[t][0]=ax/(w||1);sm[t][1]=ay/(w||1);
+   let a=0,w=0;
+   for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);a+=v[u]*wt;w+=wt;}
+   sm[t]=a/(w||1);
   }
-  corrVec.set(cp,sm);
+  corrOff.set(cp,sm);
  }
  /* The hub fan and the per-route pass are part of the same function: an earlier edit closed
     bowCables() here, leaving `const atCity` at top level and the file with an unmatched brace
     (SyntaxError: Unexpected token '}'), which made the whole game fail to parse. */
+ /* Resample before offsetting. A cable carries as few as 3 waypoints (median 9), and pushing a
+    lateral offset onto a 3-point polyline produces a hard kink at the middle vertex instead of a
+    smooth lane — 123 of 743 vertices already turned more than 120 degrees, which is what made the
+    routes look scribbled rather than separated. 24 points is what besideLine() already uses. */
+ for(const cp of CABLE_PAIRS){
+  const sp=cp.pts;
+  if(sp.length<3)continue;
+  const cum=[0];
+  for(let j=1;j<sp.length;j++)cum.push(cum[j-1]+Math.hypot(sp[j][0]-sp[j-1][0],sp[j][1]-sp[j-1][1]));
+  const L=cum[cum.length-1]||1;const N=Math.max(12,Math.min(28,Math.round(L/14)));
+  const norm=cum.map(v=>v/L);const out=[];
+  for(let j=0;j<=N;j++)out.push(polyAt(sp,norm,j/N));
+  cp.pts=out;
+ }
  const atCity=new Map();
  for(const cp of CABLE_PAIRS){
   const k=key.get(cp);
@@ -1385,7 +1404,7 @@ function bowCables(){
   if((!f||!f.s)&&!l)continue;
   const dx=wrapDx(A.x,B.x),dy=B.y-A.y,len=Math.hypot(dx,dy)||1;
   const nx=-dy/len,ny=dx/len;
-  const cvv=corrVec.get(cp);
+  const cvv=corrOff.get(cp);
   /* A corridor offset needs at least one point beside the endpoints to act on. */
   if((!f||!f.s)&&!l&&!cvv)continue;
   /* The widest cable at a hub stays inside FRAC of the chord, so a short hop does not swing out
@@ -1398,14 +1417,16 @@ function bowCables(){
   cp.pts=[cp.pts[0]].concat(mid.map((q,j)=>{
    const env=Math.sin(Math.PI*(j+1)/last);
    const d=((f?f.s*unit:0)+l*LANE)*env;
-   /* `cvv[j+1]` is the feathered push-apart vector for this waypoint, ready to add — the
-      corridor pass already resolved direction and magnitude. Index j+1 because cp.pts[0] is
-      the city itself and is never moved. The vector also rides the same sine envelope as the
-      bow: cables that share the first kilometres out of a hub otherwise get their fan slots
-      cancelled by a corridor push right where the fan is widest. */
-   const w=cvv?cvv[j+1]:null;
-   const we=env;
-   return [q[0]+nx*d+(w?w[0]*we:0),q[1]+ny*d+(w?w[1]*we:0)];
+   /* `cvv[j+1]` is the feathered LANE offset for this waypoint: a signed distance applied along
+      the local perpendicular of the route's own tangent, so a shared corridor becomes parallel
+      lanes that follow its bends instead of points shoved apart radially. Index j+1 because
+      cp.pts[0] is the city itself and is never moved. The lane rides the same sine envelope as
+      the bow: cables that share the first kilometres out of a hub otherwise get their fan slots
+      cancelled by a lane offset right where the fan is widest. */
+   const w=cvv?cvv[j+1]*env:0;
+   if(!w)return [q[0]+nx*d,q[1]+ny*d];
+   const r=q,pr=cp.pts[j],nxr=q[0]-pr[0],nyr=q[1]-pr[1],rl=Math.hypot(nxr,nyr)||1;
+   return [q[0]+nx*d-nyr/rl*w,q[1]+ny*d+nxr/rl*w];
   }),[cp.pts[cp.pts.length-1]]);
  }
 }

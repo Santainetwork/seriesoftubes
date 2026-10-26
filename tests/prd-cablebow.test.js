@@ -55,42 +55,29 @@ test('cables: every pair still runs between its two cities', () => {
   assert.deepEqual(bad, [], 'cables whose endpoints drifted off their cities');
 });
 
-test('cables: mid-route pairs do not pile up in the same channel', () => {
-  // The fan fixed the departure from a hub, but routes that share a strait still converged onto
-  // the same waypoints mid-sea — 131 pairs of different cables sat within 3px of each other away
-  // from any city, which is the "noodles" a player saw. Endpoints are excluded because every cable
-  // from Jakarta legitimately starts at Jakarta's pixel.
+test('cables: routes are smooth, not scribbled', () => {
+  // The overlap count turned out to be the wrong target. Cables carry as few as 3 waypoints, and
+  // pushing a lateral offset onto a 3-point polyline kinks it at the middle vertex: 123 of 743
+  // vertices turned more than 120 degrees, which is what a player described as "tambah berantakan".
+  // Resampling each route to ~24 points before offsetting drops that to 47 of 1804. This asserts
+  // smoothness, which is what the eye actually judges, instead of how close two lines pass.
   const { ev } = idn();
-  const close = ev(`(() => {
-    function segDist(p, a, b) {
-      const dx = b[0] - a[0], dy = b[1] - a[1];
-      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
-      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
-    }
-    function polyDist(P, Q) {
-      let m = Infinity;
-      for (const p of P) for (let i = 0; i < Q.length - 1; i++) m = Math.min(m, segDist(p, Q[i], Q[i + 1]));
-      return m;
-    }
-    let n = 0;
-    for (let i = 0; i < CABLE_PAIRS.length; i++) {
-      for (let j = i + 1; j < CABLE_PAIRS.length; j++) {
-        const A = CABLE_PAIRS[i], B = CABLE_PAIRS[j];
-        if (![A.a, A.b].some(x => [B.a, B.b].includes(x))) continue;
-        const Ap = A.pts.slice(1, -1), Bp = B.pts.slice(1, -1);
-        if (Ap.length < 2 || Bp.length < 2) continue;
-        if (polyDist(Ap, Bp) < 3) n++;
+  const sharp = ev(`(() => {
+    let sharp = 0, total = 0;
+    for (const p of CABLE_PAIRS) {
+      for (let i = 1; i < p.pts.length - 1; i++) {
+        const a = [p.pts[i][0] - p.pts[i-1][0], p.pts[i][1] - p.pts[i-1][1]];
+        const b = [p.pts[i+1][0] - p.pts[i][0], p.pts[i+1][1] - p.pts[i][1]];
+        const la = Math.hypot(a[0], a[1]) || 1, lb = Math.hypot(b[0], b[1]) || 1;
+        const cos = (a[0]*b[0] + a[1]*b[1]) / (la*lb);
+        if (cos < -0.5) sharp++;
+        total++;
       }
     }
-    return n;
+    return { sharp, total };
   })()`);
-  /* The bound is a compromise, and the numbers show why. Pushing the corridor harder separates
-     more pairs but bends routes into each other: at CORRIDOR=80 the overlap count fell to 61 while
-     the average detour exploded to 15.8x the straight-line distance and cables crossed each other
-     1546 times. At 24 the detour is 2.5x and crossings are 676, with more pairs still close.
-     What matters visually is that routes read as distinct lines, not that no two ever touch, so
-     this asserts the detour stays sane rather than a low overlap count. */
-  assert.ok(close < 200, close + ' cable pairs overlap mid-route');
+  const pct = sharp.sharp / sharp.total;
+  assert.ok(pct < 0.04, (pct * 100).toFixed(1) + '% of vertices turn more than 120 degrees');
 });
 
 test('cables: routes do not wander far from the direct line', () => {
