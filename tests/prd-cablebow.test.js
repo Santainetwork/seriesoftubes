@@ -54,3 +54,35 @@ test('cables: every pair still runs between its two cities', () => {
   })()`);
   assert.deepEqual(bad, [], 'cables whose endpoints drifted off their cities');
 });
+
+test('cables: mid-route pairs do not pile up in the same channel', () => {
+  // The fan fixed the departure from a hub, but routes that share a strait still converged onto
+  // the same waypoints mid-sea — 131 pairs of different cables sat within 3px of each other away
+  // from any city, which is the "noodles" a player saw. Endpoints are excluded because every cable
+  // from Jakarta legitimately starts at Jakarta's pixel.
+  const { ev } = idn();
+  const close = ev(`(() => {
+    function segDist(p, a, b) {
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    }
+    function polyDist(P, Q) {
+      let m = Infinity;
+      for (const p of P) for (let i = 0; i < Q.length - 1; i++) m = Math.min(m, segDist(p, Q[i], Q[i + 1]));
+      return m;
+    }
+    let n = 0;
+    for (let i = 0; i < CABLE_PAIRS.length; i++) {
+      for (let j = i + 1; j < CABLE_PAIRS.length; j++) {
+        const A = CABLE_PAIRS[i], B = CABLE_PAIRS[j];
+        if (![A.a, A.b].some(x => [B.a, B.b].includes(x))) continue;
+        const Ap = A.pts.slice(1, -1), Bp = B.pts.slice(1, -1);
+        if (Ap.length < 2 || Bp.length < 2) continue;
+        if (polyDist(Ap, Bp) < 3) n++;
+      }
+    }
+    return n;
+  })()`);
+  assert.ok(close < 80, close + ' cable pairs still overlap mid-route');
+});

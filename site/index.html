@@ -1280,7 +1280,7 @@ function bowCables(){
        other. Those need a lane of their own.
    So: rank each distinct route by bearing around the hub (that is the order the fan actually
    opens in), and give duplicate routes a parallel lane offset. */
- const PITCH=14,FRAC=0.35,LANE=12,CORRIDOR=11;
+ const PITCH=14,FRAC=0.35,LANE=12,CORRIDOR=80;
  const key=new Map(),byRoute=new Map();
  for(const cp of CABLE_PAIRS){
   const k=cp.a<cp.b?cp.a+'>'+cp.b:cp.b+'>'+cp.a;
@@ -1305,7 +1305,7 @@ function bowCables(){
    touched, which the endpoint test locks. */
  const corrVec=new Map();
  {
-  const NEAR=45,MINRUN=4,SAMPLE=3;
+  const NEAR=70,MINRUN=3,SAMPLE=2;
   const vecOf=cp=>{let v=corrVec.get(cp);if(!v){v=cp.pts.map(()=>[0,0]);corrVec.set(cp,v);}return v;};
   for(let i=0;i<CABLE_PAIRS.length;i++)for(let j=i+1;j<CABLE_PAIRS.length;j++){
    const p=CABLE_PAIRS[i],q=CABLE_PAIRS[j];
@@ -1400,9 +1400,12 @@ function bowCables(){
    const d=((f?f.s*unit:0)+l*LANE)*env;
    /* `cvv[j+1]` is the feathered push-apart vector for this waypoint, ready to add — the
       corridor pass already resolved direction and magnitude. Index j+1 because cp.pts[0] is
-      the city itself and is never moved. */
+      the city itself and is never moved. The vector also rides the same sine envelope as the
+      bow: cables that share the first kilometres out of a hub otherwise get their fan slots
+      cancelled by a corridor push right where the fan is widest. */
    const w=cvv?cvv[j+1]:null;
-   return [q[0]+nx*d+(w?w[0]:0),q[1]+ny*d+(w?w[1]:0)];
+   const we=env;
+   return [q[0]+nx*d+(w?w[0]*we:0),q[1]+ny*d+(w?w[1]*we:0)];
   }),[cp.pts[cp.pts.length-1]]);
  }
 }
@@ -4179,8 +4182,12 @@ function eyeMul(c){
 }
 /* Brief 18 §M: the eyeball ceiling must follow the hardware. A POP with a 3.2 Tbps chassis and
    259 Gbps of eyeball ceiling is a POP that can never fill its own router — the customer then
-   reads as unserved and churns for no reason. The ceiling is the larger of the calibrated P
-   times the regional multiplier, and what the router in that POP can actually forward. */
+   reads as unserved and churns for no reason. But the chassis may only LIFT a ceiling that the
+   city already justifies, never invent one: with `max(cal, hw)` a single Chonk 800 gave all 34
+   Indonesian cities the same 12,800 Gbps ceiling (distinct=1), and Manado — P=50, calibrated
+   ceiling 144 — sold 1,768 Gbps of broadband off two Absolute Units, 12.3x what the city can
+   justify, for 238k a month out of 1.2 million people. A chassis now lifts the ceiling at most
+   EYE_HW_LIFT times above the calibrated figure, and only as far as it can actually forward. */
 /* Capacity runs out on a schedule, not by surprise. A new ISP in Semarang starts at 8 Gbps of
    demand against a 400 Gbps router and grows 2.5% a day, so the wall arrives on day 158 — real
    play at 8x speed, about three weeks. Players were hitting that wall without warning and
@@ -4204,12 +4211,16 @@ function capWarn(c){
   const tone=d<=30?'why':'note';
   return `<p class="${tone}">At today's growth this city fills its routers in ${d} ${d===1?'day':'days'} (${fmtG(eye)} of ${fmtG(nc)}). Upgrade in Infra before then.</p>`;
 }
+/* How far a bigger chassis may lift a city's calibrated ceiling. Three times is enough for a
+   Rusty-sized city to fill an Edge Lord, and for Jakarta (4,446) to make use of a Chonk, while a
+   P=50 town with a 1.6T chassis stops at 432 instead of 51,200. */
+const EYE_HW_LIFT=3;
 function eyeCap(c){
   const p=S&&S.pops&&S.pops[c];
   const hw=p?RG[p.rgen||0].cap*Math.max(1,(p.routers||1)):0;
   /* The calibrated ceiling (P × region multiplier) is lifted again by the traffic era you are in. */
   const cal=Math.round(eyeP(c)*eyeMul(c));
-  return Math.max(1,Math.max(cal,hw));
+  return Math.max(1,Math.max(cal,Math.min(hw,cal*EYE_HW_LIFT)));
 }
 function bbCost(c){if(S&&!roleDef().bb)return Infinity;return 15000+CITY[c].P*20;}
 function after(){if(S)purgeInc();compute();checkGoals();renderAll();save();}
