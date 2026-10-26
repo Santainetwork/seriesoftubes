@@ -563,7 +563,11 @@ test('#64 your own subsea cable runs beside the route, however many waves share 
      because a subsea cable cannot cross Ireland, Wales and England by land. So the bound is on the
      shape being stable as waves are added, and on it being a plausible sea detour rather than a
      straight line, not on it hugging the great-circle path. */
-  assert.ok(crowded < 45, `stays a plausible sea route (${crowded.toFixed(1)})`);
+  /* 45 was measured against upstream's hand-drawn Global coastline. This fork routes the cable
+     around the real Natural Earth coast of Ireland, Wales and the Channel, which is a longer
+     detour: 62 px. The invariant that matters is that the shape stays stable as waves are added
+     (asserted above) and that it is a detour rather than a straight line, so the bound is 90. */
+  assert.ok(crowded < 90, `stays a plausible sea route (${crowded.toFixed(1)})`);
   const g = ev("linkGeom(S.links.find(l=>l.id==='own')).pts");
   assert.ok(Math.hypot(g[0][0] - ev('CITY.lon.x'), g[0][1] - ev('CITY.lon.y')) < 1, 'still starts in London');
   assert.deepEqual(errors, []);

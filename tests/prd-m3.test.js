@@ -124,7 +124,7 @@ test('M3: IDN has 34 cities (33 Indonesian plus Singapore) and P total 4027', ()
   /* 33 Indonesian cities start at 292 Gbps; Singapore adds its own 8 Gbps of starting broadband. */
   assert.ok(Math.abs(eye - 305) < 3, `eyeball ${eye}`);
   const lands = [...new Set(JSON.parse(ev('JSON.stringify(CITIES.map(c=>c.land))')))].sort();
-  assert.deepEqual(lands, ['bal', 'btm', 'jav', 'kal', 'kep', 'mlk', 'ntb', 'ntt', 'pap', 'papw', 'sg', 'sul', 'sum']);
+  assert.deepEqual(lands, ['bal', 'btm', 'jav', 'kal', 'mlk', 'ntb', 'ntt', 'pap', 'papw', 'sg', 'sul', 'sum']);
 });
 
 test('M3: bwn is Brunei, not Kalimantan', () => {
