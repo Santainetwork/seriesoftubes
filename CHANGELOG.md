@@ -1,3 +1,12 @@
+## [1.27.5] — 2026-10-26
+
+- Fixes a crash introduced in 1.27.4. The regional-coastline patch declared `const LANDP` and
+  referenced LANDP on the line above it: a temporal dead zone, so the canvas renderer threw
+  "Cannot access LANDP before initialization" on every frame and the console filled with errors.
+  The fallback now lives in its own name, `coast`.
+- The harness could not catch it because paintWorld only runs inside requestAnimationFrame.
+  prd-paint now calls paintWorld directly in all three regions and asserts it does not throw.
+
 ## [1.27.4] — 2026-10-26
 
 - The SEA and Indonesia maps were painted on top of the world map. Manila stood in the

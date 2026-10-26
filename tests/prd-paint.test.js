@@ -60,3 +60,17 @@ test('paint: the global map still paints its own coastline', () => {
   assert.ok(h.ev('LANDP_ALL.length') > 0, 'global coastline must still exist');
   assert.ok(h.ev('LANDP.length') > 0, 'LANDP must never be empty');
 });
+
+test('paint: paintWorld runs without throwing in every region', () => {
+  // The first attempt at the regional-coastline fix declared `const LANDP` while referencing LANDP
+  // one line above it — a temporal dead zone. The harness stayed green because paintWorld only runs
+  // inside requestAnimationFrame; the browser threw on every frame and the player saw a red console.
+  for (const [id, city] of [['sea', 'mnl'], ['idn', 'jkt'], ['global', 'fra']]) {
+    const { ev } = region(id, city);
+    const r = ev(`(() => {
+      try { const c = document.createElement('canvas').getContext('2d'); paintWorld(c, 1, true); return 'OK'; }
+      catch (e) { return 'ERR ' + e.message; }
+    })()`);
+    assert.equal(r, 'OK', id + ' threw: ' + r);
+  }
+});

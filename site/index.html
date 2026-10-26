@@ -1271,12 +1271,20 @@ function cablePts(cid,a,b){
    direction alternates and whose depth scales with how many cables share that city, so two cables
    between the same places never overlap and a hub spreads its fan instead of stacking it. */
 function bowCables(){
- let i=0;
- const share={};for(const cp of CABLE_PAIRS){share[cp.a]=(share[cp.a]||0)+1;share[cp.b]=(share[cp.b]||0)+1;}
+ /* Each cable needs its own bow depth, not just its own sign. Depth used to depend only on how
+    many cables shared the hub, so every cable at Batam got an identical arc and half of them
+    landed on the same curve — the pile looked unchanged. `slot` counts the cables already bowed
+    at each hub, so the first one hugs the direct path and later ones fan outwards. */
+ const share={},slot={};
+ for(const cp of CABLE_PAIRS){share[cp.a]=(share[cp.a]||0)+1;share[cp.b]=(share[cp.b]||0)+1;}
  for(const cp of CABLE_PAIRS){
   const A=CITY[cp.a],B=CITY[cp.b];if(!A||!B||cp.pts.length<2)continue;
   const n=Math.max(share[cp.a]||1,share[cp.b]||1);if(n<2)continue;
-  const bow=(0.10+0.075*Math.min(n,14))*(i%2?1:-1);i++;
+  const hub=(share[cp.a]||1)>=(share[cp.b]||1)?cp.a:cp.b;
+  const k=slot[hub]=(slot[hub]||0)+1;
+  /* Alternating sign keeps neighbouring arcs on opposite sides; the slot index widens each one. */
+  const step=0.055+0.02*Math.min(n,14);
+  const bow=(0.06+step*k)*(k%2?1:-1);
   const ax=A.x,ay=A.y,bx=A.x+wrapDx(A.x,B.x),by=B.y;
   const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy)||1;
   const nx=-dy/len,ny=dx/len,mx=(ax+bx)/2+nx*bow*len,my=(ay+by)/2+ny*bow*len;
@@ -5913,16 +5921,18 @@ function paintWorld(c,z,withCables){
      Southeast Asia: Manila's label landed in the Mediterranean and Hanoi's in North America, because
      the cities were projected with the SEA lens while the land underneath never changed. The global
      tables survive only as the fallback for when no region has bound yet. */
-  const regional=LANDP&&LANDP.length;
-  const LANDP=regional?LANDP:(lodFar()?LANDP_FAR:LANDP_ALL);
+  /* Name this differently from LANDP: declaring `const LANDP` and referencing LANDP on the line
+     above it is a temporal dead zone, and the canvas renderer threw "Cannot access 'LANDP' before
+     initialization" on every frame. */
+  const coast=(LANDP&&LANDP.length)?LANDP:(lodFar()?LANDP_FAR:LANDP_ALL);
   /* The world wraps, so every coastline pass is drawn three times: at 0, +W and -W. */
   const OFF=WRAPX?[0,W,-W]:[0];
-  for(const o of [0,W,-W]){c.save();c.translate(o+5/z,7/z);c.fillStyle='rgba(20,90,130,.35)';for(const p of LANDP)c.fill(p);c.restore();}
-  c.strokeStyle='#F8E6A8';c.lineWidth=10/z;c.lineJoin='round';for(const o of [0,W,-W]){c.save();c.translate(o,0);for(const p of LANDP)c.stroke(p);c.restore();}
-  c.fillStyle='#9BDA6C';for(const o of [0,W,-W]){c.save();c.translate(o,0);for(const p of LANDP)c.fill(p);c.restore();}
+  for(const o of [0,W,-W]){c.save();c.translate(o+5/z,7/z);c.fillStyle='rgba(20,90,130,.35)';for(const p of coast)c.fill(p);c.restore();}
+  c.strokeStyle='#F8E6A8';c.lineWidth=10/z;c.lineJoin='round';for(const o of [0,W,-W]){c.save();c.translate(o,0);for(const p of coast)c.stroke(p);c.restore();}
+  c.fillStyle='#9BDA6C';for(const o of [0,W,-W]){c.save();c.translate(o,0);for(const p of coast)c.fill(p);c.restore();}
   c.fillStyle='#86CB5B';c.beginPath();for(const [x,y,r] of HILLS){c.moveTo(x+r*1.4,y);c.ellipse(x,y,r*1.4,r*.8,0,0,Math.PI*2);}c.fill();
   c.fillStyle='rgba(255,255,255,.18)';c.beginPath();for(const [x,y,r] of HILLS){c.moveTo(x-r*.3+r*.6,y-r*.25);c.ellipse(x-r*.3,y-r*.25,r*.6,r*.3,0,0,Math.PI*2);}c.fill();
-  c.strokeStyle='#1E2640';c.lineWidth=2.5/z;for(const o of OFF){c.save();c.translate(o,0);for(const p of LANDP)c.stroke(p);c.restore();}
+  c.strokeStyle='#1E2640';c.lineWidth=2.5/z;for(const o of OFF){c.save();c.translate(o,0);for(const p of coast)c.stroke(p);c.restore();}
   if(withCables)for(const off of OFF){c.save();c.translate(off,0);for(const cp of CABLE_PAIRS){const C=CAB[cp.cid];c.globalAlpha=0.4;c.strokeStyle=cableCol(C);c.lineWidth=1.6/z;c.lineJoin='round';c.setLineDash(C.age==='old'?[6/z,5/z]:[]);c.beginPath();c.moveTo(cp.pts[0][0],cp.pts[0][1]);for(let i=1;i<cp.pts.length;i++)c.lineTo(cp.pts[i][0],cp.pts[i][1]);c.stroke();}c.restore();}
   c.globalAlpha=1;c.setLineDash([]);
 }
