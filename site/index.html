@@ -1280,7 +1280,7 @@ function bowCables(){
        other. Those need a lane of their own.
    So: rank each distinct route by bearing around the hub (that is the order the fan actually
    opens in), and give duplicate routes a parallel lane offset. */
- const PITCH=14,FRAC=0.35,LANE=12,CORRIDOR=80;
+ const PITCH=14,FRAC=0.35,LANE=12,CORRIDOR=24;
  const key=new Map(),byRoute=new Map();
  for(const cp of CABLE_PAIRS){
   const k=cp.a<cp.b?cp.a+'>'+cp.b:cp.b+'>'+cp.a;
@@ -1305,7 +1305,7 @@ function bowCables(){
    touched, which the endpoint test locks. */
  const corrVec=new Map();
  {
-  const NEAR=70,MINRUN=3,SAMPLE=2;
+  const NEAR=55,MINRUN=4,SAMPLE=3;
   const vecOf=cp=>{let v=corrVec.get(cp);if(!v){v=cp.pts.map(()=>[0,0]);corrVec.set(cp,v);}return v;};
   for(let i=0;i<CABLE_PAIRS.length;i++)for(let j=i+1;j<CABLE_PAIRS.length;j++){
    const p=CABLE_PAIRS[i],q=CABLE_PAIRS[j];
