@@ -1,3 +1,10 @@
+## [1.27.1] — 2026-10-26
+
+- The region picker works again. showTitle() called loadSave() on every render, and loadSave()
+  overwrites UI.region with whichever save is newest, so choosing Indonesia drew the Indonesian
+  map and then immediately relit the Global button. loadSave({keepRegion:true}) from the title
+  screen leaves the choice alone; boot still restores the last-played region.
+
 ## [1.27.0] — 2026-10-26
 
 - Merged upstream v1.27.0. Thirteen levels, seven new router models, subsea optics physics,

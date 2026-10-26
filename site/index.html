@@ -4124,7 +4124,11 @@ function scanAllSaves(){
   const stamp=o=>o.save.savedAt||(o.save.day|0)*86400000;
   return out.sort((a,b)=>stamp(b)-stamp(a));
 }
-function loadSave(){
+function loadSave(opts){
+  /* keepRegion: the title screen's region picker has already set UI.region and must not have it
+     overwritten by whatever save happens to be newest. Without this, choosing Indonesia showed
+     the Indonesian map but left the Global button lit, because loadSave() ran afterwards. */
+  const keep=!!(opts&&opts.keepRegion);
   if(UI.saveMode==='none')return null; // no save mode: nothing to continue
   /* A save belongs to the region it was played in. When the player has explicitly chosen a
      region (boot restores that choice, the picker sets it), its save wins. On a fresh boot we
@@ -4140,8 +4144,10 @@ function loadSave(){
   const any=scanAllSaves();
   if(any.length){
     const best=any[0];
-    if(best.region&&best.region!==UI.region)ensureRegion(best.region);
-    UI.region=best.region||UI.region;
+    if(!keep){
+      if(best.region&&best.region!==UI.region)ensureRegion(best.region);
+      UI.region=best.region||UI.region;
+    }
     return best.save;
   }
   const all=scanSaves();
@@ -4151,8 +4157,10 @@ function loadSave(){
   try{
     const b=JSON.parse(localStorage.getItem('sot-save-backup')||'null');
     if(b&&b.S&&b.S.v===1&&!b.S.lost){
-      if(b.region)ensureRegion(b.region);
-      UI.region=b.region||UI.region;
+      if(!keep){
+        if(b.region)ensureRegion(b.region);
+        UI.region=b.region||UI.region;
+      }
       return b.S;
     }
   }catch(e){}
@@ -4830,7 +4838,7 @@ function savePickModal(){
     <p class="tagline">Every save on this address, newest first. A backup copy is kept automatically in case the main one is lost.</p>${rows}`);
 }
 function showTitle(){
-  const sv=loadSave();
+  const sv=loadSave({keepRegion:true});
   const reg=REGION[UI.region]||REGION.global;
   const starts=(reg.startCities||[]).filter(c=>CITY[c]).map(c=>[c,START_DESC[c]||'A quiet market with room to grow.']);
   const regionBtns=PICK_REGIONS.map(([id,l])=>`<button class="pick ${UI.region===id?'on':''}" data-act="pickRegion" data-args='{"id":"${id}"}'>${l}</button>`).join('');
