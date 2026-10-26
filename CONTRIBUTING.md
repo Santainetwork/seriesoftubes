@@ -64,8 +64,16 @@ A tour of the code is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Every player-facing string goes through `tr()`, `trn()` or `N_()`. Dictionaries live
 in `site/i18n/` (English text → translation). To add a language, copy `it.js`, translate
-the values, register the language in the language list in `site/index.html`, and run
+the values, register the language in the language list in `site/index.html`, add it to
+`ASSETS` in `site/sw.js`, and run
 `node scripts/i18n-check.js <lang>` until it reports nothing missing, unused or broken. The CI job "translations" runs the same check on every pull request, shows each language's coverage in the run summary, and also fails if a new language is not added to the language list or to the offline cache in `site/sw.js`.
+
+This fork tracks upstream, and upstream adds strings for features this fork has not
+ported yet. Those translations are already done, so they stay in the dictionary instead of
+being deleted to make the checker green; `scripts/i18n-unported.json` lists them and
+`node scripts/i18n-unported.js` regenerates it. That list is the only reason an unused
+entry is not a failure — it never excuses a missing or a broken one, and a string this fork
+does show must be translated, not listed there.
 
 Language pull requests must be reviewed by a human who speaks the language, and
 checked in the game itself, not only in the dictionary file. Passing the checker is

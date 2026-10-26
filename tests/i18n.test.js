@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { load, seed } = require('./harness');
-const { loadDict, brokenEntries } = require('../scripts/i18n-check');
+const { loadDict, brokenEntries, sourceKeys, check, unportedKeys } = require('../scripts/i18n-check');
 
 const SCREENS = ['hud', 'panelBody', 'leftBody', 'modalCard', 'dashCard', 'bankCard', 'toasts', 'coach', 'hint', 'mega'];
 
@@ -80,6 +80,52 @@ test('every Italian entry keeps the placeholders and HTML tags of its English te
   const dict = loadDict(path.join(__dirname, '..', 'site', 'i18n', 'it.js'));
   assert.ok(Object.keys(dict).length > 100);
   assert.deepEqual(brokenEntries(dict), []);
+});
+
+test('every dictionary translates every string the game shows, and nothing else', () => {
+  // The checker is the gate CI runs, so it is pinned here as well: a green suite with a red CI job
+  // would be a lie. Missing is zero with no allowance — the dictionaries are complete today, and the
+  // 495 strings this fork was short of were finished translations sitting in upstream, not new work.
+  const keys = sourceKeys(fs.readFileSync(path.join(__dirname, '..', 'site', 'index.html'), 'utf8'));
+  const unported = unportedKeys();
+  for (const lang of ['it', 'pt']) {
+    const r = check(keys, loadDict(path.join(__dirname, '..', 'site', 'i18n', `${lang}.js`)), unported);
+    assert.deepEqual(r.missing, [], `${lang}.js does not translate these strings the game shows`);
+    assert.deepEqual(r.broken, [], `${lang}.js breaks a placeholder or an HTML tag`);
+    assert.deepEqual(r.unused, [], `${lang}.js has entries for text the game no longer shows, and they are not in scripts/i18n-unported.json`);
+  }
+});
+
+test('every language the game offers is in the offline cache, so it survives going offline', () => {
+  // Without this a player who picks Italian and loses signal gets English back: the dictionary was
+  // never in the service worker's cache. registration() checks it in CI; this keeps it checked here.
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'site', 'sw.js'), 'utf8');
+  const offered = JSON.parse(load().ev('JSON.stringify(Object.keys(window.SOT_LANGS))')).filter((l) => l !== 'en');
+  assert.ok(offered.length > 0);
+  for (const lang of offered) {
+    assert.ok(sw.includes(`/i18n/${lang}.js`), `site/sw.js does not cache /i18n/${lang}.js, so ${lang} falls back to English offline`);
+  }
+});
+
+test('the unported list only names strings upstream really translates', () => {
+  // scripts/i18n-unported.json is the one place an unused entry is forgiven. It has to stay honest:
+  // if it could name anything it would silence the unused check instead of recording upstream
+  // features this fork has not ported. Every key must be a real upstream key, and it must not be a
+  // key this fork already shows (that would be a string the fork forgot to translate).
+  const { execFileSync } = require('node:child_process');
+  const root = path.join(__dirname, '..');
+  let upHtml;
+  try {
+    upHtml = execFileSync('git', ['show', 'origin/main:site/index.html'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+  } catch {
+    return; // no upstream ref available (a tarball, a shallow clone)
+  }
+  const upKeys = sourceKeys(upHtml);
+  const forkKeys = sourceKeys(fs.readFileSync(path.join(root, 'site', 'index.html'), 'utf8'));
+  const unported = unportedKeys();
+  assert.ok(unported.size > 0, 'the list should not be empty while upstream has unported features');
+  assert.deepEqual([...unported].filter((k) => !upKeys.has(k)), [], 'scripts/i18n-unported.json names strings upstream does not have');
+  assert.deepEqual([...unported].filter((k) => forkKeys.has(k)), [], 'scripts/i18n-unported.json excuses strings this fork shows; translate them instead');
 });
 
 test('the language buttons on the title screen work before any game exists', () => {

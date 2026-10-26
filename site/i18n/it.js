@@ -2347,4 +2347,6 @@
 "serve {t} ({v})":"servi {t} ({v})",
 "{k}+ peering sessions ({n})":"{k}+ sessioni di peering ({n})",
 "Saving":"Salvataggio",
+"Local & regional networks ({n})":"Reti locali e regionali ({n})",
+"Global Tier 1 · long-haul ({n})":"Tier 1 globali · long-haul ({n})",
 };

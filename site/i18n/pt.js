@@ -2542,4 +2542,17 @@
 "Giving it up now returns {price}.":"Desistir agora devolve {price}.",
 "No subsea cable lands in {city}. The nearest landing station is {near}: run fiber there first, then take a cable from it.":"Nenhum cabo submarino chega a {city}. A estação de chegada mais próxima é {near}: leve fibra até lá primeiro e depois pegue um cabo de lá.",
 "{km} km is more than any optic can light, even on the best subsea gear ({max} km at most). Real cables stop at an island or a landing station on the way: lay two shorter ones.":"{km} km é mais do que qualquer óptica consegue iluminar, mesmo com o melhor equipamento submarino ({max} km no máximo). Cabos de verdade param numa ilha ou numa estação de chegada no caminho: lance dois mais curtos.",
+
+"Local & regional networks ({n})":"Redes locais e regionais ({n})",
+"Global Tier 1 · long-haul ({n})":"Tier 1 globais · long-haul ({n})",
+"Needs {model} routers at both ends ({city}).":"Precisa de roteadores {model} nas duas pontas ({city}).",
+"The UK incumbent. Buzzes politely, stings on price.":"A incumbente do Reino Unido. Zumbindo com educação, ferroando no preço.",
+"Remote peering port":"Porta de peering remoto",
+"POPs on {k}+ continents":"POPs em {k}+ continentes",
+"{k}+ POPs ({n})":"{k}+ POPs ({n})",
+"serve {t} ({v})":"entregue {t} ({v})",
+"{k}+ peering sessions ({n})":"{k}+ sessões de peering ({n})",
+"Ports on all three IX.brrr exchanges.":"Portas nos três exchanges IX.brrr.",
+"nowhere":"nenhum lugar",
+"Saving":"Salvando",
 };

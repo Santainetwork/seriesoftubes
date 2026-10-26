@@ -39,7 +39,8 @@ Other files:
 | `scripts/build.sh` | Copies `site/` to `_site/`, stamps `__VERSION__`/`__BUILD_DATE__`, bakes release notes, writes `version.json` |
 | `scripts/release-notes.js` | Extracts a version's CHANGELOG bullets |
 | `scripts/perf-bench.js`, `scripts/perf-fixture.js` | Big-network benchmark (base vs head, posted on every PR by `perf.yml` + `perf-comment.yml`) and the generator of its save, `tests/fixtures/big-network.json` |
-| `scripts/i18n-check.js` | Compares every `tr`/`trn`/`N_` literal and `data-i18n` text with each dictionary |
+| `scripts/i18n-check.js` | Compares every `tr`/`trn`/`N_` literal and `data-i18n` text with each dictionary; also checks each language is offered in `SOT_LANGS` and cached in `site/sw.js`, and with `--summary` writes a coverage table for the CI run page |
+| `scripts/i18n-unported.js` | Regenerates `scripts/i18n-unported.json`: the English strings upstream translates for features this fork has not ported. Those entries are kept in the dictionaries, not deleted, and the checker does not count them as unused |
 | `tests/harness.js` | Loads the page in jsdom with a seeded `Math.random` and a fake canvas |
 | `.github/workflows/ci.yml` | Tests and build on every push and PR |
 | `.github/workflows/auto-release.yml` | On a `package.json` version bump on `main`: test, tag, GitHub release from the CHANGELOG, start the deploy |

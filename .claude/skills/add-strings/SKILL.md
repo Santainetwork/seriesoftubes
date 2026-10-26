@@ -51,3 +51,24 @@ into an Italian joke when one fits; otherwise keep the pun name and translate th
 node scripts/i18n-check.js   # must say: 0 missing, 0 unused, 0 broken
 npm test                     # includes tests/i18n.test.js
 ```
+
+The checker also fails if a language is not offered in `SOT_LANGS` (`site/index.html`) or not
+cached in `ASSETS` (`site/sw.js`). Both matter: a language nobody offers cannot be picked, and one
+missing from the service worker cache drops back to English the moment the player goes offline.
+
+### Entries for strings this fork does not have yet
+
+This fork tracks upstream, and upstream translates strings for features the fork has not ported.
+Those entries are finished translations: keep them. `scripts/i18n-unported.json` lists them and the
+checker does not count them as unused. It is generated, not hand-edited:
+
+```bash
+node scripts/i18n-unported.js     # after porting or renaming strings
+```
+
+The list only forgives `unused`. It never forgives `missing` or `broken`, and it may not name a
+string this fork actually shows — that string needs a translation, not an exemption. `npm test`
+enforces both rules.
+
+When you change English text, rename the key in every dictionary. The old key then becomes unused,
+and since it is not in the unported list the checker fails until you fix it. That is the point.

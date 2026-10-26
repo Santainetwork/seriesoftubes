@@ -4,6 +4,9 @@
    cache-first shell would keep players on a stale build forever, which is exactly what happened
    when the Indonesia map shipped: the game kept loading the old one. */
 const SHELL = 'sot-shell-v2';
+/* The dictionaries are cached too, so a player who picked a language keeps it offline instead of
+   dropping back to English. They carry the version so a release that changes strings also refreshes
+   them; scripts/build.sh stamps __VERSION__ in this file for that reason. */
 const ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +16,8 @@ const ASSETS = [
   '/icon-maskable-512.png',
   '/apple-touch-icon.png',
   '/favicon.svg',
+  '/i18n/it.js?v=__VERSION__',
+  '/i18n/pt.js?v=__VERSION__',
 ];
 
 self.addEventListener('install', e => {
