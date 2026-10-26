@@ -1265,6 +1265,25 @@ function cablePts(cid,a,b){
   const mp=raw.map(q=>proj(q[0],q[1]));const pts=[[near(A.x,mp[0][0]),A.y]].concat(mp,[[near(B.x,mp[mp.length-1][0]),B.y]]);
   const ll=[[A.lon,A.lat]].concat(raw,[[B.lon,B.lat]]);let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);
   return {cid:c.id,a,b,pts,km:Math.round(L)};}));
+ bowCables();
+/* Eighteen cables leave Jakarta and fifteen leave Batam, all drawn as straight lines from the same
+   pixel, so the middle of the map looks like a bowl of noodles. Give each pair a bow whose
+   direction alternates and whose depth scales with how many cables share that city, so two cables
+   between the same places never overlap and a hub spreads its fan instead of stacking it. */
+function bowCables(){
+ let i=0;
+ const share={};for(const cp of CABLE_PAIRS){share[cp.a]=(share[cp.a]||0)+1;share[cp.b]=(share[cp.b]||0)+1;}
+ for(const cp of CABLE_PAIRS){
+  const A=CITY[cp.a],B=CITY[cp.b];if(!A||!B||cp.pts.length<2)continue;
+  const n=Math.max(share[cp.a]||1,share[cp.b]||1);if(n<2)continue;
+  const bow=(0.10+0.075*Math.min(n,14))*(i%2?1:-1);i++;
+  const ax=A.x,ay=A.y,bx=A.x+wrapDx(A.x,B.x),by=B.y;
+  const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy)||1;
+  const nx=-dy/len,ny=dx/len,mx=(ax+bx)/2+nx*bow*len,my=(ay+by)/2+ny*bow*len;
+  const mid=cp.pts.slice(1,-1);
+  cp.pts=[cp.pts[0]].concat(mid.map((q,t)=>{const u=1-(t+1)/(mid.length+1);return [q[0]+(mx-q[0])*0.6*(1-u),q[1]+(my-q[1])*0.6*(1-u)];}),[cp.pts[cp.pts.length-1]]);
+ }
+}
 function cablesOk(a,b){const ban=S&&S.ev&&S.ev.landban&&S.ev.landban.until>S.day&&[a,b].includes(S.ev.landban.city);if(ban)return [];const rl=S&&S.scn&&S.scn.rules,bp=rl&&rl.banPairs,bc=rl&&rl.banCities;return bp||bc?cablesFor(a,b).filter(c=>!(bp&&(bp.includes(c.cid+':'+c.a+'-'+c.b)||bp.includes(c.cid+':'+c.b+'-'+c.a)))&&!(bc&&(bc.includes(c.a)||bc.includes(c.b)))):cablesFor(a,b);}
 function cablesFor(a,b){return CABLE_PAIRS.filter(c=>(c.a===a&&c.b===b)||(c.a===b&&c.b===a));}
 function cablePair(cid,a,b){const c=CABLE_PAIRS.find(x=>x.cid===cid&&((x.a===a&&x.b===b)||(x.a===b&&x.b===a)));if(!c)return null;return c.a===a?c:{...c,pts:c.pts.slice().reverse()};}
@@ -5649,6 +5668,7 @@ function rebuildDerived(){
   const mp=raw.map(q=>proj(q[0],q[1]));const pts=[[near(A.x,mp[0][0]),A.y]].concat(mp,[[near(B.x,mp[mp.length-1][0]),B.y]]);
   const ll=[[A.lon,A.lat]].concat(raw,[[B.lon,B.lat]]);let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);
   return {cid:c.id,a,b,pts,km:Math.round(L)};}));
+ bowCables();
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
  /* Filter the networks that actually have a POP in this region before deriving NET,
     NSH and the exchange member lists. `NETS` itself is never resized: REGION.global.nets
