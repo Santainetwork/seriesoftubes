@@ -6,83 +6,25 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
-- Goals and badges that a map can never satisfy are no longer shown on it. On the Southeast Asia and
-  Indonesia maps a player was told to "have POPs on 3 continents" and shown a "Six Continents" badge
-  when the whole map is one continent, so neither could ever be claimed. Seventeen goals and badges
-  were impossible there, including three that named cables or cities the map does not have. They now
-  disappear from the panel on maps that cannot supply them, and stay on the map that can.
-- The goals panel showed every role's goals to every role. An ISP saw all 31 goals while the counter
-  said 19, including three other roles' private ladders and a broadband goal it cannot even buy.
-- A DE-KICKS badge was handed out on day one on the regional maps. "Ports at all six DE-KICKS
-  exchanges" was checked against an empty list, which counts as satisfied, so a brand new network
-  with one POP and no ports got an Epic badge for nothing.
-- Hyperscaler fiber deals were unreachable on the Indonesia map, and threw an error on the Southeast
-  Asia one. A fiber-pairs deal was gated behind an AI campus it does not use, so a map with no campus
-  could never sell one; and the AI WAN deal could pick a campus that is not on the map, which failed
-  the whole day instead of offering a contract.
-- Tier 1 was unreachable on the Southeast Asia map. The club asked for POPs on two continents, but
-  every city on that map is in one, so no amount of traffic or peering could open the door: a
-  player with all 49 POPs, 3.2 Tbps served and 106 peering sessions was still refused for a
-  continent the map does not contain. The requirement is now capped at what each map actually
-  offers, and SEA's own rule states the honest number.
-- A hosting outfit could not level up. Peak traffic — the number the customer levels are built on
-  — was fed only by IP traffic, and a private circuit never passes an IP exit: a cloud on-ramp or
-  an AI interconnect moved hundreds of gigabits, paid for them, and counted for nothing. Signing a
-  400G on-ramp could even make peak traffic fall, because the circuit was allocated before the IP
-  customers and took the whole chassis. Private circuits now count towards peak traffic, and they
-  are allocated after IP traffic instead of before it. A restricted role also obeys the level each
-  customer type asks for, so a level-1 hosting outfit can no longer sign an AI interconnect that
-  the rest of the game only offers at level 4.
-- A bigger router no longer invents broadband demand. The eyeball ceiling was `max(calibrated,
-  chassis)`, so a single Chonk 800 gave all 34 Indonesian cities the same 12,800 Gbps ceiling and
-  Manado — 1.2 million people, a calibrated ceiling of 144 Gbps — could sell 1,768 Gbps off two
-  Absolute Units, 12.3x what the city justifies. A chassis may now lift a city's ceiling to at
-  most three times its calibrated figure, and no further than it can forward. Raising the
-  regional multiplier instead would not have worked: 30 of the 34 cities were pinned by the
-  chassis, not the multiplier.
-- Singapore is no longer the cheapest big city on the Indonesia map. The boost table that lifts
-  the biggest cities had a dead key (`mks`, which matched no city — Makassar is `upg`) and no
-  entry at all for Singapore or Makassar, so both defaulted to 1.0: Singapore reported a 1,080
-  Gbps ceiling while Surabaya reported 2,160 at the same 450 Gbps of calibrated traffic. The
-  table now has an entry for every city and is monotone in P, so more traffic can never mean a
-  lower ceiling and two cities with the same traffic report the same number.
-- Cables no longer pile up mid-route, and they no longer scribble. Routes that share a strait used
-  to converge back onto the same waypoints after the hub fan had separated them; they are
-  resampled and then offset into lanes that follow the strait, so two cables through the Sunda
-  Strait run side by side instead of on top of each other. The sea router also stopped sending a
-  14px hop via Singapore. Waypoints per route went from 10 to 23, the average drawn detour from
-  3.1x to 2.2x, and sharp turns from 123 in 743 vertices to 94 in 5,414.
-- Cables on the global map went missing. The sea router's output for the Asia maps was written
-  over the whole route table, so the 139 routes between cities outside Southeast Asia lost their
-  waypoints and every one of those cables was drawn as a straight line again. The table is the
-  union of both now: the dense regional routes where the router produced them, the older ones
-  everywhere else. The London–New York cable measures 6,362 km again, which is what caps a
-  transatlantic wave at 1.2T.
-- Your own subsea cable can no longer be longer than any optic can light (#88). New York to Sydney
-  now says so before you pay, instead of after the ship comes home. Calling off a cable while it
-  is still being laid returns most of the price of the part not laid yet, and an unusable cable
-  from an older save goes back for a full refund.
-- Your own IX can now live in either building of a two-site metro, or in both with a second
-  switch, so a dark building no longer takes your exchange down (#36). The LAG buttons that did
-  nothing on your own IX are gone.
-- Upgrading the only router in a POP that has nothing plugged in yet no longer opens a maintenance
-  window or a NOC warning (#105).
-- Declining a loan offer clears the bank badge right away, even while the game is paused (#104).
-- Parallel waves of different sizes now show each size on the map, like 800G + 400G, instead of a
-  misleading 2 × 1.2T (#56).
-- Picking a subsea route from a city without a cable landing, like Oslo, now names the nearest
-  landing station instead of saying its cables reach "nowhere" (#50).
-
 ## [1.29.0] — 2026-10-26
 
-- Merged upstream v1.28.0 and v1.29.0 into the fork. Africa grows from five cities to
-  twenty-six with its own scenario, Brazil gets all forty IX.brrr locations, the game speaks
-  Portuguese, RouteScript learns `prefer transit`, `avoid transit`, `prepend transit` and
-  `protect customers`, twelve more Latin American cities and seven new African cables arrive, and
-  big networks get a lot faster. Everything the fork had on top of v1.27 survives the merge: the
-  Indonesia and SEA maps, the Natural Earth coastline, the sea-routed cables, the Komdigi licence,
-  karhutla, the conferences and the Indonesian NAPs. The NOC's Leased lines tab is back too — the
-  1.27.0 merge had left it calling a function that no longer existed, so opening it threw.
+- Merged upstream v1.28.0 and v1.29.0 into the fork. Africa grows from five cities to twenty-six with its own scenario, Brazil gets all forty IX.brrr locations, the game speaks Portuguese, RouteScript learns `prefer transit`, `avoid transit`, `prepend transit` and `protect customers`, twelve more Latin American cities and seven new African cables arrive, and big networks get a lot faster. Everything the fork had on top of v1.27 survives the merge: the Indonesia and SEA maps, the Natural Earth coastline, the sea-routed cables, the Komdigi licence, karhutla, the conferences and the Indonesian NAPs. The NOC's Leased lines tab is back too — the 1.27.0 merge had left it calling a function that no longer existed, so opening it threw.
+- Goals and badges that a map can never satisfy are no longer shown on it. On the Southeast Asia and Indonesia maps a player was told to "have POPs on 3 continents" and shown a "Six Continents" badge when the whole map is one continent, so neither could ever be claimed. Seventeen goals and badges were impossible there, including three that named cables or cities the map does not have. They now disappear from the panel on maps that cannot supply them, and stay on the map that can.
+- The goals panel showed every role's goals to every role. An ISP saw all 31 goals while the counter said 19, including three other roles' private ladders and a broadband goal it cannot even buy.
+- A DE-KICKS badge was handed out on day one on the regional maps. "Ports at all six DE-KICKS exchanges" was checked against an empty list, which counts as satisfied, so a brand new network with one POP and no ports got an Epic badge for nothing.
+- Hyperscaler fiber deals were unreachable on the Indonesia map, and threw an error on the Southeast Asia one. A fiber-pairs deal was gated behind an AI campus it does not use, so a map with no campus could never sell one; and the AI WAN deal could pick a campus that is not on the map, which failed the whole day instead of offering a contract.
+- Tier 1 was unreachable on the Southeast Asia map. The club asked for POPs on two continents, but every city on that map is in one, so no amount of traffic or peering could open the door: a player with all 49 POPs, 3.2 Tbps served and 106 peering sessions was still refused for a continent the map does not contain. The requirement is now capped at what each map actually offers, and SEA's own rule states the honest number.
+- A hosting outfit could not level up. Peak traffic — the number the customer levels are built on — was fed only by IP traffic, and a private circuit never passes an IP exit: a cloud on-ramp or an AI interconnect moved hundreds of gigabits, paid for them, and counted for nothing. Signing a 400G on-ramp could even make peak traffic fall, because the circuit was allocated before the IP customers and took the whole chassis. Private circuits now count towards peak traffic, and they are allocated after IP traffic instead of before it. A restricted role also obeys the level each customer type asks for, so a level-1 hosting outfit can no longer sign an AI interconnect that the rest of the game only offers at level 4.
+- A bigger router no longer invents broadband demand. The eyeball ceiling was `max(calibrated, chassis)`, so a single Chonk 800 gave all 34 Indonesian cities the same 12,800 Gbps ceiling and Manado — 1.2 million people, a calibrated ceiling of 144 Gbps — could sell 1,768 Gbps off two Absolute Units, 12.3x what the city justifies. A chassis may now lift a city's ceiling to at most three times its calibrated figure, and no further than it can forward. Raising the regional multiplier instead would not have worked: 30 of the 34 cities were pinned by the chassis, not the multiplier.
+- Singapore is no longer the cheapest big city on the Indonesia map. The boost table that lifts the biggest cities had a dead key (`mks`, which matched no city — Makassar is `upg`) and no entry at all for Singapore or Makassar, so both defaulted to 1.0: Singapore reported a 1,080 Gbps ceiling while Surabaya reported 2,160 at the same 450 Gbps of calibrated traffic. The table now has an entry for every city and is monotone in P, so more traffic can never mean a lower ceiling and two cities with the same traffic report the same number.
+- Cables no longer pile up mid-route, and they no longer scribble. Routes that share a strait used to converge back onto the same waypoints after the hub fan had separated them; they are resampled and then offset into lanes that follow the strait, so two cables through the Sunda Strait run side by side instead of on top of each other. The sea router also stopped sending a 14px hop via Singapore. Waypoints per route went from 10 to 23, the average drawn detour from 3.1x to 2.2x, and sharp turns from 123 in 743 vertices to 94 in 5,414.
+- Cables on the global map went missing. The sea router's output for the Asia maps was written over the whole route table, so the 139 routes between cities outside Southeast Asia lost their waypoints and every one of those cables was drawn as a straight line again. The table is the union of both now: the dense regional routes where the router produced them, the older ones everywhere else. The London–New York cable measures 6,362 km again, which is what caps a transatlantic wave at 1.2T.
+- Your own subsea cable can no longer be longer than any optic can light (#88). New York to Sydney now says so before you pay, instead of after the ship comes home. Calling off a cable while it is still being laid returns most of the price of the part not laid yet, and an unusable cable from an older save goes back for a full refund.
+- Your own IX can now live in either building of a two-site metro, or in both with a second switch, so a dark building no longer takes your exchange down (#36). The LAG buttons that did nothing on your own IX are gone.
+- Upgrading the only router in a POP that has nothing plugged in yet no longer opens a maintenance window or a NOC warning (#105).
+- Declining a loan offer clears the bank badge right away, even while the game is paused (#104).
+- Parallel waves of different sizes now show each size on the map, like 800G + 400G, instead of a misleading 2 × 1.2T (#56).
+- Picking a subsea route from a city without a cable landing, like Oslo, now names the nearest landing station instead of saying its cables reach "nowhere" (#50).
 - Big networks lag a lot less: on a network with a hundred POPs and a thousand peering ports, the NOC dashboard opens six times faster, the side panels three times faster, and each game day takes about a third less time. The map needs about a third fewer drawing steps per frame, and open panels only update what changed, which keeps them smooth and lets the traffic bars glide to their new values. The connection and customer lists in the NOC dashboard show 100 rows at a time, with a button for more. While the game is paused or animations are off, the map is only redrawn when something on it changes, which saves a lot of battery on phones. On a phone, the map also rests while the NOC dashboard fills the screen, so scrolling it stays smooth.
 - Africa grows from five cities to twenty-six, across nineteen countries, and a new scenario, Cape to Cairo, asks you to cross it. New: Dakar, Abidjan, Accra, Douala, Kinshasa, Luanda, Casablanca, Algiers, Tunis, Djibouti, Addis Ababa, Mombasa, Dar es Salaam, Kampala, Kigali, Maputo, Durban, Windhoek, Lusaka, Harare and Gaborone, each with its own IX. Overland fiber across an African border costs twice as much, and Kinshasa, Lusaka and Harare have unreliable power.
 - Brazil now has all forty IX.brrr locations, from Manaus to Lajeado, so you can build a real national network. Fiber into the Amazon costs twice as much and its repair crews go by boat, Oi Oi, TIM-TIM Mobile and Brisanada join Brazil's networks, and a new scenario, Order and Progress, asks you to peer on 20 IX.brrr exchanges.
