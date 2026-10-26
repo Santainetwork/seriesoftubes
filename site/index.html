@@ -1280,7 +1280,7 @@ function bowCables(){
        other. Those need a lane of their own.
    So: rank each distinct route by bearing around the hub (that is the order the fan actually
    opens in), and give duplicate routes a parallel lane offset. */
- const PITCH=14,FRAC=0.35,LANE=12;
+ const PITCH=14,FRAC=0.35,LANE=12,CORRIDOR=11;
  const key=new Map(),byRoute=new Map();
  for(const cp of CABLE_PAIRS){
   const k=cp.a<cp.b?cp.a+'>'+cp.b:cp.b+'>'+cp.a;
@@ -1291,6 +1291,70 @@ function bowCables(){
   if(list.length<2)continue;
   list.forEach((cp,i)=>lane.set(cp,i-(list.length-1)/2));
  }
+ /* Arcello: separate routes still pile up where their routed waypoints share a corridor — the
+   Sunda Strait, the Java Sea, the Malacca approach. A bow only spreads the fan at the hub, so
+   mid-route the lines converge back onto the same waypoints. Corridor fix: for each pair of
+   distinct routes, find stretches where the two run close together (nearest-point match, so
+   routes with different waypoint counts still pair up), and record a scalar lateral offset for
+   each member over that stretch. Offsets are applied along each route's own local normal in the
+   drawing pass below, so they follow the corridor's bends, and the sine envelope eases them to
+   zero at both cities — endpoints stay pinned, which the endpoint test locks. */
+ const corrOff=new Map();
+ const corrGroup=new Map();
+ for(let gi=0;gi<CABLE_PAIRS.length;gi++)corrGroup.set(CABLE_PAIRS[gi],gi);
+ {
+  const NEAR=45,MINRUN=4,SAMPLE=3;
+  for(let i=0;i<CABLE_PAIRS.length;i++)for(let j=i+1;j<CABLE_PAIRS.length;j++){
+   const p=CABLE_PAIRS[i],q=CABLE_PAIRS[j];
+   if(key.get(p)===key.get(q))continue; // duplicate routes already have their own lane
+   const P=p.pts,Q=q.pts;
+   if(Math.min(P.length,Q.length)<MINRUN+2)continue;
+   /* q may be indexed in either direction relative to p; decide once, by the endpoints that are
+      shared. Most shared-corridor pairs share no endpoint, in which case direction does not
+      matter — the nearest-point match below is direction-agnostic anyway. */
+   let rev=0,same=0;
+   for(const a of [p.a,p.b]){if(q.b===a)rev++;else if(q.a===a)same++;}
+   const flip=rev>same?-1:1;
+   for(let s=1;s<P.length-1;s+=SAMPLE){
+    let run=0;
+    for(let t=s;t<P.length-1;t++){
+     const a=P[t];
+     let best=Infinity,bi=-1;
+     for(let u=1;u<Q.length-1;u++){const d=Math.hypot(a[0]-Q[u][0],a[1]-Q[u][1]);if(d<best){best=d;bi=u;}}
+     if(best>=NEAR)break;
+     /* A corridor needs the neighbours to track too, else two crossing cables would count. */
+     const a2=P[Math.min(t+1,P.length-2)],b2=Q[Math.max(1,Math.min(Q.length-2,bi+flip))];
+     if(Math.hypot(a2[0]-b2[0],a2[1]-b2[1])>=NEAR)break;
+     run++;
+    }
+    if(run<MINRUN)continue;
+    /* Push each member away from the other over the stretch; the side alternates by pair index
+       so a three-way corridor does not shove everything the same way. */
+    const side=(i+j)%2?1:-1;
+    for(let t=s;t<s+run;t++){
+     const a=P[t];
+     let best=Infinity,bi=-1;
+     for(let u=1;u<Q.length-1;u++){const d=Math.hypot(a[0]-Q[u][0],a[1]-Q[u][1]);if(d<best){best=d;bi=u;}}
+     corrOff.set(p,(corrOff.get(p)||new Map()).set(t,side*CORRIDOR));
+     corrOff.set(q,(corrOff.get(q)||new Map()).set(bi,-side*CORRIDOR));
+     }
+     }
+     }
+     /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Spread each
+     offset over its neighbours with a small kernel, so the separation ramps in and out and the
+     route never kinks where a corridor starts or stops. */
+     for(const [cp,m] of [...corrOff]){
+     const n=cp.pts.length,raw=new Array(n).fill(0);
+     for(const [t,v] of m)raw[t]=v;
+     const sm=new Array(n).fill(0);
+     for(let t=1;t<n-1;t++){
+     let a=0,w=0;
+     for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);a+=raw[u]*wt;w+=wt;}
+     sm[t]=a/(w||1);
+     }
+     corrOff.set(cp,sm);
+     }
+     }
  const atCity=new Map();
  for(const cp of CABLE_PAIRS){
   const k=key.get(cp);
@@ -1323,6 +1387,9 @@ function bowCables(){
   if((!f||!f.s)&&!l)continue;
   const dx=wrapDx(A.x,B.x),dy=B.y-A.y,len=Math.hypot(dx,dy)||1;
   const nx=-dy/len,ny=dx/len;
+  const co=corrOff.get(cp);
+  /* A corridor offset needs at least one point beside the endpoints to act on. */
+  if((!f||!f.s)&&!l&&(!co||!co.size))continue;
   /* The widest cable at a hub stays inside FRAC of the chord, so a short hop does not swing out
      like an ocean crossing, and PITCH caps the gap between neighbours on long runs. FRAC*len
      shrinks to nothing on a short hop though — Batam–Tanjung Pinang is ~20 px, so its whole fan
@@ -1332,8 +1399,16 @@ function bowCables(){
   const mid=cp.pts.slice(1,-1),last=mid.length+1;
   cp.pts=[cp.pts[0]].concat(mid.map((q,j)=>{
    const env=Math.sin(Math.PI*(j+1)/last);
-   const d=((f?f.s*unit:0)+l*LANE)*env;
-   return [q[0]+nx*d,q[1]+ny*d];
+   let d=((f?f.s*unit:0)+l*LANE)*env,ox=0,oy=0;
+   /* Corridor offsets ride the route's own normal (previous→next point), so the separation
+      follows the bends instead of pushing everything along one chord direction. */
+   if(co&&co.has(j+1)){
+    const pr=cp.pts[j],nt=cp.pts[j+2]!==undefined?cp.pts[j+2]:cp.pts[j+1];
+    let cnx=-(nt[1]-pr[1]),cny=nt[0]-pr[0];
+    const cl=Math.hypot(cnx,cny)||1;
+    ox=cnx/cl*co.get(j+1);oy=cny/cl*co.get(j+1);
+   }
+   return [q[0]+nx*d+ox,q[1]+ny*d+oy];
   }),[cp.pts[cp.pts.length-1]]);
  }
 }
@@ -1348,7 +1423,7 @@ const MIDC=['man','bcn','mil','lis','atn','den','phx','bos','hou','mel','osa','k
 
 /* ================= NETWORKS ================= */
 let NETS=[
- {id:'lvl',name:'Level Tree',asn:3535,type:'t1',pol:'restrictive',share:.07,price:9,col:'#7B61FF',pops:['bde','man','edi','svg','mil','rom','lis','ath','atn','den','phx','bos','hou','slc','ber','zrh','dub','cph','osl','tor','lax','mex','mtl','sea','sjc','dal','chi','ash','nyc','mia','sao','lon','ams','fra','par','mad','rio','bue','scl','bog','lim','pan','waw','prg','vie','bud','buh','ist'],ix:[],blurb:tr('Grew from a seedling into a global backbone. Leaves no route behind.')},
+ {id:'lvl',name:'Level Tree',asn:3535,type:'t1',pol:'restrictive',share:.07,price:9,col:'#7B61FF',pops:['bde','man','edi','svg','mil','rom','lis','ath','atn','den','phx','bos','hou','slc','ber','zrh','dub','cph','osl','tor','lax','mex','mtl','sea','sjc','dal','chi','ash','nyc','mia','sao','lon','ams','fra','par','mad','rio','bue','scl','bog','lim','pan','waw','prg','vie','bud','buh','ist','sin','jkt','hkg'],ix:[],blurb:tr('Grew from a seedling into a global backbone. Leaves no route behind.')},
  {id:'ntt',name:'Not That Telecom',asn:2941,type:'t1',pol:'restrictive',share:.06,price:8,col:'#4B3FC4',pops:['man','mil','atn','den','bos','hou','phx','jkt','mnl','per','lax','dxb','icn','sea','sjc','dal','ash','nyc','lon','ams','fra','sin','hkg','tok','syd','tpe','del','maa','blr','hyd','osa','kul','bkk','sgn'],ix:[],blurb:tr('Huge in Asia. "Which telecom?" "Not that one."')},
  {id:'tly',name:'Tell-Ya Carrier',asn:1229,type:'t1',pol:'restrictive',share:.05,price:8,col:'#9D4EDD',pops:['svg','edi','man','mil','rom','pmo','ath','ber','osl','cph','hel','beg','sof','chi','ash','nyc','mia','lon','ams','fra','par','sto','mad','mrs','hkg','sin','tpe','tll','waw','vie','bud','buh','prg','kyv'],ix:[],blurb:tr('Nordic backbone that tells you exactly where your packets went.')},
  {id:'cog',name:'Cogentle',asn:714,type:'t1',pol:'restrictive',share:.04,price:3,col:'#B35CF0',pops:['bde','man','edi','bcn','mil','rom','lis','ath','atn','den','phx','bos','hou','slc','ber','zrh','dub','hel','sof','beg','tor','lax','mex','cph','icn','sea','sjc','dal','chi','ash','nyc','mia','sao','lon','ams','fra','par','mad','mrs','sto','sin','hkg','tok','rio','bue','scl','bog','lim','osa','waw','prg','vie','bud','buh','ist','kyv'],ix:[],blurb:tr('Cheapest transit on the map. Famously gentle, except during peering spats.')},
@@ -3957,17 +4032,17 @@ const ACT={
  setMetric:({id,v})=>{if(!own(MET,v))return;const l=S.links.find(x=>x.id===id);if(!l)return;for(const x of pairLinks(l.a,l.b))x.metric=v;sfx('click');after();},
  goEgress:({city,k})=>{ACT.focusCity({city});UI.tab=k==='t'?'up':k==='l2'?'cust':k==='nni'?'links':'peer';renderPanel();},
  custGo:({id})=>{const b=S.biz.find(x=>x.id===id);if(!b)return;$('dash').hidden=true;ACT.focusCity({city:b.city});UI.tab='cust';renderPanel();},
- custF:({v})=>{UI.kf=UI.kf||{};UI.kf.f=v==='sad'?'sad':'';renderDash();},
- custCity:({v})=>{UI.kf=UI.kf||{};UI.kf.city=isCity(v)?v:'';renderDash();},
- custSort:({k})=>{if(!['mood','mo','name','city'].includes(k))return;if(UI.custSort===k)UI.custDir=-(UI.custDir||1);else{UI.custSort=k;UI.custDir=k==='mo'?-1:1;}renderDash();},
- custOpen:({sad}={})=>{if(!S)return;UI.kf=sad?{f:'sad'}:{};UI.dtab='cust';const d=$('dash');d.hidden=false;renderDash();d.scrollTop=0;},
+ custF:({v})=>{UI.kf=UI.kf||{};UI.kf.f=v==='sad'?'sad':'';listReset('cust');renderDash();},
+ custCity:({v})=>{UI.kf=UI.kf||{};UI.kf.city=isCity(v)?v:'';listReset('cust');renderDash();},
+ custSort:({k})=>{if(!['mood','mo','name','city'].includes(k))return;listReset('cust');if(UI.custSort===k)UI.custDir=-(UI.custDir||1);else{UI.custSort=k;UI.custDir=k==='mo'?-1:1;}renderDash();},
+ custOpen:({sad}={})=>{if(!S)return;UI.kf=sad?{f:'sad'}:{};listReset('cust');UI.dtab='cust';const d=$('dash');d.hidden=false;renderDash();d.scrollTop=0;},
  goConn:({city,k})=>{if(!isCity(city)||!own(CONN_K,k))return;$('dash').hidden=true;ACT.goEgress({city,k});},
- connF:({f,v})=>{const F=UI.cf=UI.cf||{};if(f==='all'){UI.cf={};}else if(f==='k'){F.k=own(CONN_K,v)?v:'';}renderDash();},
- connCity:({v})=>{UI.cf=UI.cf||{};UI.cf.city=isCity(v)?v:'';renderDash();},
- connNet:({v})=>{UI.cf=UI.cf||{};UI.cf.net=NET[v]?v:'';renderDash();},
- connSort:({k})=>{if(!['k','city','name','use','mo'].includes(k))return;if(UI.connSort===k)UI.connDir=-(UI.connDir||1);else{UI.connSort=k;UI.connDir=k==='use'||k==='mo'?-1:1;}renderDash();},
+ connF:({f,v})=>{const F=UI.cf=UI.cf||{};listReset('conn');if(f==='all'){UI.cf={};}else if(f==='k'){F.k=own(CONN_K,v)?v:'';}renderDash();},
+ connCity:({v})=>{UI.cf=UI.cf||{};listReset('conn');UI.cf.city=isCity(v)?v:'';renderDash();},
+ connNet:({v})=>{UI.cf=UI.cf||{};listReset('conn');UI.cf.net=NET[v]?v:'';renderDash();},
+ connSort:({k})=>{if(!['k','city','name','use','mo'].includes(k))return;listReset('conn');if(UI.connSort===k)UI.connDir=-(UI.connDir||1);else{UI.connSort=k;UI.connDir=k==='use'||k==='mo'?-1:1;}renderDash();},
  connFor:({net})=>{if(!NET[net])return;UI.cf={net};ACT.connOpen();},
- connOpen:()=>{if(!S)return;UI.dtab='conn';const d=$('dash');d.hidden=false;renderDash();d.scrollTop=0;},
+ connOpen:()=>{if(!S)return;UI.dtab='conn';listReset('conn');const d=$('dash');d.hidden=false;renderDash();d.scrollTop=0;},
  applyCn:()=>{if(S.cnLic.state!=='none')return;if(!spend(CN_LIC))return;S.cnLic={state:'pending',ready:S.day+45};toast(tr('<b>Application filed.</b><br>Your local partner says about 45 days. Probably.'),'goal');after();},
  togglePrem:({id})=>{const t=S.transit.find(x=>x.id===id);if(!t)return;t.premium=!t.premium;sfx('click');after();},
  buildScrub:({city,tier})=>{if(S.scrubAt)return;const T=SCRUB_TIERS[tier||0];if((lvl()||1)<T.lvl){toast(tr('<b>{tier} scrubbing unlocks at customer level {lv}.</b>',{tier:T.n,lv:T.lvl}),'bad');sfx('err');return;}if(!spend(T.cost))return;S.scrubAt=city;S.scrubTier=tier||0;S.scrubMode='always';toast(tr('<b>{tier} scrubbing center online in {city}.</b><br>Attacks up to {g} are cleaned, and you can sell DDoS protection.',{tier:T.n,city:CITY[city].name,g:fmtG(T.g)}),'good');after();},
@@ -4809,8 +4884,8 @@ function custSection(){const F=UI.kf||{};let h=`<div class="panel2" id="custSec"
   const trend=b=>b.pm===undefined||Math.abs(b.mood-b.pm)<0.05?'':b.mood>b.pm?' <span style="color:var(--eye)">▲</span>':' <span style="color:var(--bad)">▼</span>';
   const sorts=[['mood',tr('Happiness')],['mo',tr('Per month')],['name',tr('Name')],['city',tr('Where')]];
   h+=`<div class="seg" style="margin-bottom:4px">${sorts.map(([k,l])=>btn(l+(sk===k?(dir>0?' ▲':' ▼'):''),'custSort',{k},sk===k?'pink sm':'ghost sm')).join('')}</div>`;
-  h+=rows.map(b=>{const why=bizWhy(b),grace=S.day-(b.since||0)<15;return `<div class="row"><div class="grow"><div class="nm">${esc(b.name)} <span class="meta">${esc(BIZ_T[b.type].l)}</span></div><div class="meta">${esc(where(b))} · ${BIZ_T[b.type].event?esc(bTerms(b)):tr('{price}/mo',{price:fmt$(bizMo(b))})}${grace?` · ${tr('provisioning, {n}d grace',{n:15-(S.day-(b.since||0))})}`:''}</div>${why.length?`<div class="why">${why.map(esc).join(' · ')}</div>`:''}<div class="bar ${moodCls(b.mood)}"><i style="width:${b.mood}%"></i></div><div class="meta">${tr('Happiness {p}%',{p:Math.round(b.mood)})}${trend(b)}</div></div>${btn(tr('Open'),'custGo',{id:b.id},'ghost sm')}</div>`;}).join('');
-  return h+`</div>`;}
+  h+=rows.slice(0,listN('cust')).map(b=>{const why=bizWhy(b),grace=S.day-(b.since||0)<15;return `<div class="row"><div class="grow"><div class="nm">${esc(b.name)} <span class="meta">${esc(BIZ_T[b.type].l)}</span></div><div class="meta">${esc(where(b))} · ${BIZ_T[b.type].event?esc(bTerms(b)):tr('{price}/mo',{price:fmt$(bizMo(b))})}${grace?` · ${tr('provisioning, {n}d grace',{n:15-(S.day-(b.since||0))})}`:''}</div>${why.length?`<div class="why">${why.map(esc).join(' · ')}</div>`:''}<div class="bar ${moodCls(b.mood)}"><i style="width:${b.mood}%"></i></div><div class="meta">${tr('Happiness {p}%',{p:Math.round(b.mood)})}${trend(b)}</div></div>${btn(tr('Open'),'custGo',{id:b.id},'ghost sm')}</div>`;}).join('');
+  return h+listMore('cust',rows.length,n=>trn('+{n} more customer','+{n} more customers',n))+`</div>`;}
 /* ---------- connections overview (#31, #33, #38) ----------
    Every transit port, PNI, IX port, cache and fabric port in one list, filterable by type, city and
    network, with a jump to the POP that holds it. The Networks tab shows the same per network. */
@@ -5194,8 +5269,8 @@ let CLOUDS=Array.from({length:7},(_,i)=>({x:R1()*W,y:60+R1()*(H-120),s:.7+R1()*.
 const SEA_LANDS=[
   {id:'bal', ll:[[115.448,-8.155],[115.549,-8.208],[115.691,-8.364],[115.704,-8.407],[115.56,-8.514],[115.334,-8.616],[115.22,-8.82],[115.145,-8.849],[115.092,-8.829],[115.14,-8.769],[115.142,-8.697],[115.055,-8.573],[114.842,-8.429],[114.613,-8.378],[114.502,-8.261],[114.468,-8.166],[114.475,-8.119],[114.504,-8.117],[114.938,-8.187],[114.998,-8.174],[115.154,-8.066],[115.448,-8.155]]},
   {id:'ntb', ll:[[116.641,-8.614],[116.514,-8.821],[116.587,-8.886],[116.377,-8.929],[116.239,-8.912],[115.875,-8.826],[115.857,-8.788],[115.869,-8.743],[116.032,-8.765],[116.076,-8.745],[116.061,-8.437],[116.22,-8.295],[116.402,-8.204],[116.647,-8.283],[116.719,-8.336],[116.734,-8.387],[116.641,-8.614]]},
-  {id:'bal', ll:[[113.845,-7.105],[113.656,-7.112],[113.546,-7.193],[113.471,-7.218],[113.166,-7.207],[113.127,-7.224],[112.764,-7.14],[112.726,-7.073],[112.868,-6.9],[113.067,-6.88],[113.975,-6.873],[114.074,-6.96],[114.083,-6.989],[113.885,-7.049],[113.845,-7.105]]},
-  {id:'bal', ll:[[115.377,-6.971],[115.296,-6.988],[115.22,-6.953],[115.222,-6.905],[115.241,-6.861],[115.354,-6.838],[115.414,-6.84],[115.524,-6.902],[115.546,-6.939],[115.424,-6.941],[115.377,-6.971]]},
+  {id:'jav', ll:[[113.845,-7.105],[113.656,-7.112],[113.546,-7.193],[113.471,-7.218],[113.166,-7.207],[113.127,-7.224],[112.764,-7.14],[112.726,-7.073],[112.868,-6.9],[113.067,-6.88],[113.975,-6.873],[114.074,-6.96],[114.083,-6.989],[113.885,-7.049],[113.845,-7.105]]},
+  {id:'jav', ll:[[115.377,-6.971],[115.296,-6.988],[115.22,-6.953],[115.222,-6.905],[115.241,-6.861],[115.354,-6.838],[115.414,-6.84],[115.524,-6.902],[115.546,-6.939],[115.424,-6.941],[115.377,-6.971]]},
   {id:'brn', ll:[[115.027,4.9],[114.747,4.718],[114.79,4.464],[114.84,4.393],[114.783,4.281],[114.81,4.267],[114.776,4.169],[114.654,4.038],[114.608,4.024],[114.572,4.049],[114.417,4.256],[114.323,4.263],[114.224,4.478],[114.064,4.593],[114.299,4.607],[114.424,4.66],[114.841,4.946],[114.995,5.022],[115.048,5.016],[115.027,4.9]]},
   {id:'brn', ll:[[115.14,4.9],[115.228,4.751],[115.267,4.634],[115.279,4.456],[115.327,4.381],[115.291,4.353],[115.107,4.39],[115.052,4.583],[115.027,4.691],[115.027,4.9],[115.14,4.9]]},
   {id:'btm', ll:[[106.046,-1.669],[106.162,-1.867],[106.209,-2.189],[106.366,-2.465],[106.818,-2.573],[106.707,-2.658],[106.612,-2.896],[106.667,-3.072],[106.547,-3.056],[106.25,-2.894],[105.999,-2.825],[105.937,-2.744],[105.908,-2.643],[105.939,-2.493],[105.862,-2.415],[105.807,-2.307],[105.786,-2.181],[105.553,-2.079],[105.343,-2.125],[105.133,-2.043],[105.138,-1.973],[105.191,-1.917],[105.375,-1.813],[105.373,-1.657],[105.46,-1.575],[105.585,-1.527],[105.701,-1.731],[105.754,-1.659],[105.72,-1.534],[105.91,-1.505],[105.981,-1.539],[106.027,-1.593],[106.046,-1.669]]},
@@ -6038,7 +6113,22 @@ function worldLayer(z){
 // Draw the world image for map copy k (full layers repeat per copy; a crop already holds what is visible).
 function drawWorldLayer(wl,k,z,k0){if(!wl.full&&k!==k0)return;const f=z*DPR/wl.sc,ox=(wl.full?k*W:wl.ox);
   ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(wl.cv,Math.round(DPR*((ox-cam.x)*z+CW/2)),Math.round(DPR*((wl.oy-cam.y)*z+CH/2)),wl.cv.width*f,wl.cv.height*f);}
-function cableCol(C){return C.price<=0.85?'#14A88C':C.price<=1.1?'#2F7BEA':'#A05AE0';}
+/* Arcello: with three colours for everything, ninety-nine pairs read as one thread — every cheap
+   cable was the same green. Colour still has to mean something, so the hue family keeps the old
+   price bands (cheap=green, mid=blue, dear=purple) but each cable picks one of a few shades by
+   hashing its id: stable across frames and saves, never re-rolled per render, and two cables
+   lying side by side rarely share a shade. All shades stay dark enough to read over the sea
+   (#57C4E5) and the land (#9BDA6C) at the 0.4 alpha the world layer paints them with. */
+const CABLE_SHADES={
+ cheap:['#0B7D5B','#12A174','#0E8C8C','#3E9C33'],
+ mid:['#2456D6','#2F7BEA','#1E4FA8'],
+ dear:['#A05AE0','#C940A7','#6E35C9'],
+};
+function cableCol(C){
+ const fam=C.price<=0.85?CABLE_SHADES.cheap:C.price<=1.1?CABLE_SHADES.mid:CABLE_SHADES.dear;
+ let h=7;for(let i=0;i<C.id.length;i++)h=(h*31+C.id.charCodeAt(i))>>>0;
+ return fam[h%fam.length];
+}
 function drawBackhoe(x,y,now,sub){
   const b=Math.sin(now/180)*2;ctx.save();ctx.translate(x,y-14+b);
   ctx.strokeStyle='#1E2640';ctx.lineWidth=2.2;
