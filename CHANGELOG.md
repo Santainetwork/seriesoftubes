@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The project follows
 ## [Unreleased]
 
 - Money readouts showed NaN on the Indonesia map. A stale panel button could build a POP keyed "undefined": the simulator then read a city that does not exist, crashed mid-day, and froze the cash display. The build now refuses an unknown city, and a save that already carries a phantom POP heals when it is loaded.
-- Cables draw smoother. Hard corners are rounded the same gentle way the original game bends its lines, while the lane separation that keeps parallel cables apart is preserved.
+- Cables draw smoother. Hard corners are rounded the same gentle way the original game bends its lines, while the lane separation that keeps parallel cables apart is preserved. A duplicate resampling loop that flattened short spurs (like the Aceh Spur) into straight 3-point lines was removed, and regional rebinds now preserve cable geometry identically.
 
 ## [1.29.0] — 2026-10-26
 
