@@ -7173,9 +7173,14 @@ function drawWorldLayer(wl,k,z,k0){if(!wl.full&&k!==k0)return;const f=z*DPR/wl.s
    lying side by side rarely share a shade. All shades stay dark enough to read over the sea
    (#57C4E5) and the land (#9BDA6C) at the 0.4 alpha the world layer paints them with. */
 const CABLE_SHADES={
- cheap:['#0B7D5B','#12A174','#0E8C8C','#3E9C33'],
- mid:['#2456D6','#2F7BEA','#1E4FA8'],
- dear:['#A05AE0','#C940A7','#6E35C9'],
+ /* Colour families by price, then a stable per-cable shade from the id hash. The families used to
+    hold 4/3/3 shades, which was fine on the Global map (53 cheap / 123 mid / 33 dear) but collapsed
+    on the regional maps: SEA is 133 cheap of 135 and Indonesia is 99 of 99, so the whole archipelago
+    drew in four greens and read as one thread. The cheap family now has ten shades spread around
+    the teal-to-green arc, and the other two gained a few, so a dense cheap map still separates. */
+ cheap:['#0B7D5B','#12A174','#0E8C8C','#3E9C33','#1F9E6E','#17795E','#2FA36B','#0A6E7A','#4CAF50','#1B8A72'],
+ mid:['#2456D6','#2F7BEA','#1E4FA8','#3D6FE0','#1A63C7'],
+ dear:['#A05AE0','#C940A7','#6E35C9','#B04BD4'],
 };
 function cableCol(C){
  const fam=C.price<=0.85?CABLE_SHADES.cheap:C.price<=1.1?CABLE_SHADES.mid:CABLE_SHADES.dear;

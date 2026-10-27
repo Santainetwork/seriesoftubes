@@ -145,3 +145,25 @@ test('paint: Timor and its neighbours are not clipped at the bottom edge', () =>
   })()`);
   assert.ok(deepest <= H, 'a land polygon is drawn below the canvas: y=' + Math.round(deepest));
 });
+
+test('paint: cable colours separate on the dense regional maps', () => {
+  // cableCol() hashes each cable id into a per-price-family shade. The families held 4/3/3 shades,
+  // which was enough on the Global map (53 cheap / 123 mid / 33 dear) but collapsed on the regional
+  // maps, where almost every cable is cheap: SEA drew 133 of 135 cables in four greens and Indonesia
+  // drew all 99 in four, so the whole archipelago read as one thread. The cheap family now carries
+  // ten shades. Assert distinct colours and that no single shade owns more than a third of the map,
+  // so a future price change cannot quietly collapse the palette again.
+  for (const [id, city] of [['sea', 'mnl'], ['idn', 'jkt'], ['global', 'fra']]) {
+    const { ev } = region(id, city);
+    const { distinct, maxShare } = JSON.parse(ev(`(() => {
+      const counts = {};
+      for (const cp of CABLE_PAIRS) { const c = cableCol(CAB[cp.cid]); counts[c] = (counts[c] || 0) + 1; }
+      return JSON.stringify({
+        distinct: Object.keys(counts).length,
+        maxShare: Math.max(...Object.values(counts)) / CABLE_PAIRS.length,
+      });
+    })()`));
+    assert.ok(distinct >= 8, `${id}: only ${distinct} cable colours`);
+    assert.ok(maxShare <= 0.35, `${id}: one shade covers ${Math.round(maxShare * 100)}% of cables`);
+  }
+});
