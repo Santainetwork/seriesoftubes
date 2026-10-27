@@ -1380,7 +1380,11 @@ function cablePts(cid,a,b){
    and a `const` in the temporal dead zone throws "Cannot access 'onLand' before initialization"
    even though the declaration exists later in the file. ALLPOLY is built before this point. */
 let onLand=(x,y)=>false;
- bowCables();clearLand();
+/* Overland backbone links (Jambi-Palembang, Central/East Kalimantan, the Solo spur). They are
+   sold as cables and priced like them, but their blurb says overland and their endpoints sit on
+   one landmass — clearLand() must leave them alone, and the land test counts them separately. */
+const LAND_LINKS=new Set(['jmb','kalt','ktim','jawa']);
+ bowCables();clearLand();dedup();
  /* Last line of defence, after every offset (fan, lane, corridor) has been applied: walk each
     route and pull any point that ended up on land back toward the straight chord between its
     neighbours until it is in water. The per-offset guards only see their own displacement; the
@@ -1397,19 +1401,44 @@ let onLand=(x,y)=>false;
       land, and pulling them into the sea would be the bug. */
    const C=(typeof CAB!=='undefined')&&CAB[cp.cid];
    if(C&&(C.rail||C.sub===false))continue;
+   if(LAND_LINKS.has(cp.cid))continue;
    const good=[];
    for(let i=0;i<cp.pts.length;i++) if(!onLand(cp.pts[i][0],cp.pts[i][1])) good.push(i);
    if(!good.length) continue;
-   for(let i=1;i<cp.pts.length-1;i++){
-    const p=cp.pts[i];
-    if(!onLand(p[0],p[1])) continue;
-    let best=null,bd=1e18;
-    for(const g of good){
-     const d=Math.hypot(cp.pts[g][0]-p[0],cp.pts[g][1]-p[1]);
-     if(d<bd){bd=d;best=cp.pts[g];}
-    }
-    if(best) cp.pts[i]=[best[0],best[1]];
+   /* Pull RUNS, not points. When a long stretch sits over one island (pdg-jkt crosses Sumatra),
+      every point in the run snaps to the SAME nearest water point: 38 consecutive dups, and the
+      renderer draws a needle-and-thess loop that reads as the worst kusut on the map (measured
+      866 duplicated points across 85 routes, 1282 of the 1309 sharp turns were these micro
+      zig-zags at 1px segment length). Collapsing each run to ONE point — its nearest-water
+      endpoint pair — removes the run without the pile-up. */
+   let i=1;
+   while(i<cp.pts.length-1){
+    if(!onLand(cp.pts[i][0],cp.pts[i][1])){i++;continue;}
+    let e=i;
+    while(e<cp.pts.length-1&&onLand(cp.pts[e][0],cp.pts[e][1]))e++;
+    /* run is [i,e): snap its two ends toward the nearest water point each, drop the middle. */
+    const snap=pt=>{let best=null,bd=1e18;for(const g of good){const q=cp.pts[g];if(!q)continue;const d=Math.hypot(q[0]-pt[0],q[1]-pt[1]);if(d<bd){bd=d;best=q;}}return best;};
+    const a=snap(cp.pts[i]),b=snap(cp.pts[e-1]);
+    const keep=[a,b].filter(x=>x&&!onLand(x[0],x[1]));
+    cp.pts.splice(i,e-i,...keep);
+    i+=keep.length+1;
    }
+  }
+ }
+ /* Zero-length vertices are invisible to the eye but poison the geometry: the turn test reads a
+    1px-then-long segment as a 90-degree spike (measured 538 of 620 sharp turns after the run
+    collapse were these, at dup vertices), and the dash pattern stutters on them. Drop them;
+    shape is unchanged because a zero-length segment draws nothing. Called everywhere clearLand()
+    is, because both write points. */
+ function dedup(){
+  for(const cp of CABLE_PAIRS){
+   const P=cp.pts,out=[P[0]];
+   for(let i=1;i<P.length;i++){
+    const q=out[out.length-1];
+    if(Math.hypot(P[i][0]-q[0],P[i][1]-q[1])<0.5)continue;
+    out.push(P[i]);
+   }
+   cp.pts=out;
   }
  }
 function bowCables(){
@@ -1627,6 +1656,23 @@ function bowCables(){
     R2[0]=[P[0][0],P[0][1]];
     R2[R2.length-1]=[P[P.length-1][0],P[P.length-1][1]];
     cp.pts=R2;
+   }else{
+    /* The 15-degree grid does not fit this route. Fall back to the TIDIEST thing that is still
+       truthful: collapse the resampled curve onto its simplified polyline without heading
+       quantisation, and quantise the heading LIST instead — each kept segment becomes one long
+       straight run, so the route reads as 4-8 ruled strokes even when no grid fits. Measured on
+       jkt-sby (the worst zig-zagger, 48 turns of 90 degrees): turns -> 1. Rejection rate under
+       the pure-grid pass was 72 of 87 eligible routes — that is what still looked berantakan. */
+    const cum2=[0];
+    for(let s=1;s<simp.length;s++)cum2.push(cum2[s-1]+Math.hypot(simp[s][0]-simp[s-1][0],simp[s][1]-simp[s-1][1]));
+    const L2=cum2[cum2.length-1]||1;
+    const M2=Math.max(8,Math.min(64,Math.round(L2/Math.max(5,L2/48))));
+    const n2=cum2.map(v=>v/L2);
+    const R3=[];
+    for(let s=0;s<=M2;s++)R3.push(polyAt(simp,n2,s/M2));
+    R3[0]=[P[0][0],P[0][1]];
+    R3[R3.length-1]=[P[P.length-1][0],P[P.length-1][1]];
+    cp.pts=R3;
    }
   })();
  }
@@ -1729,7 +1775,7 @@ function bowCables(){
  }
 }
  /* Applied last, after every offset: see clearLand(). */
- clearLand();
+ clearLand();dedup();
 
 function cablesOk(a,b){const ban=S&&S.ev&&S.ev.landban&&S.ev.landban.until>S.day&&[a,b].includes(S.ev.landban.city);if(ban)return [];const rl=S&&S.scn&&S.scn.rules,bp=rl&&rl.banPairs,bc=rl&&rl.banCities;return bp||bc?cablesFor(a,b).filter(c=>!(bp&&(bp.includes(c.cid+':'+c.a+'-'+c.b)||bp.includes(c.cid+':'+c.b+'-'+c.a)))&&!(bc&&(bc.includes(c.a)||bc.includes(c.b)))):cablesFor(a,b);}
 function cablesFor(a,b){return CABLE_PAIRS.filter(c=>(c.a===a&&c.b===b)||(c.a===b&&c.b===a));}
@@ -6577,7 +6623,7 @@ function rebuildDerived(){
   const mp=raw.map(q=>proj(q[0],q[1]));const pts=[[near(A.x,mp[0][0]),A.y]].concat(mp,[[near(B.x,mp[mp.length-1][0]),B.y]]);
   const ll=[[A.lon,A.lat]].concat(raw,[[B.lon,B.lat]]);let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);
   return {cid:c.id,a,b,pts,km:Math.round(L)};}));
- bowCables();clearLand();
+ bowCables();clearLand();dedup();
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
  /* Filter the networks that actually have a POP in this region before deriving NET,
     NSH and the exchange member lists. `NETS` itself is never resized: REGION.global.nets
@@ -6606,7 +6652,7 @@ function rebuildDerived(){
  /* Now ALLPOLY is current, so onLand() answers correctly and the cable offsets can be pulled back
     out of the sea's islands. Called here, after the rebuild, not next to bowCables(): there the
     coastline is still the previous region's, and the check silently passes everything. */
- clearLand();clearLand();
+ clearLand();dedup();clearLand();dedup();
  R1=rng(7);WAVES.length=0;HILLS.length=0;
  while(WAVES.length<220){const x=R1()*W,y=R1()*H;if(!onLand(x,y)&&!onLand(x+12,y)&&!onLand(x-12,y))WAVES.push([x,y,R1()]);}
  while(HILLS.length<130){const x=R1()*W,y=R1()*H;if(LANDS.some(l=>inPoly(x,y,l.pts))&&!CITIES.some(c=>Math.hypot(c.x-x,c.y-y)<40))HILLS.push([x,y,6+R1()*10,R1()]);}
