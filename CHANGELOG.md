@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The project follows
 
 - Money readouts showed NaN on the Indonesia map. A stale panel button could build a POP keyed "undefined": the simulator then read a city that does not exist, crashed mid-day, and froze the cash display. The build now refuses an unknown city, and a save that already carries a phantom POP heals when it is loaded.
 - Cables draw smoother. Hard corners are rounded the same gentle way the original game bends its lines, while the lane separation that keeps parallel cables apart is preserved. A duplicate resampling loop that flattened short spurs (like the Aceh Spur) into straight 3-point lines was removed, and regional rebinds now preserve cable geometry identically.
+- Parallel cables finally look parallel. Lane offsets were computed before the smoothing pass rebuilt every route, so the offset array indexed the wrong points and dozens of cables on the Southeast Asia map drew on top of each other as one thick line. Lanes are now computed against the final geometry, ranked locally per stretch instead of per map-wide group, and each route picks its side once so a narrow strait cannot fold it.
+- The Southeast Asia map gains 25 real submarine-cable pairs across nine systems, extracted from TeleGeography's public cable data and routed through water: Singapore–Bangkok, Bangkok–Vietnam, Manila–Cebu–Davao, Brunei, Penang and Manado. Its Indonesian cities also show the domestic cable systems the Indonesia map already had, so no city on that map is left without a cable.
 
 ## [1.29.0] — 2026-10-26
 
