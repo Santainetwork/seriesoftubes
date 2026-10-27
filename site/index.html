@@ -1596,15 +1596,17 @@ function bowCables(){
         real one. Routes that genuinely follow a strait (they bend the whole way) fail the test and
         keep their coastline shape — a quantised staircase across the Sunda Strait looked tidy and
         was wrong, it read as a ladder, not a cable.
-     Measured (TOL=6): land 1.51 -> 1.82% (still under the 2% data floor; the gain is Waeve rail
-     resampling, not sea cables — verified per-route), detour 1.39 -> 1.35x, sharp >120deg turns
-     51 -> 31, crossings 1680 -> 1735, devAvg 30.7 -> 32.2px.
-     NOT applied to very short hops: btm-tnj and sin-btm are ~20-28px routes whose whole fan lives
-     in one 15-degree grid cell, so two quantised midpoints can land 1.3px apart and the hub fan
-     (which runs on the chord, not the grid) can no longer separate them. The un-straightened
-     resampled curve keeps the 2px+ separation the hub test locks. */
+     Measured (TOL=14, QDEG=22.5, the submarine-atlas look the reference screenshot shows: long
+     ruled strokes, node bends): land 2.84% raw — ALL of it the four Waeve rail hops, which are
+     SUPPOSED to be on land; genuine sea cables 1.6% (data floor). Detour 1.40x, crossings 1651,
+     devAvg 34.1px, devMax 96px. TOL=6/15deg was tidier by the sharp-turn count but drew short
+     busy segments; the atlas look wants LONG strokes and bends as nodes, which needs the bigger
+     tolerance. NOT applied to very short hops: btm-tnj and sin-btm are ~20-28px routes whose
+     whole fan lives in one grid cell, so two quantised midpoints can land 1.3px apart and the
+     hub fan (which runs on the chord, not the grid) can no longer separate them. The
+     un-straightened resampled curve keeps the 2px+ separation the hub test locks. */
   (function(){
-   const P=cp.pts,TOL=6,QDEG=15;
+   const P=cp.pts,TOL=14,QDEG=22.5;
    if(P.length<5)return;
    /* Short hops are exempt: see the comment above. */
    const hop=Math.hypot(P[P.length-1][0]-P[0][0],P[P.length-1][1]-P[0][1]);

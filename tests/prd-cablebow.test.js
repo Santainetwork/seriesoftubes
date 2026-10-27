@@ -155,7 +155,7 @@ test('cables: no cable is drawn across land', () => {
     for (const cp of CABLE_PAIRS) {
       /* Overland backbones (jmb/kalt/ktim/jawa) and Waeve rail belong on land; they are excluded
          here and clearLand() leaves them alone, so the test measures only genuine sea cables. */
-      if (LAND_LINKS.has(cp.cid)) continue;
+      if (LAND_LINKS.has(cp.cid) || CAB[cp.cid].rail) continue;
       for (let i = 1; i < cp.pts.length - 1; i++) {
         tot++;
         if (onLand(cp.pts[i][0], cp.pts[i][1])) n++;
