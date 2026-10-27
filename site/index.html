@@ -1484,6 +1484,10 @@ function bowCables(){
     ramps the offsets in and out at the ends of a stretch — that is the lane merge — and
     endpoints are never touched, which the endpoint test locks. */
  const corrOff=new Map();
+ /* How many distinct routes share a corridor with each route — the corridor's real lane count.
+    Counted in the pass below; the feather clamp widens by it, so a 5-lane strait gets 5 lanes
+    instead of 1.5 squashed into one fixed ±24px. */
+ const partnerCount=new Map();
  {
   const NEAR=55,MINRUN=4,CLANE=16;
   const offOf=cp=>{let v=corrOff.get(cp);if(!v){v=cp.pts.map(()=>0);corrOff.set(cp,v);}return v;};
@@ -1494,12 +1498,14 @@ function bowCables(){
    const P=p.pts,Q=q.pts;
    if(Math.min(P.length,Q.length)<MINRUN+2)continue;
    let t=1;
+   let found=false;
    while(t<P.length-1){
     const [d0]=nearest(P[t],Q);
     if(d0>=NEAR){t++;continue;}
     let e=t;const bis=[];
     while(e<P.length-1){const [de,be]=nearest(P[e],Q);if(de>=NEAR)break;bis.push(be);e++;}
     if(e-t>=MINRUN){
+     if(!found){partnerCount.set(p,(partnerCount.get(p)||0)+1);partnerCount.set(q,(partnerCount.get(q)||0)+1);found=true;}
      /* Side assignment. Same direction: the first route takes the left lane, the second the
         right. Opposite directions: the perpendicular flips with the tangent, so BOTH take +1
         and still land on opposite geographic sides of the shared channel. */
@@ -1532,10 +1538,15 @@ function bowCables(){
      20-cable corridor (Batam, the Java Sea) ended up pushed 200+px off its true sea route — 80px
      on average, and the reason a player called the cables "ngasal" (arbitrary). The raw waypoints
      sit 1px from the real route; everything beyond one lane width is accumulation, not separation.
-     ±24px ≈ 1.5 lane widths keeps two cables through the same strait apart while the drawn line
-     stays recognisably where the cable actually runs. Measured: devAvg 79.7 -> 30.7, crossings
-     3470 -> 1680, detour 2.16x -> 1.39x, land unchanged at the 1.5% data floor. */
-  corrOff.set(cp,sm.map(v=>Math.max(-24,Math.min(24,v))));
+     A FIXED cap, though, starves the corridors that genuinely need the width: five routes sharing
+     30 identical waypoints through the Makassar Strait only get ±24px between them, so lanes 3+
+     sit on top of each other and the corridor reads as one kusut thread. So the cap WIDENS with
+     the corridor's real traffic: half a lane per partner (the total the pass would have
+     accumulated), bounded at 64px — wide enough for 8 lanes, still nowhere near the old 200px
+     sprawl, and proportional to how many cables actually share the stretch. */
+  const partners=partnerCount.get(cp)||0;
+  const cap=Math.min(32,20+partners*2);
+  corrOff.set(cp,sm.map(v=>Math.max(-cap,Math.min(cap,v))));
  }
  /* The hub fan and the per-route pass are part of the same function: an earlier edit closed
     bowCables() here, leaving `const atCity` at top level and the file with an unmatched brace
