@@ -1441,6 +1441,35 @@ const LAND_LINKS=new Set(['jmb','kalt','ktim','jawa']);
    cp.pts=out;
   }
  }
+ /* Chaikin corner-cutting, the smoothing style the upstream game gives its cables. One round of
+    replacing each corner with two points at 25%/75% turns a hard corner into a short pair of
+    gentle bends. Two rounds measured tidier turns (680->433 of 19440 vertices) but HALVED the
+    distance between cables sharing a corridor (close 251->373): each round converges neighbours
+    toward the same midline, and the corridor lanes are only 16px apart to begin with. One round
+    keeps most of the softening (sharp 680->587 per-vertex; on the drawn map the remaining
+    corners are long straight runs meeting at a node, the atlas look the straighten pass built)
+    without eating the lane separation (close 314, crossings ~unchanged 1522, detour 1.53).
+    Endpoints stay pinned and every new point is land-guarded: if a cut lands on a beach, keep
+    the original corner. Must run AFTER bowCables()+clearLand() (final offsets, real coastline)
+    and is called again in applyRegion() where ALLPOLY/onLand are current. */
+ function smoothCables(){
+  for(const cp of CABLE_PAIRS){
+   const P=cp.pts;
+   if(P.length<3)continue;
+   for(let round=0;round<1;round++){
+    const out=[P[0]];
+    for(let i=0;i<P.length-1;i++){
+     const a=P[i],b=P[i+1];
+     const q=[a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25];
+     const r=[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75];
+     if(i>0&&onLand(q[0],q[1]))out.push(a);else out.push(q);
+     out.push(r);
+    }
+    out.push(P[P.length-1]);
+    cp.pts=out;P.length=0;P.push(...out);
+   }
+  }
+ }
 function bowCables(){
  /* Two things made the fan collapse back into a pile.
     1. Order is not direction. Handing out slots in CABLE_PAIRS order, with an alternating sign,
@@ -3794,7 +3823,7 @@ function sanitize(s){
   s.priceMul=num(s.priceMul,1);s.nextFail=num(s.nextFail,s.day+45);s.nextEvent=num(s.nextEvent,s.day+40);s.lvl=int(s.lvl,1,LEVELS.length,1);s.neg=int(s.neg,0,1e7,0);s.loanStrikes=int(s.loanStrikes,0,1e3,0);
   for(const k of Object.keys(s.stats)){const v=s.stats[k];if(k==='by'||k==='f'){if(!v||typeof v!=='object')s.stats[k]={};else for(const j of Object.keys(v))v[j]=num(v[j],0);}else if(typeof v!=='boolean')s.stats[k]=num(v,0);}
   for(const k of ['survived','incidents','peak','peakL2'])s.stats[k]=num(s.stats[k],0);
-  for(const c of Object.keys(s.pops)){const p=s.pops[c];if(!isCity(c)||!p||typeof p!=='object'){delete s.pops[c];continue;}p.routers=int(p.routers,1,RMAX,1);if(p.rupDay!==undefined)p.rupDay=num(p.rupDay,-1);if(p.rgen!==undefined)p.rgen=int(p.rgen,0,RG.length-1,0);p.down=num(p.down,0);if(p.bb&&typeof p.bb==='object')p.bb.d=num(p.bb.d,0);else p.bb=null;}
+  for(const c of Object.keys(s.pops)){const p=s.pops[c];if(!isCity(c)||!p||typeof p!=='object'){delete s.pops[c];continue;}/* a pop keyed "undefined" (or any phantom city) crashed compute() at CITY[c].kr and froze the money readouts at NaN — drop it here so an old damaged save heals */ p.routers=int(p.routers,1,RMAX,1);if(p.rupDay!==undefined)p.rupDay=num(p.rupDay,-1);if(p.rgen!==undefined)p.rgen=int(p.rgen,0,RG.length-1,0);p.down=num(p.down,0);if(p.bb&&typeof p.bb==='object')p.bb.d=num(p.bb.d,0);else p.bb=null;}
   if(!isCity(s.home))s.home=Object.keys(s.pops)[0]||'fra';
   if(!own(REGION,s.region))s.region='global';
   if(!own(ROLES,s.role))s.role='isp';
@@ -4722,7 +4751,7 @@ const ACT={
  pitchSkip:()=>{const p=UI.pendGame;UI.pendGame=null;UI.pitched=true;if(p)beginGame(...p);else closeModal();},
  focusCity:({city})=>{selectCity(city);const C=CITY[city];cam.x=C.x;cam.y=C.y;cam.z=Math.max(cam.z,1.2);if(innerWidth<760)UI.leftOpen=false;renderLeft();},
  selLink:({id})=>selectLink(id),
- buildPop:({city})=>{if(S.pops[city])return;if(cnCity(city)&&!cnOk()){toast('<b>You need a license first.</b><br>Foreign networks need a joint venture to build in mainland China.','bad');sfx('err');return;}
+ buildPop:({city})=>{if(!city||!CITY[city])return;/* a stale panel or a bad data-args must not mint a POP keyed "undefined" — compute() reads CITY[c] for every pop and crashed on it, which froze the HUD at NaN */ if(S.pops[city])return;if(cnCity(city)&&!cnOk()){toast('<b>You need a license first.</b><br>Foreign networks need a joint venture to build in mainland China.','bad');sfx('err');return;}
    /* Brief 8: Singapore on the Indonesia map is a paid unlock, not a day-one build. */
    if(UNLOCK_CITIES[city]&&curRegion==='idn'&&!(S.unlocked&&S.unlocked[city])){const o=unlockOffer(city);toast(`<b>${esc(UNLOCK_CITIES[city].name)} is locked.</b><br>${esc(o?o.why:'Unlock it first.')} Build ${o&&o.req?o.req.pops:8} POPs, serve traffic, earn the stamp — then pay the cross-connect.`,'bad');sfx('err');return;}
    const n=Object.keys(S.pops).length,cap=popCap(),over=popOverMul(),cost=popCost(city)*over;
@@ -4850,7 +4879,7 @@ const ACT={
  myIxUp:({city})=>{const m=S.myIx[city];if(!m)return;const f=(m.fab|0)+1,N=MYIX_FAB[f];if(!N)return;if(N.lvl>lvl()){toast(tr('<b>A {fab} fabric unlocks at customer level {lv}.</b>',{fab:N.n,lv:N.lvl}),'bad');sfx('err');return;}if(!spend(N.cost))return;m.fab=f;toast(tr('<b>{ix} now runs a {fab} fabric.</b><br>Room for {max} members. Expect a few more to join.',{ix:esc(m.name),fab:N.n,max:N.max}),'good');m.next=Math.min(m.next,S.day+3);after();},
  foundIx:({city})=>{if(!S.pops[city]||S.myIx[city]||CITY[city].ix||CITY[city].cn)return;if(!spend(MYIX_COST))return;const nm=(S.name.split(' ')[0]||'My').replace(/[^A-Za-z0-9]/g,'').slice(0,10)+'-IX '+CITY[city].name;
    S.myIx[city]={name:nm,members:[],next:S.day+4};S.ixp[city]=2;toast(tr('<b>You founded {ix}!</b><br>Networks will join over time and pay you for ports. Open members peer with you for free.',{ix:esc(nm)}),'goal');after();},
- buildLink:({tier})=>{tier=+tier;const p=UI.pending;if(!p)return;const {a,b}=p;const km=kmBetween(a,b),sub=isSub(a,b),sib=pairLinks(a,b).filter(l=>l.kind!=='vxc'),jn=sib.length?routeJoin(a,b):null,same=!!jn,border=cnCity(a)!==cnCity(b),mult=(sib.length&&!(jn&&jn.k===(landTrenches(a,b)[0]||{}).k)?DIVERSE:1)*(border?3*(UI.cnPrem&&(a==='hkg'||b==='hkg')?1.6:1):1);
+ buildLink:({tier})=>{tier=+tier;const p=UI.pending;if(!p)return;const {a,b}=p;if(!CITY[a]||!CITY[b])return;const km=kmBetween(a,b),sub=isSub(a,b),sib=pairLinks(a,b).filter(l=>l.kind!=='vxc'),jn=sib.length?routeJoin(a,b):null,same=!!jn,border=cnCity(a)!==cnCity(b),mult=(sib.length&&!(jn&&jn.k===(landTrenches(a,b)[0]||{}).k)?DIVERSE:1)*(border?3*(UI.cnPrem&&(a==='hkg'||b==='hkg')?1.6:1):1);
    if((cnCity(a)||cnCity(b))&&!cnOk())return;
    if(!waveOk(a,b,tier)){toast(tr('<b>A {wave} wave needs {need} at both ends.</b>',{wave:LT[tier].n,need:esc(waveNeed(tier))}),'bad');sfx('err');return;}
    const wr=waveRoute(a,b,mult,border);if(!wr){toast(tr('<b>No cable available for that route right now.</b>'),'bad');sfx('err');return;}{const w=subWaveWhy(tier,wr.km,wr.sub);if(w){toast(tr('<b>No {wave} waves on this cable.</b><br>{why}',{wave:LT[tier].n,why:esc(w)}),'bad');sfx('err');return;}}
@@ -6842,7 +6871,7 @@ function rebuildDerived(){
  /* Now ALLPOLY is current, so onLand() answers correctly and the cable offsets can be pulled back
     out of the sea's islands. Called here, after the rebuild, not next to bowCables(): there the
     coastline is still the previous region's, and the check silently passes everything. */
- clearLand();dedup();clearLand();dedup();
+ clearLand();dedup();smoothCables();clearLand();dedup();
  R1=rng(7);WAVES.length=0;HILLS.length=0;
  while(WAVES.length<220){const x=R1()*W,y=R1()*H;if(!onLand(x,y)&&!onLand(x+12,y)&&!onLand(x-12,y))WAVES.push([x,y,R1()]);}
  while(HILLS.length<130){const x=R1()*W,y=R1()*H;if(LANDS.some(l=>inPoly(x,y,l.pts))&&!CITIES.some(c=>Math.hypot(c.x-x,c.y-y)<40))HILLS.push([x,y,6+R1()*10,R1()]);}

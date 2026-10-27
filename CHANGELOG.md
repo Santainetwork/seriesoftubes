@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+- Money readouts showed NaN on the Indonesia map. A stale panel button could build a POP keyed "undefined": the simulator then read a city that does not exist, crashed mid-day, and froze the cash display. The build now refuses an unknown city, and a save that already carries a phantom POP heals when it is loaded.
+- Cables draw smoother. Hard corners are rounded the same gentle way the original game bends its lines, while the lane separation that keeps parallel cables apart is preserved.
+
 ## [1.29.0] — 2026-10-26
 
 - Merged upstream v1.28.0 and v1.29.0 into the fork. Africa grows from five cities to twenty-six with its own scenario, Brazil gets all forty IX.brrr locations, the game speaks Portuguese, RouteScript learns `prefer transit`, `avoid transit`, `prepend transit` and `protect customers`, twelve more Latin American cities and seven new African cables arrive, and big networks get a lot faster. Everything the fork had on top of v1.27 survives the merge: the Indonesia and SEA maps, the Natural Earth coastline, the sea-routed cables, the Komdigi licence, karhutla, the conferences and the Indonesian NAPs. The NOC's Leased lines tab is back too — the 1.27.0 merge had left it calling a function that no longer existed, so opening it threw.
