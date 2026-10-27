@@ -1100,3 +1100,16 @@ test('NOC leased lines tab prices leased dark fiber, own fiber and cables agains
   assert.ok(!ev("leaseSwaps().some(x=>x.ls.some(l=>l.own))"), 'your own fiber is never listed as a lease');
   assert.deepEqual(errors, []);
 });
+
+test('#107 a bigger optic never carries less than a smaller one at the same distance', () => {
+  const { ev, errors } = load();
+  ev("ACT.start({});S.cash=1e8;for(const g of GOALS)S.done[g.id]=0;ACT.launchBB({city:'fra'})");
+  // every optic on the same line system, at every distance, on land and subsea
+  const bad = ev(`(()=>{const out=[],ks=Object.keys(OPT);for(const sub of [false,true])for(let km=100;km<=19000;km+=50){const l={km,sub,regen:0};
+    for(const a of ks)for(const b of ks){const A=OPT[a],B=OPT[b];if(A.sys!==B.sys||A.g<=B.g)continue;const ga=optMode(a,l),gb=optMode(b,l);
+      if(gb&&(!ga||ga.g<gb.g))out.push(a+'<'+b+'@'+km+(sub?'s':''));}}return out.slice(0,5).join()})()`);
+  assert.equal(bad, '', 'bigger optic falls back to whatever the smaller one manages');
+  assert.equal(ev("optMode('tp32',{km:4500,sub:false,regen:0}).g"), 1200);
+  assert.equal(ev("optMode('tp32',{km:7000,sub:true,regen:0}).g"), 1200);
+  assert.deepEqual(errors, []);
+});

@@ -757,7 +757,7 @@ const OPT={
  zr4:{n:'Ackackia 400ZR+',g:400,cost:12000,reach:1500,modes:[[400,1500],[200,3000]],rg:1,lvl:2,sys:'lite',blurb:tr('Coherent pluggable in the router. No transponder shelf.')},
  zr8:{n:'Sizzle 800ZR+',g:800,cost:22000,reach:900,modes:[[800,900],[400,1800],[200,3600]],rg:2,lvl:3,sys:'lite',blurb:tr('Twice the speed, shorter reach.')},
  tp16:{n:'Sienna WaveMagic 1.6T',g:1600,cost:70000,reach:4000,modes:[[1600,4000],[1200,5500],[800,7000],[400,12000]],rg:2,lvl:4,sys:'roadm',blurb:tr('Big shelf, big reach, big invoice.')},
- tp32:{n:'Sienna WaveMagic 3.2T',g:3200,cost:130000,reach:1500,modes:[[3200,1500],[1600,4000],[800,7000],[400,12000]],rg:4,lvl:8,sys:'roadm',blurb:tr('Twice the WaveMagic. Full speed only on shorter spans, and a cooling fan you can hear from the car park.')},
+ tp32:{n:'Sienna WaveMagic 3.2T',g:3200,cost:130000,reach:1500,modes:[[3200,1500],[1600,4000],[1200,5500],[800,7000],[400,12000]],rg:4,lvl:8,sys:'roadm',blurb:tr('Twice the WaveMagic. Full speed only on shorter spans, and a cooling fan you can hear from the car park.')},
 };
 const SUB_REACH=1.5,reachOn=(r,sub)=>sub?Math.round(r*SUB_REACH):r;
 function optMode(o,l){const O=OPT[o],km=spanKm(l);for(const [g,r] of O.modes||[[O.g,O.reach]])if(km<=reachOn(r,l.sub))return {g,reach:reachOn(r,l.sub),full:g===O.g};return null;}
@@ -793,7 +793,7 @@ const MET={prefer:{l:tr('Prefer'),f:0.5},normal:{l:tr('Normal'),f:1},avoid:{l:tr
 const PREF={high:tr('Prefer'),normal:tr('Normal'),low:tr('Backup only')};
 const edgeKey=l=>l.a<l.b?l.a+'|'+l.b:l.b+'|'+l.a;
 /* Reach (#17, #30). Coherent optics trade speed for distance: past full-rate reach they drop to a
-   slower, more robust modulation. Regeneration sites go further: each one turns the light back into
+   slower, more robust modulation, and a bigger optic can always fall back to anything a smaller one does (#107). Regeneration sites go further: each one turns the light back into
    bits and sends it on fresh, so every optical span is shorter. Each site needs a regen card per channel. */
 const REGEN_COST=30000,REGEN_MO=900,REGEN_CH=0.5,REGEN_MAX=8;
 /* Subsea glass is engineered end to end for one route: ultra-low-loss, large-area fiber and a repeater every
