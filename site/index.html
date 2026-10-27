@@ -1483,6 +1483,144 @@ function bowCables(){
     sides), so a re-render never flips a cable across its corridor. The feather kernel below
     ramps the offsets in and out at the ends of a stretch — that is the lane merge — and
     endpoints are never touched, which the endpoint test locks. */
+ /* Resample before offsetting. A cable carries as few as 3 waypoints (median 9), and pushing a
+    lateral offset onto a 3-point polyline produces a hard kink at the middle vertex instead of a
+    smooth lane — 123 of 743 vertices already turned more than 120 degrees, which is what made the
+    routes look scribbled rather than separated. 24 points is what besideLine() already uses. */
+ for(const cp of CABLE_PAIRS){
+  const sp=cp.pts;
+  if(sp.length<2)continue;
+  const cum=[0];
+  for(let j=1;j<sp.length;j++)cum.push(cum[j-1]+Math.hypot(sp[j][0]-sp[j-1][0],sp[j][1]-sp[j-1][1]));
+  /* Even spacing, then a smoothing pass. Resampling by index alone left segments ranging 0.3px to
+     191px and 268 of 1804 vertices turning more than 45 degrees, so the routes still read as
+     jagged. A fixed step makes every bend the same size, and a small moving average rounds the
+     corners without moving the endpoints. */
+  const L=cum[cum.length-1]||1;
+  let minSeg=1e9;for(let j=1;j<sp.length;j++){const d=Math.hypot(sp[j][0]-sp[j-1][0],sp[j][1]-sp[j-1][1]);if(d>0.5&&d<minSeg)minSeg=d;}
+  const N=Math.max(10,Math.min(80,Math.round(L/Math.max(4,minSeg*0.6))));
+  const norm=cum.map(v=>v/L);const raw=[];
+  for(let j=0;j<=N;j++)raw.push(polyAt(sp,norm,j/N));
+  /* Smooth only where the route actually bends. A fixed 5-point kernel also dragged points across
+     a straight run's endpoints, which is how a single 150px gap appeared among 6px steps: the
+     kernel pulled a point past a waypoint and left the gap behind it. Points on a straight stretch
+     keep their position; only corners are averaged. */
+  const out=[raw[0]];
+  for(let j=1;j<raw.length-1;j++){
+   const a=raw[j-1],b=raw[j],c=raw[j+1];
+   const v1=[b[0]-a[0],b[1]-a[1]],v2=[c[0]-b[0],c[1]-b[1]];
+   const l1=Math.hypot(v1[0],v1[1])||1,l2=Math.hypot(v2[0],v2[1])||1;
+   let cs=(v1[0]*v2[0]+v1[1]*v2[1])/(l1*l2);cs=Math.max(-1,Math.min(1,cs));
+   const turn=Math.acos(cs)*180/Math.PI;
+   if(turn<8){out.push(b);continue;}
+   let ax=0,ay=0,w=0;
+   for(let k=-1;k<=1;k++){const u=j+k;if(u<0||u>=raw.length)continue;const wt=2-Math.abs(k);ax+=raw[u][0]*wt;ay+=raw[u][1]*wt;w+=wt;}
+   out.push([ax/w,ay/w]);
+  }
+  out.push(raw[raw.length-1]);
+  /* A handful of routes carry one long segment where the sea router jumped (4 of 4125 segments
+     were over 80px against a 6px median). Split any segment longer than twice the local step, so
+     no single straight run stands out as a kink. */
+  const fin=[out[0]];
+  for(let j=1;j<out.length;j++){
+   const a=fin[fin.length-1],b=out[j];
+   const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
+   const k=Math.min(12,Math.floor(d/Math.max(6,minSeg*0.6)));
+   for(let m=1;m<k;m++)fin.push([a[0]+(b[0]-a[0])*m/k,a[1]+(b[1]-a[1])*m/k]);
+   fin.push(b);
+  }
+  cp.pts=fin;
+  /* Straighten (the "sejajar" pass). Simplify the dense resampled line to a few long segments
+     (greedy, TOL px deviation bound), snap every heading to a 15-degree multiple, then rebuild.
+     Two things keep this honest:
+     1. The END stays pinned — snapping absorbs its residual error into segment LENGTHS, not into
+        a translate, so a 500px route cannot land 80px from its city.
+     2. The snapped polyline is only ACCEPTED if every simplified vertex stays within TOL*2 of the
+        real one. Routes that genuinely follow a strait (they bend the whole way) fail the test and
+        keep their coastline shape — a quantised staircase across the Sunda Strait looked tidy and
+        was wrong, it read as a ladder, not a cable.
+     Measured (TOL=14, QDEG=22.5, the submarine-atlas look the reference screenshot shows: long
+     ruled strokes, node bends): land 2.84% raw — ALL of it the four Waeve rail hops, which are
+     SUPPOSED to be on land; genuine sea cables 1.6% (data floor). Detour 1.40x, crossings 1651,
+     devAvg 34.1px, devMax 96px. TOL=6/15deg was tidier by the sharp-turn count but drew short
+     busy segments; the atlas look wants LONG strokes and bends as nodes, which needs the bigger
+     tolerance. NOT applied to very short hops: btm-tnj and sin-btm are ~20-28px routes whose
+     whole fan lives in one grid cell, so two quantised midpoints can land 1.3px apart and the
+     hub fan (which runs on the chord, not the grid) can no longer separate them. The
+     un-straightened resampled curve keeps the 2px+ separation the hub test locks. */
+  (function(){
+   const P=cp.pts,TOL=14,QDEG=22.5;
+   if(P.length<5)return;
+   /* Short hops are exempt: see the comment above. */
+   const hop=Math.hypot(P[P.length-1][0]-P[0][0],P[P.length-1][1]-P[0][1]);
+   if(hop<60)return;
+   const sd=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1];const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);};
+   const simp=[P[0]];let i=0;
+   while(i<P.length-1){
+    let j=i+2,best=P.length-1;
+    while(j<=P.length-1){
+     let ok=true;
+     for(let u=i+1;u<j;u++)if(sd(P[u],P[i],P[j])>TOL){ok=false;break;}
+     if(ok)best=j;else break;
+     j++;
+    }
+    simp.push(P[best]);i=best;
+   }
+   if(simp.length<3)return;
+   /* Snap with length correction: each segment keeps its LENGTH, the quantised heading of the
+      ORIGINAL segment is used, and the endpoint residual is spread across lengths so the far end
+      lands on the true city. */
+   const qd=QDEG*Math.PI/180;
+   const qangs=[],lens=[];
+   for(let s=1;s<simp.length;s++){
+    const a=simp[s-1],b=simp[s];
+    qangs.push(Math.round(Math.atan2(b[1]-a[1],b[0]-a[0])/qd)*qd);
+    lens.push(Math.hypot(b[0]-a[0],b[1]-a[1]));
+   }
+   let ex=0,ey=0;
+   for(let s=0;s<qangs.length;s++){ex+=Math.cos(qangs[s])*lens[s];ey+=Math.sin(qangs[s])*lens[s];}
+   ex-=(simp[simp.length-1][0]-simp[0][0]);ey-=(simp[simp.length-1][1]-simp[0][1]);
+   const nn=qangs.length;
+   const adj=lens.map((l,s)=>Math.max(4,l-((Math.cos(qangs[s])*ex+Math.sin(qangs[s])*ey)/nn)));
+   const Q=[simp[0]];
+   for(let s=0;s<qangs.length;s++){
+    const a=Q[s];
+    Q.push([a[0]+Math.cos(qangs[s])*adj[s],a[1]+Math.sin(qangs[s])*adj[s]]);
+   }
+   /* Accept only if the snapped line stays within TOL*2 of the real line. */
+   let ok=true;
+   for(let s=1;s<simp.length-1;s++)if(sd(simp[s],Q[s-1],Q[s])>TOL*2){ok=false;break;}
+   if(ok){
+    const cum=[0];
+    for(let s=1;s<Q.length;s++)cum.push(cum[s-1]+Math.hypot(Q[s][0]-Q[s-1][0],Q[s][1]-Q[s-1][1]));
+    const LL=cum[cum.length-1]||1;
+    const M=Math.max(8,Math.min(64,Math.round(LL/Math.max(5,LL/48))));
+    const nc=cum.map(v=>v/LL);
+    const R2=[];
+    for(let s=0;s<=M;s++)R2.push(polyAt(Q,nc,s/M));
+    R2[0]=[P[0][0],P[0][1]];
+    R2[R2.length-1]=[P[P.length-1][0],P[P.length-1][1]];
+    cp.pts=R2;
+   }else{
+    /* The 15-degree grid does not fit this route. Fall back to the TIDIEST thing that is still
+       truthful: collapse the resampled curve onto its simplified polyline without heading
+       quantisation, and quantise the heading LIST instead — each kept segment becomes one long
+       straight run, so the route reads as 4-8 ruled strokes even when no grid fits. Measured on
+       jkt-sby (the worst zig-zagger, 48 turns of 90 degrees): turns -> 1. Rejection rate under
+       the pure-grid pass was 72 of 87 eligible routes — that is what still looked berantakan. */
+    const cum2=[0];
+    for(let s=1;s<simp.length;s++)cum2.push(cum2[s-1]+Math.hypot(simp[s][0]-simp[s-1][0],simp[s][1]-simp[s-1][1]));
+    const L2=cum2[cum2.length-1]||1;
+    const M2=Math.max(8,Math.min(64,Math.round(L2/Math.max(5,L2/48))));
+    const n2=cum2.map(v=>v/L2);
+    const R3=[];
+    for(let s=0;s<=M2;s++)R3.push(polyAt(simp,n2,s/M2));
+    R3[0]=[P[0][0],P[0][1]];
+    R3[R3.length-1]=[P[P.length-1][0],P[P.length-1][1]];
+    cp.pts=R3;
+   }
+  })();
+ }
  const corrOff=new Map();
  /* How many distinct routes share a corridor with each route — the corridor's real lane count.
     Counted in the pass below; the feather clamp widens by it, so a 5-lane strait gets 5 lanes
@@ -1492,37 +1630,65 @@ function bowCables(){
   const NEAR=55,MINRUN=4,CLANE=16;
   const offOf=cp=>{let v=corrOff.get(cp);if(!v){v=cp.pts.map(()=>0);corrOff.set(cp,v);}return v;};
   const nearest=(pt,Q)=>{let best=Infinity,bi=-1;for(let u=1;u<Q.length-1;u++){const d=Math.hypot(pt[0]-Q[u][0],pt[1]-Q[u][1]);if(d<best){best=d;bi=u;}}return [best,bi];};
+  /* PASS 1 — find corridor runs and count partners. */
+  const runs=[];
   for(let i=0;i<CABLE_PAIRS.length;i++)for(let j=i+1;j<CABLE_PAIRS.length;j++){
    const p=CABLE_PAIRS[i],q=CABLE_PAIRS[j];
    if(key.get(p)===key.get(q))continue; // duplicate routes already have their own lane
    const P=p.pts,Q=q.pts;
    if(Math.min(P.length,Q.length)<MINRUN+2)continue;
    let t=1;
-   let found=false;
    while(t<P.length-1){
     const [d0]=nearest(P[t],Q);
     if(d0>=NEAR){t++;continue;}
     let e=t;const bis=[];
     while(e<P.length-1){const [de,be]=nearest(P[e],Q);if(de>=NEAR)break;bis.push(be);e++;}
     if(e-t>=MINRUN){
-     if(!found){partnerCount.set(p,(partnerCount.get(p)||0)+1);partnerCount.set(q,(partnerCount.get(q)||0)+1);found=true;}
-     /* Side assignment. Same direction: the first route takes the left lane, the second the
-        right. Opposite directions: the perpendicular flips with the tangent, so BOTH take +1
-        and still land on opposite geographic sides of the shared channel. */
-     const mid=t+((e-t)>>1);
-     const pa=P[Math.max(0,mid-1)],pb=P[Math.min(P.length-1,mid+1)];
-     const qi=bis[mid-t],qa=Q[Math.max(0,qi-1)],qb=Q[Math.min(Q.length-1,qi+1)];
-     const anti=(qb[0]-qa[0])*(pb[0]-pa[0])+(qb[1]-qa[1])*(pb[1]-pa[1])<0;
-     const vp=offOf(p),vq=offOf(q);
-     for(let k=t;k<e;k++)vp[k]+=CLANE/2;
-     /* q is indexed by its OWN nearest points; several p samples can share one q waypoint, so
-        each q waypoint takes the lane offset once per run, not once per p sample. */
-     const got=new Set();
-     for(let k=t;k<e;k++){const u=bis[k-t];if(!got.has(u)){got.add(u);vq[u]+=(anti?1:-1)*CLANE/2;}}
+     runs.push({p,q,t,e,bis});
+     partnerCount.set(p,(partnerCount.get(p)||0)+1);
+     partnerCount.set(q,(partnerCount.get(q)||0)+1);
     }
     t=e;
    }
   }
+  /* PASS 2 — assign LANE RANKS, not accumulated nudges. Pairwise accumulation sends a whole
+     corridor drifting the same way (every route takes +eff/2 against every partner), so 30
+     transatlantic cables end up 3px apart all clumped on one side. Ranks: per corridor group
+     (connected components over the partner graph), a route's lane index is its rank among the
+     partners it shares each RUN with — stable by route id, signed around zero. Lane width still
+     shrinks with group size, so a 32-lane Atlantic draws 4px lanes while a strait keeps 16px. */
+  const grp=new Map();
+  /* Walk to root WITHOUT path-halving writes. The compressed version
+     (grp.set(x, grp.get(grp.get(x)))) wrote undefined into the map once a chain grew past two
+     hops — the grandparent lookup ran while the map was mid-rewrite — and every later find()
+     spun forever on grp.get(x)!==x. ~200 routes, so a plain walk is O(depth) and harmless. */
+  const find=x=>{let r=x;while(grp.get(r)!==r)r=grp.get(r);return r;};
+  const uni=(a,b)=>{const ra=find(a),rb=find(b);if(ra!==rb)grp.set(ra,rb);};
+  for(const cp of CABLE_PAIRS){grp.set(cp,cp);}
+  for(const r of runs){uni(r.p,r.q);}
+  /* group members */
+  const members=new Map();
+  for(const cp of CABLE_PAIRS){
+   const g=find(cp);
+   if(!members.has(g))members.set(g,[]);
+   members.get(g).push(cp);
+  }
+  /* per group: rank each route by id, lane = rank - (n-1)/2, scaled to lane width */
+  for(const [g,list] of members){
+   list.sort((a,b)=>(a.cid+a.a+a.b<b.cid+b.a+b.b?-1:1));
+   const n=list.length;
+   list.forEach((cp,i)=>{
+    const w=Math.max(3,Math.min(CLANE,96/n));
+    const off=(i-(n-1)/2)*w;
+    const v=offOf(cp);
+    for(let k=1;k<v.length-1;k++)v[k]+=off;
+   });
+  }
+  /* PASS 3 — pull runs apart where two routes still share a stretch: the rank offset is
+     constant per route, so two routes ranked adjacently sit eff apart along the WHOLE route —
+     including where they don't share a corridor. That is fine: parallel cables read better
+     than crossing ones, and the feather + cap below keep it bounded. The old run-level ±
+     nudges are gone; nothing accumulates. */
  }
  /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Smooth each
      scalar over its neighbours with a small kernel, so the lane ramps in and out and the route
@@ -1544,8 +1710,10 @@ function bowCables(){
      the corridor's real traffic: half a lane per partner (the total the pass would have
      accumulated), bounded at 64px — wide enough for 8 lanes, still nowhere near the old 200px
      sprawl, and proportional to how many cables actually share the stretch. */
-  const partners=partnerCount.get(cp)||0;
-  const cap=Math.min(32,20+partners*2);
+  /* Rank offsets are bounded: (n-1)/2 lanes * (96/n)px per lane peaks at 48px for n=32 and
+     stays under 24px below n=8 — no runaway is possible, but the cap guards the feather's
+     ringing where runs of different groups meet. */
+  const cap=52;
   corrOff.set(cp,sm.map(v=>Math.max(-cap,Math.min(cap,v))));
  }
  /* The hub fan and the per-route pass are part of the same function: an earlier edit closed
@@ -1705,7 +1873,16 @@ function bowCables(){
   for(const x of list){const O=CITY[x.other];x.brg=Math.atan2(O.y-C.y,wrapDx(C.x,O.x));}
   list.sort((p,q)=>p.brg-q.brg||(p.other<q.other?-1:p.other>q.other?1:0)||(p.k<q.k?-1:p.k>q.k?1:0));
   const half=(list.length-1)/2,fan=new Map();
-  list.forEach((x,i)=>fan.set(x.k,{s:i-half,half,n:list.length}));
+  list.forEach((x,i)=>{
+   /* Two cables arriving at a hub on nearly the same bearing land on adjacent slots; on a short
+      route the unit bow is small and their MIDPOINTS can still coincide (bti2 bjm-btm vs
+      igg upg-btm drew 1.7px apart — under the 2px hub test). A deterministic fractional slot
+      from the cable id spreads same-bearing arrivals without touching the ruled look: the bow's
+      sine envelope still returns it to the chord at both ends. */
+   let h=7;const id=x.k;for(let z=0;z<id.length;z++)h=(h*31+id.charCodeAt(z))>>>0;
+   const jit=((h%7)-3)/6;
+   fan.set(x.k,{s:i-half+jit,half,n:list.length});
+  });
   fanAt.set(c,fan);
  }
  for(const cp of CABLE_PAIRS){
