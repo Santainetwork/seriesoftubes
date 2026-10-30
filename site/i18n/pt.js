@@ -779,7 +779,7 @@
 "Both <small>adds a LAG member</small>":"Ambos <small>adiciona membro ao LAG</small>",
 "Both <small>split the LAG</small>":"Ambos <small>divide o LAG</small>",
 "{n} ports":"{n} portas",
-"boots in ~{n} min":"liga em ~{n} min",
+"boots in ~{n} min":"liga em ~{n} min","boots ~{n}m":"liga ~{n}m",
 "crashes more":"trava mais",
 "Level {n}":"Nível {n}",
 "Swap <small>{cost} + {mo}/mo</small>":"Trocar <small>{cost} + {mo}/mês</small>",

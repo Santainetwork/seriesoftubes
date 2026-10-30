@@ -759,7 +759,7 @@
 "Both <small>adds a LAG member</small>":"Entrambi <small>aggiunge un membro al LAG</small>",
 "Both <small>split the LAG</small>":"Entrambi <small>divide il LAG</small>",
 "{n} ports":"{n} porte",
-"boots in ~{n} min":"si avvia in ~{n} min",
+"boots in ~{n} min":"si avvia in ~{n} min","boots ~{n}m":"avvio ~{n}m",
 "crashes more":"crasha più spesso",
 "Level {n}":"Livello {n}",
 "Swap <small>{cost} + {mo}/mo</small>":"Sostituisci <small>{cost} + {mo}/mese</small>",
