@@ -6867,7 +6867,7 @@ function i18nDom(){if(LANG==='en')return;for(const el of document.querySelectorA
 function segBtns(act,cur,opts){return opts.map(([v,l])=>btn(l,act,{v},cur===v?'pink sm':'ghost sm')).join('');}
 /* Animation setting: auto follows the system's reduced-motion preference, or force it on or off. */
 /* Settings are per device (localStorage), not part of the save: they are about how you like to play. */
-const PREF_DEF={pauseFurious:true,warnUnhappy:true,pauseIncident:false};
+const PREF_DEF={pauseFurious:false,warnUnhappy:true,pauseIncident:false};
 let PREFS=(()=>{try{const j=JSON.parse(localStorage.getItem('sot-prefs')||'{}');return j&&typeof j==='object'?j:{};}catch(e){return {};}})();
 const pref=k=>typeof PREFS[k]==='boolean'?PREFS[k]:PREF_DEF[k];
 function setPref(k,v){if(!own(PREF_DEF,k))return;PREFS[k]=!!v;try{localStorage.setItem('sot-prefs',JSON.stringify(PREFS));}catch(e){}}
