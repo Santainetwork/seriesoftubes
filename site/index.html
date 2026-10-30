@@ -2753,9 +2753,13 @@ function confTick(d){S.confReg=S.confReg||{};
   for(const cf of upcomingConfs(0)){if(cf.day!==d||!S.confReg[cf.key])continue;const reg=CITY[cf.c].reg;S.conf={until:d+CONF_DAYS,reg,name:cf.n};S.stats.confs=(S.stats.confs||0)+1;
     const r=Math.random();let extra='';if(r<0.3){const cash=5000+Math.floor(Math.random()*4)*5000;S.cash+=cash;extra=` You also won the raffle: ${fmt$(cash)} worth of optics, sold on eBuy the same evening.`;}else if(r<0.5)extra=' Someone from Goggle bought you a beer. You did not get their name, only a sticker.';
     toast(`<b>${esc(cf.n)} in ${esc(CITY[cf.c].name)}</b><br>You shook a lot of hands. For ${CONF_DAYS} days, selective networks with a presence in ${esc(REG[reg])} want half the usual traffic before they peer.${extra}`,'goal');sfx('coin');
-    /* The lead was handed out when the player registered, so the day itself only delivers the
-       peering glow and the raffle. Firing eventDeals() here too would double the pipeline for
-       anyone who registered early. */}}
+    /* The prospect only exists if you show up. No registration, no lead — a ticket you never
+       use buys nothing. And showing up is not a guarantee either: 1 in 4 trips ends with an
+       empty notebook, because that is what conferences are really like. Paid at the door means
+       the fuse counts from today, same as before. Do not pause here: this is good news and a
+       routine pipeline event, not an outage. A pause on every registration anniversary would
+       train the player to dread the calendar. */
+    if(Math.random()<0.75)eventDeals(cf);}}
 /* A NAP does not go to a conference to peer. It goes to sell racks. Every event in a
    city where you run a POP produces one wholesale offer: a carrier, a content network
    or a cloud on-ramp that needs space, cross-connects and a meet-me room. */
@@ -4013,7 +4017,7 @@ function waveOk(a,b,i){return [a,b].every(c=>i<=RG[S.pops[c]?(S.pops[c].rgen||0)
 function waveNeed(i){const g=RG.find(r=>r.maxLT>=i);return g?tr('{pn} routers',{pn:g.pn}):'?';}
 function routerModels(c){const p=S.pops[c],g=p.rgen||0,rt=p.routers||1;
   return `<div style="margin-top:6px">${RG.map((M,i)=>{if(i===g)return '';const why=modelFits(c,i),lk=M.lvl>lvl();
-    return `<div class="row"><span class="logo" style="--c:${M.badge?'#2C7A7B':'#FF4F9A'}">${M.badge||'R'+(M.cls+1)}</span><div class="grow"><div class="nm">${esc(M.n)} <span class="meta">${M.pn} · ${tr('{n} ports',{n:M.ports})} · ${fmtG(M.cap)} · ${tr('boots in ~{n} min',{n:M.boot})}${M.flaky?' · '+tr('crashes more'):''}</span></div><div class="meta">${esc(M.blurb)}</div>${why?`<div class="why">${esc(why)}</div>`:''}</div>${btn(lk?tr('Level {n}',{n:M.lvl}):tr('Swap <small>{cost} + {mo}/mo</small>',{cost:fmt$(swapCost(c,i)),mo:fmt$(M.mo*rt)}),'upRouter',{city:c,g:i},'sm',lk||!!why||S.cash<swapCost(c,i)||p.rupDay===S.day)}</div>`;}).join('')}</div>`;}
+    return `<div class="row" style="align-items:flex-start"><span class="logo" style="--c:${M.badge?'#2C7A7B':'#FF4F9A'};margin-top:2px">${M.badge||'R'+(M.cls+1)}</span><div class="grow"><div class="nm">${esc(M.n)}</div><div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${M.pn} · ${tr('{n} ports',{n:M.ports})} · ${fmtG(M.cap)} · ${tr('boots ~{n}m',{n:M.boot})}${M.flaky?' · '+tr('crashes more'):''}</div><div class="meta">${esc(M.blurb)}</div>${why?`<div class="why">${esc(why)}</div>`:''}</div>${btn(lk?tr('Level {n}',{n:M.lvl}):tr('Swap <small>{cost} + {mo}/mo</small>',{cost:fmt$(swapCost(c,i)),mo:fmt$(M.mo*rt)}),'upRouter',{city:c,g:i},'sm',lk||!!why||S.cash<swapCost(c,i)||p.rupDay===S.day)}</div>`;}).join('')}</div>`;}
 function portNote(c){const p=S.pops[c];if(!p)return '';const g=p.rgen||0;return RG[g].maxP<PORT.length-1?`<p class="note" style="margin-top:0">${tr('Your {model} here tops out at {pn} ports. Bigger ports need a router upgrade (Infra tab).',{model:esc(RG[g].n),pn:RG[g].pn})}</p>`:'';}
 function sfOf(r,c){const d=r.cityDem[c]||0;return d<=1e-6?1:clamp(r.citySrv[c]/d,0,1);}
 
@@ -4748,12 +4752,11 @@ const ACT={
  shareDl:()=>shareFile(f=>{if(!f)return;const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);track('share_download');}),
  shareGo:()=>shareFile(f=>{const d={title:'Series of Tubes',text:`${S.name} (AS${S.asn}): ${tierLabel()}, ${fmtG(peakTraffic())} peak. Build your own internet at`,url:'https://seriesoftub.es/'};try{if(f&&navigator.canShare&&navigator.canShare({files:[f]}))d.files=[f];navigator.share(d).then(()=>track('share_done')).catch(()=>{});}catch(e){}}),
  confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day)return;if(!spend(confCost()))return;S.confReg[key]=true;
-   /* Registering is the point where you meet people, so the lead arrives now rather than on the
-      day of the event. Waiting until the conference starts meant a player who registered and
-      then forgot about it got nothing at all — the whole reason to pay the fee is the pipeline
-      it opens. The deal carries the same fuse as before, counted from today. */
-   eventDeals(cf);
-   toast(`<b>Registered for ${esc(cf.n)}.</b><br>Flights booked, badge printed, business cards ordered in the wrong font. You already have a lead from the attendee list.`,'good');after();},
+   /* You bought a plane ticket, not a customer. Registering only puts the event on the
+      calendar; the prospect shows up on the day itself (see confTick day-loop), and only
+      if the odds favour you there. Before that change the fee bought an instant signed
+      lead, which skipped the realistic part: travel, wait, and maybe come home empty. */
+   toast(`<b>Registered for ${esc(cf.n)}.</b><br>Flights booked, badge printed, business cards ordered in the wrong font. Show up on the day — with a bit of luck, you will come home with a prospect.`,'good');after();},
  tutSkip:()=>{S.tut=null;try{localStorage.setItem('sot-tut','1');}catch(e){}renderCoach();},
  addSite:({city})=>{const p=S.pops[city];if(!p||p.site2)return;if(!spend(SITE2_COST))return;p.site2=true;p.site2Day=S.day;toast(tr('<b>Second site live in {city}.</b><br>{b} is joined to {a} by your own metro ring. Move some uplinks there from the Transit and Peering tabs.',{city:CITY[city].name,b:esc(siteName(city,'b')),a:esc(siteName(city,'a'))}),'good');sfx('build');after();},
  rmSite:({city})=>{const p=S.pops[city];if(!p||!p.site2)return;if(UI.confirm!=='site'+city){UI.confirm='site'+city;renderPanel();return;}UI.confirm=null;p.site2=0;p.sdown=null;p.ringcut=0;for(const t of S.transit)if(t.city===city)t.site='a';for(const x of S.pni)if(x.city===city)x.site='a';for(const x of S.caches)if(x.city===city)x.site='a';if(S.ixSite)for(const x of ixIdsIn(city))delete S.ixSite[x];after();},
