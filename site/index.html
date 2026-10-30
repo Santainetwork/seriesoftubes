@@ -5834,9 +5834,44 @@ function leaseTab(){const xs=leaseSwaps(),tot=xs.reduce((s,x)=>s+x.mo,0);
   ${xs.length?`<div class="kv"><span>${tr('You pay for leases')}</span><b>${tr('{price}/mo',{price:fmt$(tot)})}</b></div>`+xs.map(x=>`<div class="row"><div class="grow"><div class="nm">${CITY[x.a].name} ⇄ ${CITY[x.b].name} <span class="tag st">${x.sub?tr('subsea'):tr('land')}</span></div><div class="meta">${Object.entries(x.ls.reduce((m,l)=>(m[kind(l)]=(m[kind(l)]||0)+1,m),{})).map(([k,n])=>n>1?`${n} × ${k}`:k).join(', ')} · ${tr('{price}/mo',{price:fmt$(x.mo)})}</div>
     ${x.fit&&x.fit.fits?`<div class="meta">${x.own?tr('You already own fiber here. Light {n} more channels for {up}, then cancel the lease to save {price}/mo.',{n:x.fit.n,up:fmt$(x.fit.up),price:fmt$(x.best)}):tr('You already lease dark fiber here. Light {n} more channels for {up}, then cancel the waves to save {price}/mo.',{n:x.fit.n,up:fmt$(x.fit.up),price:fmt$(x.lit)})}</div>`:x.fit?`<div class="meta">${x.fit.n?tr('Your fiber here has room for {free} more channels, and moving these leases needs {n}. Light another fiber pair or upgrade the line system first.',{free:Math.max(0,x.fit.free),n:x.fit.n}):tr('No optic you can buy works on your fiber here yet.')}</div>`:''}${x.opts.map(o=>line(x,o)).join('')}${!x.own&&x.why?`<div class="meta">${esc(x.why)}</div>`:''}
     <div class="btns">${x.own?btn(tr('Open your fiber'),'dashLink',{id:x.own.id},'pink sm'):''}${x.iru&&x.fit?btn(tr('Open your dark fiber'),'dashLink',{id:x.iru.id},x.lit!==undefined?'pink sm':'ghost sm'):''}${x.opts.map(o=>plan(x,o)).join('')}${btn(tr('Open lease'),'dashLink',{id:(x.ls.find(l=>l.kind!=='df')||x.ls[0]).id},'ghost sm')}</div></div></div>`).join(''):`<p class="empty">${tr('You do not lease any lines between your POPs.')}</p>`}</div>`;}
-const DTABS=['overview','cust','conn','traffic','infra','lease'];
-function dashTabs(){const u=custStats().unhappy,cur=UI.dtab||'overview',L={overview:tr('Overview'),cust:tr('Customers'),conn:tr('Connections'),traffic:tr('Traffic'),infra:tr('Links & routers'),lease:tr('Leased lines')};
+const DTABS=['overview','cust','conn','traffic','infra','lease','social'];
+function dashTabs(){const u=custStats().unhappy,cur=UI.dtab||'overview',L={overview:tr('Overview'),cust:tr('Customers'),conn:tr('Connections'),traffic:tr('Traffic'),infra:tr('Links & routers'),lease:tr('Leased lines'),social:tr('Social')};
   return `<nav class="dtabs">${DTABS.map(k=>`<button class="${cur===k?'on':''}" data-act="dashTab" data-args='{"k":"${k}"}'>${L[k]}${k==='cust'&&u?`<span class="cnt red">${u}</span>`:''}</button>`).join('')}</nav>`;}
+/* ---------- social feed: what the internet says about you ----------
+   A Threads/X-style live feed. Every post is generated from the player's real
+   state: unhappy customers complain, happy ones brag, and cities without your
+   POP ask if any ISP serves their area. Nothing here is random flavour — the
+   names, cities, numbers and complaints all come from S.biz, R and CITY. */
+function socialFeed(){
+  const out=[],mine=new Set(Object.keys(S.pops));
+  // 1. Your customers talk: unhappy ones vent, happy ones shill.
+  for(const b of S.biz.slice().sort((a,c)=>a.mood-c.mood).slice(0,6)){
+    const city=CITY[b.city]?CITY[b.city].name:b.city;
+    const sf=bizSf(b),got=Math.round(sf*100);
+    if(b.mood<30)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['ping 400ms ke server SG dari', 'lag parah main valorant di', 'zoom putus-putus terus di'])} ${city} pakai ${esc(S.name)} 😡 bayar ${fmtG(b.bw)} cuma dapat ${got}% — @${esc(S.name.toLowerCase().replace(/[^a-z0-9]+/g,''))} ini kapan dibenerin???`,k:'bad',d:S.day});
+    else if(b.mood<60)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['udah 3 hari lemot di', 'speed turun setengah di', 'malem jam 8 buffering mulu di'])} ${city}… ${esc(S.name)} tolong dicek dong 🙏`,k:'warn',d:S.day});
+    else if(b.mood>=85&&Math.random()<0.7)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['pindah ke', 'langganan', 'pakai'])} ${esc(S.name)} di ${city} speedtest tembus ${fmtG(b.bw)} 🔥🔥 recommended!`,k:'good',d:S.day});
+  }
+  // 2. Unserved cities ask for an ISP — a lead hint for the player.
+  const prospects=Object.keys(CITY).filter(c=>!mine[c]&&CITY[c].P>50).sort(()=>Math.random()-0.5).slice(0,3);
+  for(const c of prospects){
+    const C=CITY[c];
+    out.push({who:`@warga_${c}`,t:`tanya dong, di ${C.name} ada ISP bagus nggak? butuh ~${fmtG(Math.max(1,C.P*0.02))} buat ${pick(['warkop gaming','kost 40 kamar','kantor cabang','sekolah','klinik'])} 🙏 yang uptime-nya beneran, bukan yang tiap hujan RTO`,k:'ask',d:S.day});
+  }
+  // 3. Sarkas ambient: netizens react to your outages.
+  if(S.inc.length)out.push({who:'@pingman_id',t:`${esc(S.name)} down lagi??? ini ISP apa warnet jam 9 malem 💀`,k:'bad',d:S.day});
+  if(R.reach<0.99)out.push({who:'@bgp_watcher',t:`reach ${esc(S.name)} ${pct(R.reach)} doang, sisanya lewat mana? lewat doa? 🙏`,k:'warn',d:S.day});
+  if(!out.length)out.push({who:'@daily_ping',t:`sepi banget timeline soal ${esc(S.name)}… either bagus banget atau pelanggannya cuma 2 😴`,k:'',d:S.day});
+  // Newest first, cap 12.
+  return out.slice(0,12);
+}
+function socialSection(){
+  const tag=k=>k==='bad'?'<span class="tag restrictive">😡 rant</span>':k==='good'?'<span class="tag open">⭐ fan</span>':k==='ask'?'<span class="tag st">🔍 asked</span>':k==='warn'?'<span class="tag st">⚠️ grumble</span>':'<span class="tag">💬</span>';
+  const posts=socialFeed();
+  let h=`<div class="panel2" style="margin-top:12px"><h3>${tr('Live social')}</h3><p class="note" style="margin-top:0">${tr('What the timeline says about your network. Rants are unhappy customers, asks are unserved cities looking for an ISP — that is your next POP hint.')}</p>`;
+  for(const p of posts)h+=`<div class="row"><div class="grow"><div class="nm">${esc(p.who)} <span class="meta">· d${p.d}</span> ${tag(p.k)}</div><div class="meta" style="white-space:normal">${p.t}</div></div></div>`;
+  return h+`</div>`;
+}
 function renderDash(){checkLayer();
   const H=S.hist||[],rows=H.slice(-90),last30=H.slice(-30);
   const up=last30.length?last30.reduce((a,r)=>a+(r.dem?Math.min(1,r.srv/r.dem):1),0)/last30.length:1;
@@ -5869,6 +5904,7 @@ function renderDash(){checkLayer();
   <div class="panel2"><h3>${tr('Router load')}</h3>${rs.map(({c,u})=>`<div class="row"><div class="grow"><div class="nm">${CITY[c].name} <span class="meta">${(S.pops[c].routers||1)} × ${esc(RG[S.pops[c].rgen||0].n)}</span></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div></div><b class="num" style="min-width:42px;text-align:right">${pct(u)}</b></div>`).join('')}
   <h3 style="margin-top:10px">${tr('Your AS')}</h3><div class="kv"><span>${tr('AS number')}</span><b>AS${S.asn}</b></div><div class="kv"><span>${tr('Prefixes')}</span><b>${Math.max(1,Math.ceil(Object.keys(S.pops).length/3))} × /22 IPv4, 1 × /32 IPv6</b></div><div class="kv"><span>${tr('BGP sessions')}</span><b>${R.sessions}</b></div><div class="kv"><span>${tr('Upstreams')}</span><b>${new Set(S.transit.map(t=>t.net)).size}</b></div><div class="kv"><span>${tr('Reach')}</span><b>${pct(R.reach)}</b></div><div class="kv"><span>${tr('Customers')}</span><b>${tr('{n} businesses',{n:S.biz.length})}</b></div></div></div>`;
   if(DT==='lease')h+=leaseTab();
+  if(DT==='social')h+=socialSection();
   if(h!==UI._dh){UI._dh=h;morph($('dashCard'),h);}
 }
 function loanSummary(o){return o.model==='transit'?tr('You pay {pct} of your transit bill until {price} is repaid.',{pct:pct(o.cut||0.3),price:fmt$(o.owe||o.amount)}):o.model==='balloon'?tr('Nothing to pay for {n} months. Then everything.',{n:o.term}):tr('{pay}/mo for {n} months.',{pay:fmt$(o.pay),n:o.term})+(o.share?' '+tr('Plus {pct} of your revenue until it is repaid.',{pct:pct(o.share)}):'');}
