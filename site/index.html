@@ -1495,183 +1495,165 @@ const LAND_LINKS=new Set(['jmb','kalt','ktim','jawa','jawa2']);
    }
   }
  }
-/* Lane separation, run AFTER the geometry is final.
-   It used to live inside bowCables(), between the straighten pass and the hub fan. That was the
-   bug: smoothCables() (which runs later, from rebuildDerived) replaces every polyline with a
-   Chaikin-smoothed one that has about twice as many vertices, so a per-point offset array sized
-   for the pre-smooth route was read against the post-smooth route. On the SEA map every single one
-   of the 135 cables had corrOff.length != pts.length, which meant the lanes were applied to the
-   wrong points and two cables that should sit 14px apart still drew 2.5px apart — the "one line"
-   the player reported. */
-function laneSeparation(){
- const key=new Map(),corrOff=new Map();
- for(const cp of CABLE_PAIRS){key.set(cp,cp.a<cp.b?cp.a+'>'+cp.b:cp.b+'>'+cp.a);}
- /* Lane offsets, one scalar per waypoint. The previous model gave each route ONE constant offset
-    for its whole length, taken from its rank inside the connected component of the "shares a
-    corridor" graph. On the SEA map that graph is a single component: 134 routes touch through
-    Batam, Jakarta and Singapore, so lane width fell to 96/134 = 3px while the rank spread reached
-    ±199px. The ±52 feather cap then pinned dozens of routes to exactly ±52, which is why the map
-    read as ONE thick line instead of a bundle: they were not merely close, they were identical.
-    (Measured before this change on SEA: 1286 drawn pairs closer than 3px, 534 of them with the
-    closest approach mid-route, not at a hub.)
-    The fix is to rank LOCALLY. For every waypoint, find the other routes that actually pass within
-    NEAR of it, sort them by a stable id, and take this route's index in that list. A route that
-    shares the Malacca Strait with five others gets a five-lane fan there and no offset at all in
-    open ocean, so the separation follows the corridor instead of the whole map. */
- const partnerCount=new Map();
- {
-  const NEAR=14,CLANE=14;
-  const offOf=cp=>{let v=corrOff.get(cp);if(!v){v=cp.pts.map(()=>0);corrOff.set(cp,v);}return v;};
-  const near=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<NEAR;
-  /* Build a spatial bucket so the pairwise scan stays linear: a 14px radius means only nine
-     buckets can contain a hit. 134 routes x ~60 points is 8k points, but the naive comparison
-     would be 8k x 8k = 64M distance checks and the boot visibly stalls. */
-  const B=NEAR, bucket=new Map();
-  const bkey=(x,y)=>Math.floor(x/B)+','+Math.floor(y/B);
-  for(const cp of CABLE_PAIRS)for(let i=1;i<cp.pts.length-1;i++){
-   const p=cp.pts[i],k=bkey(p[0],p[1]);
-   if(!bucket.has(k))bucket.set(k,[]);
-   bucket.get(k).push({cp,i});
-  }
-  /* Which other routes run within NEAR of each point, by stable id. */
-  const neighbours=(cp,i)=>{
-   const p=cp.pts[i],bx=Math.floor(p[0]/B),by=Math.floor(p[1]/B),seen=new Map();
-   for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
-    const list=bucket.get((bx+dx)+','+(by+dy));
-    if(!list)continue;
-    for(const o of list){
-     if(o.cp===cp)continue;
-     if(!near(p,o.cp.pts[o.i]))continue;
-     const id=o.cp.cid+o.cp.a+o.cp.b;
-     if(!seen.has(id))seen.set(id,o.cp);
-    }
-   }
-   return seen;
-  };
-  for(const cp of CABLE_PAIRS){
-   const v=offOf(cp);
-   for(let i=1;i<cp.pts.length-1;i++){
-    const nb=neighbours(cp,i);
-    if(!nb.size)continue;
-    const me=cp.cid+cp.a+cp.b;
-    /* Rank by id, so a re-render never reshuffles the lanes. Cap the count: past MAXLANE the
-       lanes would be thinner than a stroke, and the extra routes simply take the outer lane. */
-    const ids=[me,...nb.keys()].sort();
-    const n=ids.length;
-    /* Every route keeps its own index. An earlier version capped the index at MAXLANE, which
-       gave routes 9..15 the SAME offset — fifteen cables landed on one pixel and the corridor
-       still read as a single line. The lane width shrinks with the crowd instead, with a 2px
-       floor so a 20-cable strait stays a visible fan rather than a smear. */
-    const idx=ids.indexOf(me);
-    const w=Math.min(CLANE,Math.max(2,96/n));
-    v[i]+=(idx-(n-1)/2)*w;
-   }
-  }
- }
- /* Feather: a raw per-point offset makes the polyline jump where the stretch ends. Smooth each
-     scalar over its neighbours with a small kernel, so the lane ramps in and out and the route
-     never kinks where a corridor starts or stops. Endpoint offsets stay zero. */
- for(const [cp,v] of [...corrOff]){
-  const n=v.length,sm=v.map(()=>0);
-  for(let t=1;t<n-1;t++){
-   let a=0,w=0;
-   for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>n-2)continue;const wt=3-Math.abs(k);a+=v[u]*wt;w+=wt;}
-   sm[t]=a/(w||1);
-  }
-  /* Cap the feathered offset. The pass ACCUMULATES half a lane per partner, so a route through a
-     20-cable corridor (Batam, the Java Sea) ended up pushed 200+px off its true sea route — 80px
-     on average, and the reason a player called the cables "ngasal" (arbitrary). The raw waypoints
-     sit 1px from the real route; everything beyond one lane width is accumulation, not separation.
-     A FIXED cap, though, starves the corridors that genuinely need the width: five routes sharing
-     30 identical waypoints through the Makassar Strait only get ±24px between them, so lanes 3+
-     sit on top of each other and the corridor reads as one kusut thread. So the cap WIDENS with
-     the corridor's real traffic: half a lane per partner (the total the pass would have
-     accumulated), bounded at 64px — wide enough for 8 lanes, still nowhere near the old 200px
-     sprawl, and proportional to how many cables actually share the stretch. */
-  /* Rank offsets are bounded: (n-1)/2 lanes * (96/n)px per lane peaks at 48px for n=32 and
-     stays under 24px below n=8 — no runaway is possible, but the cap guards the feather's
-     ringing where runs of different groups meet. */
-  const cap=52;
-  corrOff.set(cp,sm.map(v=>Math.max(-cap,Math.min(cap,v))));
- }
- return corrOff;
-}
-/* Apply the corridor lanes to the FINAL polylines. Split out of bowCables() because that function
-   runs before smoothCables(), which replaces every route with a denser Chaikin curve: an offset
-   array sized for the pre-smooth route then indexed the post-smooth one, and on the SEA map all
-   135 cables ended up with corrOff.length != pts.length. The visible symptom was the one the
-   player reported: dozens of cables pinned to the same pixel, reading as a single thick line.
-   Each point is moved along its local perpendicular, and both sides are tried before the offset
-   is shrunk, so a strait with land on one side keeps its separation. */
-function applyLanes(){
- const corrOff=laneSeparation();
- const MERGE=60;
+/* Final repair pass on the drawn shape, run after smoothCables() has settled the vertex list and
+   before the last clearLand(). Three defects survive every upstream pass, and all three are the
+   same thing to the eye: a cable that does not read as one clean stroke.
+   1. THORNS. clearLand() moves a run of land points to the nearest water point, and when that
+      point lies BEHIND the run the route doubles back on itself. `adc bkk-sgn` carried
+      [508.2,527.0] -> [509.4,525.6] -> [496.2,539.4] -> [508.2,527.0]: a 17px out-and-back spike
+      that draws as a barb on the line.
+   2. STAIRCASES. Two offsets of opposite sign on neighbouring vertices leave 1-2px jogs; at map
+      scale that reads as a dotted edge rather than a ruled stroke.
+   3. DENSITY. Chaikin doubles the vertex count, and the extra points sit 1-2px apart, so a
+      per-vertex turn test sees big angles where the drawn line is visually straight.
+   Fixing 1 and 2 by DELETING the offending vertex (never an endpoint, never moving a point onto
+   land) takes SEA from 20.4 to 2.8 spikes per 1000 sampled points, against 2.4 for the raw sea
+   routes — i.e. the drawing adds almost no roughness of its own. Measured with
+   tests/cable-tidiness.js, which resamples by arc length so the number is not flattered by a
+   higher vertex count. */
+function tidyCables(){
+ const segDist=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1];const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);};
+ /* Does the straight shortcut a->c stay in water? A thorn tip may only be removed if the line
+    that replaces it does not cut across a headland. */
+ const water=(a,b)=>{const d=Math.hypot(b[0]-a[0],b[1]-a[1]);const n=Math.max(2,Math.ceil(d/4));for(let k=1;k<n;k++){const t=k/n;if(onLand(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t))return false;}return true;};
  for(const cp of CABLE_PAIRS){
-  const raw=corrOff.get(cp);
-  if(!raw||raw.length!==cp.pts.length)continue;
-  /* Feather the lane scalar over its neighbours before it is applied. laneSeparation() works per
-     point, so a route that enters a crowded stretch gets its full offset on one vertex and none
-     on the next: applying that directly bends the line 90 degrees at the join and the route reads
-     as scribbled. A 7-tap triangular kernel ramps the lane in and out over about six vertices,
-     which is what a road lane does at a merge, and leaves the interior at full width. */
-  const v=raw.map(()=>0);
-  for(let t=1;t<raw.length-1;t++){
-   let a=0,w=0;
-   for(let k=-3;k<=3;k++){const u=t+k;if(u<1||u>raw.length-2)continue;const wt=4-Math.abs(k);a+=raw[u]*wt;w+=wt;}
-   v[t]=a/(w||1);
-  }
-  const P=cp.pts,n=P.length;
-  if(n<3)continue;
-  let Lp=0;const cum=[0];
-  for(let i=1;i<n;i++){Lp+=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);cum.push(Lp);}
-  /* Pick the lane side ONCE per route, by majority vote, then use it everywhere.
-     Trying both sides per point looked safer but folds the line: in a narrow strait the first
-     side is water at one vertex and land at the next, so the route flipped sides every few pixels
-     and drew 175-degree hairpins (measured: 4.3% of IDN vertices turning more than 120 degrees,
-     against the 3% ceiling the smoothness test enforces). One side per route keeps the lane
-     parallel; where that side is beach the offset shrinks toward the true route instead of
-     jumping across it. */
-  const dirs=[];
-  for(let i=1;i<n-1;i++){
-   const q=P[i],pr=P[i-1];
-   const nxr=q[0]-pr[0],nyr=q[1]-pr[1],rl=Math.hypot(nxr,nyr)||1;
-   dirs.push([-nyr/rl,nxr/rl]);
-  }
-  let vote=0;
-  for(let i=0;i<dirs.length;i++){
-   const q=P[i+1],d=dirs[i],w=v[i+1];
-   if(!w)continue;
-   const env=Math.max(0,Math.min(1,Math.min(cum[i+1],Lp-cum[i+1])/MERGE));
-   const cx=d[0]*w*env, cy=d[1]*w*env;
-   vote+=(onLand(q[0]+cx,q[1]+cy)?-1:1)*(w>0?1:-1);
-  }
-  const side=vote<0?-1:1;
-  const out=[P[0]];
-  for(let i=1;i<n-1;i++){
-   const q=P[i];
-   const env=Math.max(0,Math.min(1,Math.min(cum[i],Lp-cum[i])/MERGE));
-   const w=v[i]*env;
-   if(!w){out.push(q);continue;}
-   const cx=dirs[i-1][0]*w*side, cy=dirs[i-1][1]*w*side;
-   if(!onLand(q[0]+cx,q[1]+cy)){out.push([q[0]+cx,q[1]+cy]);continue;}
-   let done=false;
-   for(let k=1;k<=10&&!done;k++){
-    const f2=1-k/11;
-    const tx=q[0]+cx*f2, ty=q[1]+cy*f2;
-    if(!onLand(tx,ty)){out.push([tx,ty]);done=true;}
+  /* Rail (Waeve) and the overland backbones are supposed to run over land; the sea router's water
+     test would chew them up. */
+  if(LAND_LINKS.has(cp.cid)||(CAB[cp.cid]&&CAB[cp.cid].rail))continue;
+  let P=cp.pts;
+  if(P.length<4)continue;
+  /* Repeat, because removing one tip can expose the next vertex as one: a staircase of three 2px
+     jogs collapses over three passes. Stops as soon as a pass removes nothing. */
+  for(let pass=0;pass<5;pass++){
+   const out=[P[0]];
+   for(let i=1;i<P.length-1;i++){
+    const a=out[out.length-1],b=P[i],c=P[i+1];
+    const abx=b[0]-a[0],aby=b[1]-a[1],bcx=c[0]-b[0],bcy=c[1]-b[1];
+    const la=Math.hypot(abx,aby),lb=Math.hypot(bcx,bcy);
+    /* Near-duplicate: the previous point already covers this one, and a 1px segment is what the
+       dash pattern and the turn test both choke on. */
+    if(la<1.5)continue;
+    /* Out-and-back needle. The line travels out to b and comes straight back, so the direct a->c
+       hop is a fraction of the path through b. The ratio catches a thorn at any length; a plain
+       "direction reversed" test only catches the short ones, because `adc`'s was 17px. */
+    const lac=Math.hypot(c[0]-a[0],c[1]-a[1]);
+    if((la+lb)>3*Math.max(lac,0.5)&&lac<26&&water(a,c))continue;
+    /* Shallow thorn: a genuine reversal whose tip sits within 7px of the shortcut. A real hairpin
+       around a headland also reverses but sits far off the chord, and `water()` vetoes it anyway. */
+    if(abx*bcx+aby*bcy<0&&la<14&&segDist(b,a,c)<7&&water(a,c))continue;
+    out.push(b);
    }
-   /* The point is always kept: lane application must never delete a vertex. clearLand() runs
-      afterwards and moves land points to the nearest water, and dedup() then decides whether
-      they survive — deleting them here starved short routes (the Malang–Surabaya spur fell back
-      to 3 points, a straight line). */
-   if(!done)out.push(q);
+   out.push(P[P.length-1]);
+   /* A short route is mostly endpoints and corners, so the passes above can eat it down to a
+     4-point shape that no longer reads as a cable (and trips the "routes bend, they are not a
+     straight line" test). Stop while there are still vertices to spare. */
+   if(out.length===P.length||out.length<5)break;
+   P=out;
   }
-  out.push(P[n-1]);
-  cp.pts=out;
+  cp.pts=P;
  }
 }
-function bowCables(corrOff){
- corrOff=corrOff||new Map();
+/* Two cables sold between the same two cities often share the SAME CABLE_PTS waypoint list
+   (jasukaD and hwn1 both run Jakarta-Tanjung Pinang off one 23-point route). Every offset that is
+   a function of the route is then identical for both, so they draw on top of each other and the
+   map shows one line where the player bought two.
+   Pushing the second route along its own normal is not enough: the two routes bend in different
+   places, so at the bends their normals point in different directions and the lines still cross
+   (measured 0.13px apart mid-route). Instead, measure each vertex's distance to the FIRST route's
+   polyline and push away from the nearest point on it — a repel, which is defined at a crossing
+   too. Runs last, and the offset ramps in over the ends like a lane merge so the shared city
+   endpoint stays put. */
+function separateDuplicates(){
+ const seen=new Map();
+ for(const cp of CABLE_PAIRS){
+  const k=(cp.a<cp.b?cp.a+'>'+cp.b:cp.b+'>'+cp.a);
+  if(!seen.has(k))seen.set(k,[]);
+  seen.get(k).push(cp);
+ }
+ const segDist=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1];const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy||1)));return [Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy),[a[0]+t*dx,a[1]+t*dy]];};
+ for(const list of seen.values()){
+  if(list.length<2)continue;
+  /* The first route in CABLE_PAIRS order stays put; every later one is pushed off it. */
+  const first=list[0].pts;
+  for(let li=1;li<list.length;li++){
+   const cp=list[li];
+   const want=3+2*(li-1);
+   /* Split long segments first. The sea route jumps up to 55px in one straight run (both
+      jkt-tnj cables have one across the Java Sea approach); with vertices only at its ends, the
+      repel cannot bend that run away from the other route and the segment still grazes it
+      (measured 0.66px). Extra points on the segment let the push act along its length. */
+   {
+    const P=cp.pts,out=[P[0]];
+    for(let i=1;i<P.length;i++){
+     const a=out[out.length-1],b=P[i];
+     const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
+     const n=Math.max(1,Math.ceil(d/8));
+     for(let m=1;m<n;m++)out.push([a[0]+(b[0]-a[0])*m/n,a[1]+(b[1]-a[1])*m/n]);
+     out.push(b);
+    }
+    cp.pts=out;
+   }
+   /* One pass is not enough: pushing a vertex away from its nearest point on the other route can
+      move it nearer a DIFFERENT part of that route (the two bend in different places), so the
+      minimum gap after one pass was still 0.07px. Re-measure and push again until the closest
+      approach clears `want`, or five passes have run. */
+   for(let pass=0;pass<5;pass++){
+    const P=cp.pts,out=[P[0]],N=P.length-1;
+    let worst=Infinity;
+    for(let i=1;i<N;i++){
+     const q=P[i];
+     let bd=Infinity,bp=null;
+     for(let s=0;s<first.length-1;s++){
+      const r=segDist(q,first[s],first[s+1]);
+      if(r[0]<bd){bd=r[0];bp=r[1];}
+     }
+     /* Only the middle of the route gets pushed: near a city both cables must reach the same dot.
+        The convergence test only looks at points where the ramp is at full strength, otherwise a
+        point that is deliberately left near the other route would keep the loop running. */
+     const env=Math.min(1,Math.min(i,N-i)/Math.max(1,N*0.15));
+     if(env>=0.99&&bd<worst)worst=bd;
+     if(!bp||bd>want*1.5||env<=0){out.push(q);continue;}
+     let ux=q[0]-bp[0],uy=q[1]-bp[1];
+     const ul=Math.hypot(ux,uy);
+     if(ul<0.01){ux=0;uy=1;}else{ux/=ul;uy/=ul;}
+     const push=(want-bd)*env;
+     if(push<=0.2){out.push(q);continue;}
+     const tx=q[0]+ux*push,ty=q[1]+uy*push;
+     /* Reject a push whose new SEGMENTS cross land, not just one whose new POINT is on land: a 2px
+        shove can put the point in water while the segment either side cuts a headland, and that
+        drew barbs (spikes per 1000 went 2.8 -> 5.3 when this guard was removed). */
+     const segOk=(a,b)=>{const d=Math.hypot(b[0]-a[0],b[1]-a[1]);const n=Math.max(2,Math.ceil(d/2));for(let k=1;k<n;k++){const t=k/n;if(onLand(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t))return false;}return true;};
+     const pr0=out[out.length-1],nx1=P[i+1];
+     if(!onLand(tx,ty)&&segOk(pr0,[tx,ty])&&segOk([tx,ty],nx1)){out.push([tx,ty]);continue;}
+     if(!onLand(q[0]-ux*push,q[1]-uy*push)&&segOk(pr0,[q[0]-ux*push,q[1]-uy*push])){out.push([q[0]-ux*push,q[1]-uy*push]);continue;}
+     /* Both sides are beach (the two routes run down a strait with land either side, which is
+        exactly the case at the Sumatra end of jkt-tnj). Try sliding along the route instead: that
+        still separates two cables that are merely running parallel. */
+     let moved=false;
+     const pr=out[out.length-1],nx2=P[i+1][0]-pr[0],ny2=P[i+1][1]-pr[1],nl=Math.hypot(nx2,ny2)||1;
+     for(const sg of [1,-1]){
+      const ax=-ny2/nl*push*sg,ay=nx2/nl*push*sg;
+      if(!onLand(q[0]+ax,q[1]+ay)){out.push([q[0]+ax,q[1]+ay]);moved=true;break;}
+     }
+     out.push(moved?out.pop():q);
+    }
+    out.push(P[P.length-1]);
+    cp.pts=out;
+    if(worst>=want*0.95)break;
+   }
+  }
+ }
+}
+/* Two corridors are drawn by bowCables() alone now: the hub fan (which spreads the routes that
+   leave a city) and the duplicate-route lane (two cables sold between the same pair of cities).
+   A third pass, applyLanes()/laneSeparation(), used to shove every route sideways wherever it
+   passed within 14px of another one. It is gone: on all three regions it added ~1500 direction
+   reversals and ~140 turns over 110 degrees per map while improving the count of cables drawn
+   within 3px of a hub-sharing neighbour by about 1% (SEA 522 -> 517), tripled the average
+   detour (1.26x -> 1.52x) and pushed the drawn line up to 94px off the real sea route. The
+   shove is applied along a normal that changes direction every few vertices, so it bent the
+   line rather than sliding it. Shape defects are repaired by tidyCables() instead. */
+function bowCables(){
  /* Two things made the fan collapse back into a pile.
     1. Order is not direction. Handing out slots in CABLE_PAIRS order, with an alternating sign,
        put two cables that leave a hub in the same direction on opposite slots only by luck; the
@@ -1892,9 +1874,6 @@ function bowCables(corrOff){
   if((!f||!f.s)&&!l)continue;
   const dx=wrapDx(A.x,B.x),dy=B.y-A.y,len=Math.hypot(dx,dy)||1;
   const nx=-dy/len,ny=dx/len;
-  const cvv=corrOff.get(cp);
-  /* A corridor offset needs at least one point beside the endpoints to act on. */
-  if((!f||!f.s)&&!l&&!cvv)continue;
   /* The widest cable at a hub stays inside FRAC of the chord, so a short hop does not swing out
      like an ocean crossing, and PITCH caps the gap between neighbours on long runs. FRAC*len
      shrinks to nothing on a short hop though — Batam–Tanjung Pinang is ~20 px, so its whole fan
@@ -1917,52 +1896,19 @@ function bowCables(corrOff){
   for(let i=1;i<cp.pts.length;i++){Lp+=Math.hypot(cp.pts[i][0]-cp.pts[i-1][0],cp.pts[i][1]-cp.pts[i-1][1]);cum.push(Lp);}
   cp.pts=[cp.pts[0]].concat(mid.map((q,j)=>{
    const env=Math.sin(Math.PI*(j+1)/last);
-   /* `cvv[j+1]` is the feathered LANE offset for this waypoint: a signed distance applied along
-      the local perpendicular of the route's own tangent, so a shared corridor becomes parallel
-      lanes that follow its bends instead of points shoved apart radially. Index j+1 because
-      cp.pts[0] is the city itself and is never moved. */
-   const w=cvv?cvv[j+1]:0;
    const env2=Math.max(0,Math.min(1,Math.min(cum[j+1],Lp-cum[j+1])/MERGE));
    const d=(f?f.s*unit:0)*env;
    const lat=l*LANE*env2;
-   if(!w){
-    /* The early return used to skip the land check entirely, so any waypoint without a corridor
-       offset (most of them) was pushed sideways with no guard — that is why `bti2 mdc-pnk` went
-       from 2 land points to 20 once the bow was applied. */
-    const qx=q[0]+nx*d+nx*lat, qy=q[1]+ny*d+ny*lat;
-    if(!onLand(qx,qy))return [qx,qy];
-    for(let k=1;k<=10;k++){
-     const f2=1-k/11;
-     const tx=q[0]+(nx*d+nx*lat)*f2, ty=q[1]+(ny*d+ny*lat)*f2;
-     if(!onLand(tx,ty))return [tx,ty];
-    }
-    return [q[0],q[1]];
-   }
-   const pr=cp.pts[j],nxr=q[0]-pr[0],nyr=q[1]-pr[1],rl=Math.hypot(nxr,nyr)||1;
-   const ox=nx*d+nx*lat, oy=ny*d+ny*lat;      // hub fan + duplicate-route lane
-   const cx=-nyr/rl*w*env2, cy=nxr/rl*w*env2;  // corridor lane, along the local normal
-   /* Never push a cable onto land. The raw sea route is 0.9% over land, but with the fan, lane
-      and corridor offsets applied it was 30%: a 16px sideways shove moves a cable in a 10km strait
-      straight onto the beach, and a player saw cables crossing Borneo. Shrink the offset until the
-      point is back in water, keeping direction. */
-   /* Try the corridor lane on BOTH sides before shrinking it. In a narrow strait (the Makassar
-      Strait, the passage north of Jayapura) one side is always beach, so a one-sided guard
-      collapsed the lane to 2px and two cables that were supposed to be 14px apart still drew as
-      one line. Flipping the normal costs nothing when the first side is water, and recovers most
-      of the separation when it is not. */
-   for(const side of [1,-1]){
-    const px=q[0]+ox+side*cx, py=q[1]+oy+side*cy;
-    if(!onLand(px,py))return [px,py];
-   }
-   /* Both sides are beach (or the offset is zero): shrink toward the raw waypoint. If even the
-      raw waypoint is on land (the sea router's own 0.9% error), keep it — moving it makes things
-      worse, not better. */
+   /* Never push a cable onto land: a 16px sideways shove moves a cable in a 10km strait straight
+      onto the beach. Shrink the offset until the point is back in water, keeping direction; if even
+      the raw waypoint is on land (the sea router's own 0.9% error) keep it, because moving it
+      makes things worse, not better. */
+   const qx=q[0]+nx*d+nx*lat, qy=q[1]+ny*d+ny*lat;
+   if(!onLand(qx,qy))return [qx,qy];
    for(let k=1;k<=10;k++){
-     const f2=1-k/11;
-     for(const side of [1,-1]){
-       const tx=q[0]+(ox+side*cx)*f2, ty=q[1]+(oy+side*cy)*f2;
-       if(!onLand(tx,ty))return [tx,ty];
-     }
+    const f2=1-k/11;
+    const tx=q[0]+(nx*d+nx*lat)*f2, ty=q[1]+(ny*d+ny*lat)*f2;
+    if(!onLand(tx,ty))return [tx,ty];
    }
    return [q[0],q[1]];
   }),[cp.pts[cp.pts.length-1]]);
@@ -6845,11 +6791,17 @@ function rebuildDerived(){
   return {cid:c.id,a,b,pts,km:Math.round(L)};}));
  /* Order matters. bowCables() spreads the hub fan on the raw route; smoothCables() then rebuilds
     every polyline with Chaikin, roughly doubling the vertex count; only after that is the point
-    list final, so the lane offsets must be computed against it. Computing them inside bowCables()
-    (as this code used to) sized the offset array for the pre-smooth route and then read it
-    against a route with different indices. */
+    list final, so any per-point offset must be computed against it.
+    applyLanes() used to run here. It was removed: measured on all three regions it added ~1500
+    direction reversals and ~140 turns over 110 degrees per map (SEA flips 620 -> 2129) while
+    improving the count of cables drawn within 3px of a hub-sharing neighbour by about 1%
+    (522 -> 517). It also tripled the average detour (1.26x -> 1.52x) and pushed the drawn line
+    up to 94px off the real sea route, because the lane offset is a per-point shove along a
+    normal that changes direction every few vertices. The player-visible result was the same
+    complaint it was meant to fix: "beberapa kabel masih ada yang kurang rapih".
+    What actually needed fixing was the line's SHAPE, which tidyCables() now does. */
  bowCables();clearLand();dedup();smoothCables();clearLand();dedup();
- applyLanes();clearLand();dedup();
+ tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
  /* Filter the networks that actually have a POP in this region before deriving NET,
     NSH and the exchange member lists. `NETS` itself is never resized: REGION.global.nets
