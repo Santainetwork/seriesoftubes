@@ -12,6 +12,12 @@ All notable changes to this project are documented here. The project follows
 - Parallel cables finally look parallel. Lane offsets were computed before the smoothing pass rebuilt every route, so the offset array indexed the wrong points and dozens of cables on the Southeast Asia map drew on top of each other as one thick line. Lanes are now computed against the final geometry, ranked locally per stretch instead of per map-wide group, and each route picks its side once so a narrow strait cannot fold it.
 - The Southeast Asia map gains 25 real submarine-cable pairs across nine systems, extracted from TeleGeography's public cable data and routed through water: Singapore–Bangkok, Bangkok–Vietnam, Manila–Cebu–Davao, Brunei, Penang and Manado. Its Indonesian cities also show the domestic cable systems the Indonesia map already had, so no city on that map is left without a cable.
 
+## [1.29.1] — 2026-10-31
+
+- Conference leads arrive on the day, not at registration. Registering only books the event — the prospect is rolled on the day itself (75% chance), so skipping the trip means no lead. No more instant deals the moment you pay the fee.
+- The game no longer pauses itself. Auto-pause on furious customers and on hurting outages is off by default — warnings still show, the clock just keeps running. Re-enable either in Settings if you miss it.
+- Infra router list no longer wraps. The model name sits on its own line and the spec line stays single-row with an ellipsis, using a short "boots ~11m" label.
+
 ## [1.29.0] — 2026-10-26
 
 - Merged upstream v1.28.0 and v1.29.0 into the fork. Africa grows from five cities to twenty-six with its own scenario, Brazil gets all forty IX.brrr locations, the game speaks Portuguese, RouteScript learns `prefer transit`, `avoid transit`, `prepend transit` and `protect customers`, twelve more Latin American cities and seven new African cables arrive, and big networks get a lot faster. Everything the fork had on top of v1.27 survives the merge: the Indonesia and SEA maps, the Natural Earth coastline, the sea-routed cables, the Komdigi licence, karhutla, the conferences and the Indonesian NAPs. The NOC's Leased lines tab is back too — the 1.27.0 merge had left it calling a function that no longer existed, so opening it threw.
