@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/). Each release is deployed to
 [seriesoftub.es](https://seriesoftub.es).
 
+## [1.29.3] — 2026-10-31
+
+- NOC dashboard gains a Live Social tab. A Threads/X-style timeline generated from your real game state: unhappy customers rant with their city and shortfall, happy ones post speedtests, unserved cities ask for an ISP with a demand estimate (your next-POP hint), and outages get roasted. No random flavour — names, cities and numbers all come from your network.
+
 ## [1.29.2] — 2026-10-31
 
 - Cables are drawn as clean strokes instead of thorns and staircases. Three passes were fighting over the line: a per-point lane offset that shoved every route sideways wherever another one passed within 14px, a land-clearance pass that could snap a point backwards onto the stretch it had just left, and a duplicate-route lane that ran before the last land pass undid it. The lane offset is gone — it added ~1,500 direction reversals and ~140 turns over 110 degrees per map while improving the count of cables drawn within 3px of a neighbour by about 1% (SEA 522 → 517), tripled the average detour (1.26x → 1.52x) and pushed lines up to 94px off their real sea route. In its place a repair pass deletes the vertices that make a barb (a 17px out-and-back spike, a 1px duplicate, a staircase corner) and leaves the rest alone, and two cables sold between the same cities — which share one waypoint list and therefore every route-shaped offset — are pushed apart with a measured repel. Measured by arc length so a denser line cannot flatter itself: SEA went from 20.4 direction spikes per 1,000 sampled points to 2.8, against 2.4 for the hand-drawn sea routes underneath; IDN 11.1 → 1.6, Global 9.9 → 2.7.

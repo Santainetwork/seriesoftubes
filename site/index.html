@@ -5845,12 +5845,13 @@ function dashTabs(){const u=custStats().unhappy,cur=UI.dtab||'overview',L={overv
 function socialFeed(){
   const out=[],mine=new Set(Object.keys(S.pops));
   // 1. Your customers talk: unhappy ones vent, happy ones shill.
+  const netName=(S.name||'you').trim()||'you',netHandle='@'+netName.toLowerCase().replace(/[^a-z0-9]+/g,'');
   for(const b of S.biz.slice().sort((a,c)=>a.mood-c.mood).slice(0,6)){
     const city=CITY[b.city]?CITY[b.city].name:b.city;
     const sf=bizSf(b),got=Math.round(sf*100);
-    if(b.mood<30)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['ping 400ms ke server SG dari', 'lag parah main valorant di', 'zoom putus-putus terus di'])} ${city} pakai ${esc(S.name)} 😡 bayar ${fmtG(b.bw)} cuma dapat ${got}% — @${esc(S.name.toLowerCase().replace(/[^a-z0-9]+/g,''))} ini kapan dibenerin???`,k:'bad',d:S.day});
-    else if(b.mood<60)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['udah 3 hari lemot di', 'speed turun setengah di', 'malem jam 8 buffering mulu di'])} ${city}… ${esc(S.name)} tolong dicek dong 🙏`,k:'warn',d:S.day});
-    else if(b.mood>=85&&Math.random()<0.7)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['pindah ke', 'langganan', 'pakai'])} ${esc(S.name)} di ${city} speedtest tembus ${fmtG(b.bw)} 🔥🔥 recommended!`,k:'good',d:S.day});
+    if(b.mood<30)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['ping 400ms ke server SG dari', 'lag parah main valorant di', 'zoom putus-putus terus di'])} ${city} pakai ${esc(netName)} 😡 bayar ${fmtG(b.bw)} cuma dapat ${got}% — @${netHandle.slice(1)} ini kapan dibenerin???`,k:'bad',d:S.day});
+    else if(b.mood<60)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['udah 3 hari lemot di', 'speed turun setengah di', 'malem jam 8 buffering mulu di'])} ${city}… ${esc(netName)} tolong dicek dong 🙏`,k:'warn',d:S.day});
+    else if(b.mood>=85&&Math.random()<0.7)out.push({who:`@${b.name.toLowerCase().replace(/[^a-z0-9]+/g,'')}`,t:`${pick(['pindah ke', 'langganan', 'pakai'])} ${esc(netName)} di ${city} speedtest tembus ${fmtG(b.bw)} 🔥🔥 recommended!`,k:'good',d:S.day});
   }
   // 2. Unserved cities ask for an ISP — a lead hint for the player.
   const prospects=Object.keys(CITY).filter(c=>!mine[c]&&CITY[c].P>50).sort(()=>Math.random()-0.5).slice(0,3);
@@ -5859,9 +5860,9 @@ function socialFeed(){
     out.push({who:`@warga_${c}`,t:`tanya dong, di ${C.name} ada ISP bagus nggak? butuh ~${fmtG(Math.max(1,C.P*0.02))} buat ${pick(['warkop gaming','kost 40 kamar','kantor cabang','sekolah','klinik'])} 🙏 yang uptime-nya beneran, bukan yang tiap hujan RTO`,k:'ask',d:S.day});
   }
   // 3. Sarkas ambient: netizens react to your outages.
-  if(S.inc.length)out.push({who:'@pingman_id',t:`${esc(S.name)} down lagi??? ini ISP apa warnet jam 9 malem 💀`,k:'bad',d:S.day});
-  if(R.reach<0.99)out.push({who:'@bgp_watcher',t:`reach ${esc(S.name)} ${pct(R.reach)} doang, sisanya lewat mana? lewat doa? 🙏`,k:'warn',d:S.day});
-  if(!out.length)out.push({who:'@daily_ping',t:`sepi banget timeline soal ${esc(S.name)}… either bagus banget atau pelanggannya cuma 2 😴`,k:'',d:S.day});
+  if(S.inc.length)out.push({who:'@pingman_id',t:`${esc(netName)} down lagi??? ini ISP apa warnet jam 9 malem 💀`,k:'bad',d:S.day});
+  if(R.reach<0.99)out.push({who:'@bgp_watcher',t:`reach ${esc(netName)} ${pct(R.reach)} doang, sisanya lewat mana? lewat doa? 🙏`,k:'warn',d:S.day});
+  if(!out.length)out.push({who:'@daily_ping',t:`sepi banget timeline soal ${esc(netName)}… either bagus banget atau pelanggannya cuma 2 😴`,k:'',d:S.day});
   // Newest first, cap 12.
   return out.slice(0,12);
 }
