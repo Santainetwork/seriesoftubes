@@ -8,13 +8,25 @@ const { load } = require('./harness.js');
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
+// The built page, stamped like build.js stamps it. Assembling it here rather than reading
+// _site/index.html keeps the test honest wherever it runs: a CI shard has no _site at all (only the
+// build job makes one), and a local _site may be months stale, which is exactly the thing this test
+// is about. The source carries the __VERSION__ placeholder, and IS_DEV is a const computed from it
+// (`IS_DEV = APP_VERSION.startsWith('__')`), so checkUpdate() returns immediately without the stamp.
+let builtPage = null;
+function built() {
+  if (builtPage) return builtPage;
+  const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+  const html = require('../scripts/lib/page').shipped().html
+    .replaceAll('__VERSION__', '9.9.8').replaceAll('__BUILD_DATE__', '2026-01-01');
+  builtPage = path.join(os.tmpdir(), `tubes-update-${process.pid}.html`);
+  fs.writeFileSync(builtPage, html);
+  return builtPage;
+}
+
 // Load the game, point fetch at a fake version.json, and pin what this build believes it is.
 function boot(runningVersion, availableVersion) {
-  /* Load the BUILT file, not site/index.html: the source carries the __VERSION__ placeholder, and
-     IS_DEV is a const computed from it (`IS_DEV = APP_VERSION.startsWith('__')`), so checkUpdate()
-     returns immediately under test. _site/index.html has a real version baked in by build.sh. */
-  const built = require('node:path').join(__dirname, '..', '_site', 'index.html');
-  const h = load({ file: built });
+  const h = load({ file: built() });
   /* APP_VERSION is a const, so it cannot be reassigned. Stub the comparison instead: report the
      running version when the client should look current, and something newer when the toast must
      appear. */
