@@ -181,7 +181,9 @@ let ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
 const cityOn=id=>{const c=CITY[id];return !!c&&(!c.off||!!(S&&(S.pops[id]||S.ixp[id]!==undefined)));};
 let OFFC=ALLC.filter(c=>!CITY[c].off);
 const ruCity=c=>!!CITY[c].ru;
-const cnCity=c=>!!CITY[c].cn;
+/* Null-safe: a hand-edited save (or a city an older map had) can name a place this map does not
+   hold, and a missing city must not throw inside compute(). */
+const cnCity=c=>{const C=CITY[c];return !!(C&&C.cn);};
 const BIGC=['man','edi','bcn','mil','rom','lis','ath','atn','den','phx','bos','hou','ruh','jed','doh','kyv','mel','bne','osa','kul','bkk','sgn','khi','dac','waw','prg','vie','bud','buh','ist','rio','bue','scl','bog','lim','del','maa','blr','hyd','tpe','cpt','auh','ber','zrh','nbo','cai','jkt','mnl','per','akl','dub','lax','tor','mex','dxb','cph','icn','sjc','dal','chi','ash','nyc','mia','sao','lon','ams','fra','par','mrs','mad','sto','bom','sin','hkg','tok','syd','jnb','lag'];
 const MIDC=['man','bcn','mil','lis','atn','den','phx','bos','hou','mel','osa','kul','bkk','waw','vie','ist','rio','bue','scl','bog','del','maa','blr','tpe','auh','ber','zrh','jkt','mnl','dub','lax','tor','dxb','icn','sjc','ash','nyc','chi','dal','mia','lon','ams','fra','par','mad','sin','hkg','tok','syd','bom','sao'];
 

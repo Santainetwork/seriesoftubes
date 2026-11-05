@@ -12,7 +12,7 @@ function sanitize(s){
   s.v=1;s.name=String(s.name==null?'Packet Pals':s.name).slice(0,24);s.day=int(s.day,0,1e7,0);s.cash=num(s.cash,0);s.asn=int(s.asn,1,4294967294,200000);
   s.priceMul=num(s.priceMul,1);s.nextFail=num(s.nextFail,s.day+45);s.nextEvent=num(s.nextEvent,s.day+40);s.lvl=int(s.lvl,1,LEVELS.length,1);s.neg=int(s.neg,0,1e7,0);s.loanStrikes=int(s.loanStrikes,0,1e3,0);
   for(const k of Object.keys(s.stats)){const v=s.stats[k];if(k==='by'||k==='f'||k==='ddT'){if(!v||typeof v!=='object')s.stats[k]={};else for(const j of Object.keys(v))v[j]=num(v[j],0);}else if(typeof v!=='boolean')s.stats[k]=num(v,0);}
-  for(const k of ['survived','incidents','peak'])s.stats[k]=num(s.stats[k],0);
+  for(const k of ['survived','incidents','peak','peakL2'])s.stats[k]=num(s.stats[k],0);
   // The chaos monkey (2.0): saves without one get their first visit scheduled on the next day tick.
   {const m=s.monkey&&typeof s.monkey==='object'&&!Array.isArray(s.monkey)?s.monkey:{},on=m.on?1:0,o={next:m.next==null?null:int(m.next,0,1e7,s.day+90),on};
    if(on){o.start=int(m.start,0,s.day,s.day);o.until=int(m.until,o.start,o.start+400,s.day+30);o.snip=int(m.snip,0,1e7,s.day+3);o.n=int(m.n,0,1e4,0);o.hurt=int(m.hurt,0,o.n,0);o.c=isCity(m.c)?m.c:isCity(s.home)?s.home:null;}
@@ -126,10 +126,6 @@ function sanitize(s){
    const m={mods:r.mods};s.rules=s.scn&&typeof s.scn==='object'?makeRules('oncall',m):s.mode==='sandbox'?makeRules('sandbox',{...m,chaos:r.chaos}):makeRules(NORMAL_PRESETS.includes(r.preset)?r.preset:'oncall',m);}
   specSanitize(s);
   if(s.te){if(typeof s.te!=='object')s.te=null;else{s.te.on=!!s.te.on;s.te.script=typeof s.te.script==='string'?s.te.script.slice(0,4000):'';}}
-  if(s.ev&&s.ev.ddos){const a=s.ev.ddos;
-    if(!a||typeof a!=='object'||!isCity(a.city)||!own(DDOS_VEC,a.vec))delete s.ev.ddos;
-    else{a.gbps=num(a.gbps,2);a.until=num(a.until,s.day);a.bh=!!a.bh;a.start=num(a.start,s.day);
-      if(!a.entry||typeof a.entry!=='object')a.entry={k:'edge',lab:''};else a.entry.lab=String(a.entry.lab||'').slice(0,60);}}
   return s;}
 function migrate(s){
   /* Komdigi (brief 20): a save from before the licence existed is not reset and not failed on

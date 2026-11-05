@@ -6,7 +6,7 @@
    writes over a newer one that another window saved. Each tab keeps its slot in sessionStorage: a reload continues it.
    Only one window plays a slot at a time: a Web Lock where the browser has them, else a heartbeat key, sot-open:<id>. */
 const SLOT_K='sot-save-v1:',SLOT_IX='sot-slots',SLOT_OLD='sot-save-v1',SLOT_HB='sot-open:',SLOT_SS='sot-slot',SLOT_MAIN='main';
-const SLOT={sq:{},top:{},rel:new Set(),no:new Set(),locks:new Map(),gzQ:new Map(),idle:[],wait:null,html:''};
+const SLOT={sq:{},top:{},rel:new Set(),no:new Set(),locks:new Map(),gzQ:new Map(),idle:[],wait:null,html:'',sess:{}};
 function slotRid(){try{const a=new Uint32Array(2);crypto.getRandomValues(a);return (a[0].toString(36)+a[1].toString(36)).slice(0,10);}catch(e){return (Date.now().toString(36)+(uidN++).toString(36)).slice(-10);}}
 const WIN=slotRid();// this page load; a reload is a new window that takes its tab's slot back
 const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
@@ -14,7 +14,9 @@ const lsDel=k=>{try{localStorage.removeItem(k);}catch(e){}};
 const ssGet=k=>{try{return sessionStorage.getItem(k);}catch(e){return null;}};
 const ssSet=(k,v)=>{try{if(v==null)sessionStorage.removeItem(k);else sessionStorage.setItem(k,v);}catch(e){}};
 const slotOkId=id=>typeof id==='string'&&/^[a-z0-9]{1,24}$/.test(id);
-const slotRaw=id=>slotOkId(id)?lsGet(SLOT_K+id)??(id===SLOT_MAIN?lsGet(SLOT_OLD):null):null;
+// A save set to 'this window only' never reaches localStorage: its text lives in SLOT.sess and is
+// read back from there first, so the running window can still reopen it.
+const slotRaw=id=>slotOkId(id)?(SLOT.sess[id]!==undefined?SLOT.sess[id]:lsGet(SLOT_K+id)??(id===SLOT_MAIN?lsGet(SLOT_OLD):null)):null;
 // ---------- the index: read like a save, never trusted ----------
 function slotClean(e){if(!e||typeof e!=='object'||!slotOkId(e.id))return null;
   return {id:e.id,name:String(e.name==null?'':e.name).slice(0,24),asn:int(e.asn,0,4294967294,0),mode:['normal','sandbox','scenario'].includes(e.mode)?e.mode:'normal',
@@ -102,6 +104,9 @@ function slotOpen(id,steal,done){if(!slotIdx(true).some(e=>e.id===id)){showTitle
   slotClaim(id,!!steal,ok=>{if(!ok){slotBusyModal(id);return;}
     const go=t=>{let s=null;try{s=JSON.parse(t);}catch(e){}
       if(!s||s.v!==1||s.lost){slotBroke(id);return;}const sv=s.sv;delete s.sv;
+      /* A network opened from the title brings its own map: bind it before migrate/compute, or it
+         would be loaded against whichever region the title last showed. */
+      if(s.region&&s.region!==curRegion&&ensureRegion(s.region))applyRegion(s.region);
       const prev=S;try{S=migrate(s);compute();}catch(e){console.error('[tubes] loading a network failed',e);S=prev;slotBroke(id);return;}
       if(UI.slot&&UI.slot!==id){const nw=S;S=prev;slotLeave();S=nw;}
       slotIn(id,sv);gameResume();if(done)done();};

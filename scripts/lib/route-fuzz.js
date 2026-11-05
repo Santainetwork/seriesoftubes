@@ -66,7 +66,13 @@ function playGame(pages, seed, opts = {}) {
   const { base, head } = pages;
   const r = rng(seed * 2654435761);
   const both = (fn, ...a) => [base.call(fn, ...a), head.call(fn, ...a)];
-  const L = base.call('lists');
+  /* The fork narrows the list of legal homes (a city where nobody sells transit would start you cut
+     off), so the base page offers more start cities than this checkout does. Play only the homes
+     both pages know, or the driver starts a game the head cannot place. */
+  const lb = base.call('lists'), lh = head.call('lists');
+  const both2 = (a, b) => { const s = new Set(b); return a.filter((x) => s.has(x)); };
+  const L = { homes: both2(lb.homes, lh.homes), special: both2(lb.special, lh.special), scn: both2(lb.scn, lh.scn), pz: both2(lb.pz, lh.pz), ar: both2(lb.ar, lh.ar) };
+  for (const k in L) if (!L[k].length) L[k] = lh[k];
   const log = [], acts = {};
   let div = null, days = 0;
   const note = (m) => { log.push(m); };

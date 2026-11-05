@@ -29,7 +29,13 @@ Object.assign(ACT,{
  share:()=>shareModal(),
  shareDl:()=>shareFile(f=>{if(!f)return;const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);track('share_download');}),
  shareGo:()=>shareFile(f=>{const d={title:'Series of Tubes',text:tr('route_script_and_tools.name_as_asn_tier_peak_peak',{name:S.name,asn:S.asn,tier:tierLabel(),peak:fmtG(peakTraffic())}),url:'https://seriesoftub.es/'};try{if(f&&navigator.canShare&&navigator.canShare({files:[f]}))d.files=[f];navigator.share(d).then(()=>track('share_done')).catch(()=>{});}catch(e){}}),
- confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day||(cf.cap&&lvl()<CAP_LV))return;if(!spend(confCost(cf)))return;S.confReg[key]=true;toast(tr('route_script_and_tools.registered_flights_booked_badge'),'good');after();},
+ confGo:({key})=>{S.confReg=S.confReg||{};if(S.confReg[key])return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day||(cf.cap&&lvl()<CAP_LV))return;if(!spend(confCost(cf)))return;S.confReg[key]=true;
+   /* Registering is the point where you meet people, so the lead arrives now rather than on the
+      day of the event. Waiting until the conference starts meant a player who registered and
+      then forgot about it got nothing at all — the whole reason to pay the fee is the pipeline
+      it opens. The deal carries the same fuse as before, counted from today. */
+   eventDeals(cf);
+   toast(tr('route_script_and_tools.registered_flights_booked_badge'),'good');after();},
  confSponsor:({key})=>{S.confReg=S.confReg||{};const was=S.confReg[key];if(was==='sp')return;const cf=upcomingConfs(75).find(x=>x.key===key);if(!cf||cf.day<=S.day||!confSp(cf))return;if(!spend(CONF_SP-(was?confCost(cf):0)))return;S.confReg[key]='sp';toast(tr('conferences.you_are_sponsoring_conf_your_logo',{conf:esc(cf.n),region:esc(REG[CITY[cf.c].reg])}),'good');sfx('coin');after();},
  tutSkip:()=>{S.tut=null;try{localStorage.setItem('sot-tut','1');}catch(e){}renderCoach();},
 });

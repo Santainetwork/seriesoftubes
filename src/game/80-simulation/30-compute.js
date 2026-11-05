@@ -78,7 +78,15 @@ function compute(){RW.gen++;
     if(XC)continue;
     // Index loops or forEach (same order): for…of here made an iterator result per exit and network.
     const ns=e.nets||NET_IDS;if(Array.isArray(ns)){for(let q=0;q<ns.length;q++)okAdd(e,ns[q]);}else ns.forEach(n=>okAdd(e,n));}
-  if(XC)rcReachPut(XC,R2);else for(const n of NETS){let any=false,nt=false;for(const e of okBy[n.id])if(e.rank>0){any=true;if(e.k!=='t'){nt=true;break;}}R2.reachable[n.id]=any;if(any)R2.reach+=NSH[n.id];if(nt){R2.nt[n.id]=1;R2.reachNT+=NSH[n.id];
+  /* A cache is not a path, and neither is a dead POP: when every exit is gone (the only POP is
+     down, or an outage took the transit with it) there is nothing to evaluate, and scoring reach
+     at 0 made every customer read as unserved — satisfaction followed it down and the contract
+     was cancelled within three days. Hold the previous reach instead; the exits are back when the
+     POP is. Caches never count as an exit either (rank 0). */
+  const anyExit=E.some(e=>e.rank>0);
+  if(XC)rcReachPut(XC,R2);else if(!anyExit){R2.reach=typeof R.reach==='number'?R.reach:1;R2.reachNT=R2.reach;
+    for(const n of NETS){R2.reachable[n.id]=R2.reach>0.999;if(R2.reachable[n.id])R2.nt[n.id]=1;}}
+  else for(const n of NETS){let any=false,nt=false;for(const e of okBy[n.id])if(e.rank>0){any=true;if(e.k!=='t'){nt=true;break;}}R2.reachable[n.id]=any;if(any)R2.reach+=NSH[n.id];if(nt){R2.nt[n.id]=1;R2.reachNT+=NSH[n.id];
     // Reached without transit only through the customers of networks you peer with (#85). R.cone[id]: the peer that
     // carries it, the first PNI's network or else the nearest upstream that is a member of an exchange you are on.
     if(!okBy[n.id].some(e=>(e.k==='p'||e.k==='ix')&&!coneOf(e,n.id)))R2.cone[n.id]=coneBy(okBy[n.id],n.id);}}})();
@@ -93,7 +101,12 @@ function compute(){RW.gen++;
   // Traffic shares by network index, and their sums, for each share table (and with Russia's throttle).
   const shArr=new Map(),shSum=new Map(),DEMTO=new Float64Array(NN),loc=scnRule('local');
   (()=>{for(const c of Object.keys(S.pops)){
-    const p=S.pops[c],ci=CIDX[c],cn=cnCity(c),SH=cn?NSH_CN:ruCity(c)?NSH_RU:CITY[c].kr&&S.krExit?NSH_KRX:NSH;const eye=(p.bb?p.bb.d:0)*viral*(cn&&ev.golden>day?1.4:1);const biz=bizBw[c]??0;const d0=eye+biz;
+    const p=S.pops[c],ci=CIDX[c],cn=cnCity(c),SH=cn?NSH_CN:ruCity(c)?NSH_RU:CITY[c].kr&&S.krExit?NSH_KRX:NSH;
+    /* Karhutla: the haze stops a terrestrial microwave shot, so a city on Sumatra, Kalimantan,
+       Batam or Java asks for a third more than its broadband base while it lasts. Subsea cable
+       sits on the seabed and is unaffected — this is demand, so it only applies to land. */
+    const hazeMul=(S.ev.karhutla>day&&CITY[c]&&['sum','kal','btm','jav'].includes(CITY[c].land))?1.3:1;
+    const eye=(p.bb?p.bb.d:0)*viral*hazeMul*(cn&&ev.golden>day?1.4:1);const biz=bizBw[c]??0;const d0=eye+biz;
     // Goggle video is throttled in Russia (#70): people there get half of it, so they ask for half. It is not
     // traffic you failed to deliver, and it does not cross your links only to be thrown away.
     const ru=ruCity(c),thr=n=>n==='ggl'&&ru?0.5:1;let sa=shArr.get(SH),sm=shSum.get(SH);if(!sa){shArr.set(SH,sa=NETS.map(n=>SH[n.id]||0));shSum.set(SH,sm=[]);}
@@ -323,6 +336,12 @@ function compute(){RW.gen++;
         sendGroup(REST,i,j);i=j;
       }
     }};
+  /* A puzzle allocates its private circuits before the IP flows, as this loop did before the fork moved L2
+     after IP to stop a 400G on-ramp starving a hosting outfit's own customers. Puzzles are authored (and
+     budgeted) against that order: their circuits are the priority traffic, and the eyeballs marked best-effort
+     are the traffic that may drop. Outside a puzzle the main game keeps IP first. */
+  const pzL2First=!!(S&&S.mode==='puzzle');
+  if(pzL2First)l2Alloc();
   for(const pass of PASSES)for(const rank of RANKS){
     if(!RSET.has(rank))continue;
     if(DSEL.has(rank)){directPass(rank,pass);continue;}
@@ -334,7 +353,7 @@ function compute(){RW.gen++;
      the reference build allocates the IP flows and nothing else. A private circuit
      loads routers too, hence the second copy of the node load line. */
   for(const i of NORD)R2.nodeLoad[CITIES[i].id]=NLOAD[i];
-  l2Alloc();
+  if(!pzL2First)l2Alloc();
   for(const i of NORD)R2.nodeLoad[CITIES[i].id]=NLOAD[i];
   for(const k of EGO)R2.egT[EXK[k]]=EGT[k];for(const j of NEO){const ne=NEG[j];for(let k=0;k<4;k++)ne[EXK[k]]=NEA[j*4+k];}
   (()=>{

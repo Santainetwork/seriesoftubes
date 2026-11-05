@@ -253,6 +253,9 @@ function popCap(){const R=roleDef();return R.maxPops||Infinity;}
    costs POP_COST × overMul, so the role keeps its identity without making any goal
    structurally impossible. */
 function popOverMul(){
+  /* A puzzle or architect run is a fixed budget with no role to play: the soft footprint
+     cap would quietly inflate its reference plans past the published budget. */
+  if(S&&S.mode==='puzzle') return 1;
   const R=roleDef(), cap=R.maxPops;
   if(!cap) return 1;
   const n=Object.keys(S.pops).length;

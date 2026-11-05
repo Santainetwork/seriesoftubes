@@ -1,7 +1,14 @@
 /* ---------- conference season ---------- */
 /* Brief 10 §2.1: each region gets its own event calendar. Global's entries are an invariant
-   (CONFS_GLOBAL) and are never mutated; applyRegion() rebinds CONFS. */
-const CONFS_GLOBAL=[{n:'PTC',c:'hnl',m:0,cap:1},{n:'NANOG',c:'chi',m:1},{n:'APRICOT',c:'sin',m:1},{n:'Peering Days',c:'waw',m:2},{n:'DKNOG',c:'cph',m:2,j:N_('conferences.the_hallway_track_moved_to_a')},{n:'UKNOF',c:'lon',m:3},{n:'MENOG',c:'dxb',m:3},{n:'NZNOG',c:'akl',m:3},{n:'RIPE',c:'ams',m:4},{n:'NANOG',c:'sea',m:5},{n:'IX Forum',c:'tok',m:6},{n:'AfPIF',c:'nbo',m:7},{n:'AusNOG',c:'syd',m:8},{n:'NLNOG Day',c:'ams',m:8},{n:'LACNOG',c:'sao',m:9},{n:'NANOG',c:'ash',m:9},{n:'Capacity Europe',c:'lon',m:9,cap:1},{n:'DENOG',c:'fra',m:10},{n:'RIPE',c:'ber',m:10},{n:'PTT Forum',c:'sao',m:11},{n:'PacNOG',c:'suv',m:11}];
+   (CONFS_GLOBAL) and are never mutated; applyRegion() rebinds CONFS. All names are parodies —
+   no real NOG, APRICOT or APJII spelling appears anywhere. */
+const CONFS_GLOBAL=[{n:'NANOG-ish',c:'chi',m:1},{n:'APRICOT-ish',c:'sin',m:1},{n:'Peering Days-ish',c:'waw',m:2},{n:'UKNOF-ish',c:'lon',m:3},{n:'MENOG-ish',c:'dxb',m:3},{n:'NZNOG-ish',c:'akl',m:3},{n:'RIPE-ish',c:'ams',m:4},{n:'NANOG-ish',c:'sea',m:5},{n:'IX Forum-ish',c:'tok',m:6},{n:'AfPIF-ish',c:'nbo',m:7},{n:'AusNOG-ish',c:'syd',m:8},{n:'LACNOG-ish',c:'sao',m:9},{n:'NANOG-ish',c:'ash',m:9},{n:'DENOG-ish',c:'fra',m:10},{n:'RIPE-ish',c:'ber',m:10},{n:'PTT Forum-ish',c:'sao',m:11},
+ {n:'DKNOG',c:'cph',m:2,j:N_('conferences.the_hallway_track_moved_to_a')},
+ {n:'NLNOG Day',c:'ams',m:8},
+ /* Upstream 2.7's capacity conference: carriers buy in bulk here and the deals are long. The fork's
+    calendar never had PTC (its first event was NANOG-ish), and keeping a month-0 capacity event
+    would make the first conference of a new network one a level-1 player cannot register for. */
+ {n:'Capacity Europe',c:'lon',m:9,cap:1}];
 /* The regional calendars are parodies — no real NOG, APRICOT or APJII spelling appears here. */
 const CONFS_SEA=[
  {n:'APRICOT-ish',  c:'sin', m:1},
@@ -78,12 +85,9 @@ function confTick(d){S.confReg=S.confReg||{};
     if(cf.cap)S.capDeal={at:d+4+Math.floor(Math.random()*5),c:cf.c};
     const r=Math.random();let extra='';if(r<0.3){const cash=5000+Math.floor(Math.random()*4)*5000;S.cash+=cash;extra=' '+tr('conferences.you_also_won_the_raffle_cash',{cash:fmt$(cash)});}else if(r<0.5)extra=' '+tr('conferences.someone_from_goggle_bought_you_a');if(cf.j)extra=' '+tr(cf.j)+(r<0.3?extra:'');
     toast(tr('conferences.conf_in_city_you_shook_a',{conf:esc(cf.n),city:esc(CITY[cf.c].name),n:CONF_DAYS,region:esc(REG[reg])})+(sp?' '+tr('conferences.your_logo_was_on_every_lanyard',{region:esc(REG[reg])}):'')+(cf.cap?' '+tr('conferences.carriers_took_your_card_expect_big'):'')+extra,'goal');sfx('coin');
-    /* The prospect only exists if you show up. No registration, no lead — a ticket you never
-       use buys nothing. And showing up is not a guarantee either: 1 in 4 trips ends with an
-       empty notebook, because that is what conferences are really like. Paid at the door means
-       the fuse counts from today, same as before. Do not pause here: this is good news and a
-       routine pipeline event, not an outage. */
-    if(Math.random()<0.75)eventDeals(cf);}
+    /* The lead was handed out when the player registered, so the day itself only delivers the
+       peering glow and the raffle. Firing eventDeals() here too would double the pipeline for
+       anyone who registered early. */}
   capDealTick(d);}
 function eventBizName(){
   return pick(['Hallway Track Ltd','Badge Scanner Co','Lanyard Logistics','Booth Babe Broadband',

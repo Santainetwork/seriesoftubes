@@ -45,15 +45,22 @@ test('global PNIs cover every eligible network and shared POP, including the lon
 });
 
 test('global PNIs share the available router ports, including four 10G breakouts per slot', () => {
-  for (const [tier, count] of [[1, 1], [0, 4]]) {
+  /* The fork's Rusty Router carries 16 ports where upstream 2.7's had 8, so seven cache boxes no
+     longer leave one port free (they leave nine). Fill the router to the last port instead of
+     hardcoding the count, then keep the invariant: the batch sells what is left and not one port
+     more. A 10G order rides four to a port, so four of the free port can be sold that way. */
+  for (const tier of [1, 0]) {
     const { dom, ev, errors } = load();
     setup(ev);
-    ev("S.pops.fra.rgen=0;S.caches=Array.from({length:7},()=>({id:uid(),city:'fra',net:'cfl'}));compute()");
-    assert.equal(ev(`pniBatch(null,${tier}).orders.length`), count);
-    assert.ok(ev(`pniBatch(null,${tier}).blocked.some(q=>/No free router ports/.test(q.why))`));
+    ev("S.pops.fra.rgen=0;S.caches=Array.from({length:portsMax('fra',0)-1},()=>({id:uid(),city:'fra',net:'cfl'}));compute()");
+    assert.equal(ev("portsMax('fra')-portsUsed('fra')"), 1, 'one router port left');
+    const batch = JSON.parse(ev(`JSON.stringify(pniBatch(null,${tier}))`));
+    assert.ok(batch.orders.length >= 1, 'the last free port can be sold');
+    assert.ok(ev(`pniBatch(null,${tier}).blocked.some(q=>/No free router ports/.test(q.why))`),
+      'and everyone else is told why not');
     ev(`ACT.pniAll({net:null,tier:${tier}})`);
-    assert.equal(ev('S.pni.length'), count);
-    assert.equal(ev("portsUsed('fra')"), 8);
+    assert.equal(ev('S.pni.length'), batch.orders.filter(q => !q.ex).length);
+    assert.equal(ev("portsUsed('fra')"), ev("portsMax('fra')"), 'the router is exactly full afterwards');
     const cash = ev('S.cash');
     ev(`ACT.pniAll({net:null,tier:${tier}})`);
     assert.equal(ev('S.cash'), cash);
@@ -63,19 +70,32 @@ test('global PNIs share the available router ports, including four 10G breakouts
 });
 
 test('global planning reserves ports for pending speed and LAG augments without mutating the save', () => {
+  /* The port an augment is queued for is not on the market. With the fork's 16-port Rusty Router
+     seven cache boxes leave nine ports, so the old "nothing at all fits" assertion no longer
+     holds; what must hold is that the reservation shrinks what the batch may take, and that
+     planning still changes nothing in the save. */
   for (const [tier, n] of [[1, 1], [0, 4]]) {
     const { dom, ev, errors } = load();
     setup(ev);
-    ev(`S.pops.fra.rgen=0;S.caches=Array.from({length:7},()=>({id:uid(),city:'fra',net:'cfl'}));
+    /* Four ports left, and the route wants more than that: the only reason the batch stops short
+       is the 0.75 of a port the pending augment already owns. */
+    ev(`S.pops.fra.rgen=0;S.caches=Array.from({length:portsMax('fra',0)-4},()=>({id:uid(),city:'fra',net:'cfl'}));
       S.pni=[{id:'pending',city:'fra',net:'cfl',tier:0,n:1,up:{tier:${tier},n:${n},ready:S.day+30}}];compute()`);
     const state = ev('JSON.stringify(S)');
-    assert.equal(ev('pniBatch(null,0).orders.length'), 0);
-    assert.equal(ev('pniBatch(null,1).orders.length'), 0);
-    assert.equal(ev('JSON.stringify(S)'), state);
+    const claim = () => ev('pniBatch(null,0).orders.reduce((a,q)=>a+(q.slots||0),0)');
+    const withUp = claim();
+    ev('S.pni[0].up=null');
+    const withoutUp = claim();
+    assert.ok(withoutUp > withUp, `the pending ${tier}/${n} augment takes ports off the market (${withoutUp} -> ${withUp})`);
+    ev(`S.pni[0].up={tier:${tier},n:${n},ready:S.day+30}`);
+    assert.equal(ev('JSON.stringify(S)'), state, 'planning changes nothing');
+    const plan = JSON.parse(ev('JSON.stringify(pniBatch(null,1))'));
     const cash = ev('S.cash');
     ev('ACT.pniAll({net:null,tier:1})');
-    assert.equal(ev('S.pni.length'), 1);
-    assert.equal(ev('S.cash'), cash);
+    assert.equal(ev('S.cash'), cash - plan.cost);
+    assert.equal(ev('S.pni.length'), 1 + plan.orders.filter(q => !q.ex).length);
+    assert.equal(ev("S.pni.find(p=>p.id==='pending').up.n"), n, 'the pending augment is untouched');
+    assert.equal(ev("portsUsed('fra')<=portsMax('fra')"), true, 'and the reservations still fit');
     assert.deepEqual(errors, []);
     dom.window.close();
   }

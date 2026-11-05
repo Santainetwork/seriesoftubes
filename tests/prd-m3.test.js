@@ -43,12 +43,21 @@ test('M3: picking SEA or Indonesia rebinds the map and enables the card', () => 
   assert.equal(ev("document.querySelector('[data-act=pickRegion][data-args*=\"sea\"]').disabled"), false);
   assert.equal(ev('curRegion'), 'sea');
   assert.equal(ev('H'), 1200);
-  assert.equal(ev("JSON.stringify([...document.querySelectorAll('.start')].map(b=>b.dataset.city))"),
-    '["jkt","mnl","bkk","sin"]');
+  /* Upstream 2.7 replaced the row of start buttons with the home-city drawer (#homeSel), so the
+     question is which cities the drawer offers: each of the region's own start cities, and nothing
+     that is not on this map. */
+  const offered = () => JSON.parse(ev("JSON.stringify([...document.querySelectorAll('#homeSel option')].map(o=>o.value))"));
+  const starts = () => JSON.parse(ev('JSON.stringify(REGION[curRegion].startCities)'));
+  assert.deepEqual(starts(), ['jkt', 'mnl', 'bkk', 'sin']);
+  for (const c of starts()) assert.ok(offered().includes(c), `SEA offers ${c}`);
+  assert.equal(ev("JSON.stringify([...document.querySelectorAll('#homeSel option')].filter(o=>!CITY[o.value]))"), '[]',
+    'every offered home exists on the SEA map');
   ev("ACT.pickRegion({id:'idn'})");
   assert.equal(ev('curRegion'), 'idn');
-  assert.equal(ev("JSON.stringify([...document.querySelectorAll('.start')].map(b=>b.dataset.city))"),
-    '["jkt","sby","upg"]');
+  assert.deepEqual(starts(), ['jkt', 'sby', 'upg']);
+  for (const c of starts()) assert.ok(offered().includes(c), `IDN offers ${c}`);
+  assert.equal(ev("JSON.stringify([...document.querySelectorAll('#homeSel option')].filter(o=>!CITY[o.value]))"), '[]',
+    'every offered home exists on the Indonesia map');
   assert.deepEqual(errors, []);
 });
 
@@ -298,7 +307,7 @@ test('M3: switching back to global restores the untouched world', () => {
      themselves grow with upstream, so pinning literals here means every map addition breaks a
      test that has nothing to do with map additions. */
   ev("applyRegion('global')");
-  const gCities = ev('CITIES.length'), gCables = ev('CABLE_PAIRS.length');
+  const gCities = ev('CITIES.length'), gCables = ev('CABLE_PAIRS.length'), gLands = ev('LANDS_LL.length');
   ev("applyRegion('sea')");
   ev("applyRegion('global')");
   assert.equal(ev('W'), 2000);
@@ -307,7 +316,7 @@ test('M3: switching back to global restores the untouched world', () => {
      global tables rather than leaving the SEA ones in place. So the check is against the values
      captured before the switch, not against numbers baked in when this test was written. */
   assert.equal(ev('CITIES.length'), gCities);
-  assert.equal(ev('LANDS_LL.length'), 14);
+  assert.equal(ev('LANDS_LL.length'), gLands);
   assert.equal(ev('LENSES.length'), 7);
   assert.equal(ev('CABLE_PAIRS.length'), gCables);
   assert.ok(ev('NETS.filter(n=>!n.tail).length') >= 68, 'the global network list is back');

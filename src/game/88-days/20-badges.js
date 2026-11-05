@@ -40,7 +40,7 @@ const BADGES=[
  {id:'anchor',i:'⚓',t:tr('common.anchors_aweigh'),d:tr('badges.have_a_cable_cut_by_a'),r:'r',ok:()=>!!(st().f||{}).anchor},
  {id:'retained',i:'🎁',t:tr('badges.customer_success_story'),d:tr('badges.take_a_de_kicks_retention_offer'),r:'r',ok:()=>!!st().retained},
  {id:'brrr',i:'🇧🇷',needs:{cities:['sao','rio','for']},t:tr('common.samba_peering'),d:tr('badges.ports_on_ix_brrr_in_sao'),r:'e',ok:()=>['sao','rio','for'].every(c=>S.ixp[c]!==undefined)},
- {id:'bingo',i:'🎰',needs:{dk:true},t:tr('badges.de_kicks_bingo'),d:tr('badges.ports_at_all_six_de_kicks'),r:'e',ok:()=>DK_CITIES.filter(c=>CITY[c]&&CITY[c].ix).every(c=>S.ixp[c]!==undefined)},
+ {id:'bingo',i:'🎰',needs:{dk:true},t:tr('badges.de_kicks_bingo'),d:tr('badges.ports_at_all_six_de_kicks'),r:'e',ok:()=>dkCities().length>0&&dkCities().every(c=>S.ixp[c]!==undefined)},
  {id:'fire',i:'🌋',needs:{cities:['lax','tok','tpe','mnl','jkt','syd','akl','scl']},t:tr('badges.ring_of_fire'),d:tr('badges.pops_all_the_way_round_the'),r:'e',ok:()=>['lax','tok','tpe','mnl','jkt','syd','akl','scl'].every(c=>S.pops[c])},
  {id:'curtain',i:'🎭',needs:{cities:['waw','prg','vie','bud','buh','sof','beg','tll']},t:tr('badges.iron_curtain_call'),d:tr('badges.pops_in_warsaw_prague_vienna'),r:'e',ok:()=>['waw','prg','vie','bud','buh','sof','beg','tll'].every(c=>S.pops[c])},
  {id:'islands',i:'🏝️',needs:{cities:['rek','dub','lon','cbo','tpe','mnl','tok','akl']},t:tr('common.island_hopper'),d:tr('badges.pops_in_reykjavik_dublin_london'),r:'e',ok:()=>['rek','dub','lon','cbo','tpe','mnl','tok','akl'].every(c=>S.pops[c])},
@@ -105,7 +105,7 @@ function badgeShelf(h){const o={freeze:0,oncall:0,bgp:0};for(const b of BADGES){
 function badgeGrid(){const h=hof(),got=BADGES.filter(b=>S.ach&&S.ach[b.id]!==undefined).length,sh=badgeShelf(h),V=badgeVar();
   return `<h3 style="font-size:15px;margin:14px 0 6px">${tr('common.badges')} <span class="meta">${tr('badges.got_total_this_game_ever_ever',{got,total:BADGES.length,ever:Object.keys(h).filter(k=>BADGES.some(b=>b.id===k)).length})}</span></h3>
   <div class="bshelf">${BVAR_IDS.map(v=>`<span class="bsh v-${v}${V===v?' cur':''}">${BVAR[v].i} ${esc(tr(BVAR[v].n))} <b>${sh[v]}/${BADGES.length}</b></span>`).join('')}</div>${V&&V!=='oncall'?`<p class="meta" style="margin:0 0 6px">${V==='bgp'?tr('badges.this_game_earns_fiery_badges'):tr('badges.this_game_earns_frosted_badges')}</p>`:''}
-  <div class="badges">${BADGES.map(b=>{const on=S.ach&&S.ach[b.id]!==undefined,ever=!!h[b.id],R0=RARITY[b.r],hide=b.secret&&!on&&!ever,vk=on?bvar(S.achP&&S.achP[b.id]).k:ever?h[b.id].v:'',vn=vk&&vk!=='oncall'?' · '+BVAR[vk].i+' '+tr(BVAR[vk].n):'';
+  <div class="badges">${badgeList(h).map(b=>{const on=S.ach&&S.ach[b.id]!==undefined,ever=!!h[b.id],R0=RARITY[b.r],hide=b.secret&&!on&&!ever,vk=on?bvar(S.achP&&S.achP[b.id]).k:ever?h[b.id].v:'',vn=vk&&vk!=='oncall'?' · '+BVAR[vk].i+' '+tr(BVAR[vk].n):'';
     return `<div class="bdg ${on?'on':ever?'ever':''}${vk?' v-'+vk:''}" style="--rc:${R0.col}" title="${esc(hide?tr('badges.a_secret_badge'):b.t+': '+b.d+vn)}"><span class="bi">${hide?'❔':b.i}</span><span class="bt">${esc(hide?'???':b.t)}</span><span class="br">${R0.n}${ever&&!on?' · '+tr('common.earned_before'):''}</span>${vk&&vk!=='oncall'?`<span class="bv">${BVAR[vk].i} ${esc(tr(BVAR[vk].n))}</span>`:''}${hide?'':`<span class="bd">${esc(b.d)}</span>`}</div>`;}).join('')}</div>`;}
 function checkGoals(){checkBadges();
   for(const g of goalsFor()){if(S.done[g.id]!==undefined)continue;let ok=false;try{ok=g.ok();}catch(e){}
@@ -113,4 +113,3 @@ function checkGoals(){checkBadges();
       toast(`<b>${tr('badges.goal_complete_name',{name:esc(g.t)})}</b>${g.r?`<br>${tr('badges.reward_amt',{amt:fmt$(g.r)})}`:''}`,'goal',[],{a:'tab',v:'goals'});sfx('coin');
       track('goal_'+g.id);if(g.win&&!S.won){S.won=true;track('win_tier1');checkBadges();showWin();}}}
 }
-

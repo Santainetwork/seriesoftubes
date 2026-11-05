@@ -4,7 +4,12 @@
    again (1 minute, then 2, 4, at most 5); leaving the page, exporting or another game (a new S) still try at once. */
 /* A puzzle is never saved: only its stars are, under their own key (sot-puzzles). While one runs, the network it set
    aside (UI.pzKeep) is the one saved, to its own slot, so closing the tab mid-puzzle loses nothing. */
-function save(force,st){if(!st)st=pzOn()?UI.pzKeep:S;const id=UI.slot;
+function save(force,st){
+  /* Fork save mode (PRD §5.1): 'none' never writes, and 'session' keeps the network only in this
+     window (its text lives in SLOT.sess, never in localStorage). Both still work in memory, so the
+     running network is unaffected until the page is reloaded. */
+  if(UI.saveMode==='none'){UI.lastSave=performance.now();return;}
+  if(!st)st=pzOn()?UI.pzKeep:S;const id=UI.slot;
   // Half a day (its routing still in the worker) is never saved: the day's end saves instead.
   if(RW.job&&st===S){UI.saveDue=true;UI.lastSave=performance.now();return;}
   if(!st||st.lost||st.mode==='puzzle'||!id||SLOT.no.has(id))return;
@@ -13,9 +18,13 @@ function save(force,st){if(!st)st=pzOn()?UI.pzKeep:S;const id=UI.slot;
   UI.lastSave=performance.now();
   // Set aside for a puzzle, it cannot change: once its save has landed (or is still compressing), there is nothing to do.
   if(st!==S&&!failed&&(SLOT.top[id]||0)>0)return;
+  /* The fork's savedAt marker (PRD §5.1): the wall-clock time of the last write, kept in the save
+     itself so the title can say when a network was last on screen. */
+  st.savedAt=Date.now();
   const txt=JSON.stringify(packSave(st));
   let tier=null;if(st===S)try{tier=tierLabel();}catch(e){}
   const seq=SLOT.top[id]=Math.max(SLOT.top[id]||0,SLOT.sq[id]||0)+1,j={id,s:st,txt,seq,meta:slotMeta(st,tier)};
+  if(UI.saveMode==='session'){SLOT.sess[id]=slotStamp(txt,seq);return;}
   if(txt.length>=GZ_MIN&&gzOk())gzSave(j);else slotPut(j,slotStamp(txt,seq));}
 function saveErr(e,s){const f=UI.saveFail,again=f&&f.s===s;UI.saveFail={s,at:performance.now(),wait:again?Math.min(300000,f.wait*2):60000,full:saveFull(e)};
   // Say so once per game (#176): a save that silently fails loses everything since the last one that worked.
@@ -75,6 +84,6 @@ function importFile(file){if(!file)return;if(file.size>64e6){toast(tr('save.that
     UI.importing=r.s;openModal(`<div class="eyebrow">${tr('common.import_a_save')}</div><h2 style="font-size:26px">${tr('save.load_name',{name:esc(r.name)})}</h2><p class="tagline">${esc(dateStr(r.s.day))} · ${tr('save.cash_in_the_bank',{cash:fmt$(r.s.cash)})} · ${trn('save.n_pop',Object.keys(r.s.pops).length)} · ${tr('save.saved_by_v_ver',{ver:esc(r.ver)})}</p><p class="note">${tr('slots.it_joins_your_networks_on_this')}</p><div class="btns">${btn(tr('save.load_this_network'),'importGo',{},'pink big')}${btn(tr('common.cancel'),UI.started?'closeModal':'helpClose',{},'ghost big')}</div>`);};
   rd.readAsText(file);}
 // This window's network, read synchronously (a compressed one was unpacked before boot). UI.loadBad: there, but unreadable.
-function loadSave(){UI.loadBad=false;const raw=slotRaw(UI.slot);if(raw==null)return null;
+function loadSave(){UI.loadBad=false;if(UI.saveMode==='none')return null;const raw=slotRaw(UI.slot);if(raw==null)return null;
   try{const t=raw.startsWith(GZ)?raw===UI.gzRaw?UI.gzText:null:raw;if(t){const s=JSON.parse(t);if(s&&s.v===1){if(!s.lost)return s;return null;}}}catch(e){}
   UI.loadBad=true;return null;}

@@ -67,9 +67,9 @@ const regenNeed=(o,l)=>Math.max(0,Math.ceil(l.km/reachOn(OPT[o].reach,l.sub))-1)
 let DFC=null;
 const dfCap=l=>{if(!DFC)return dfCap0(l);let g=DFC.get(l);if(g===undefined)DFC.set(l,g=dfCap0(l));return g;};
 const dfCap0=l=>{if(l.ready>S.day||l.eqDown>S.day)return 0;const ch=l.ch||[];let g=0;for(const c of ch)g+=optG(c,l);const f=l.chFail&&l.chFail.until>S.day?l.chFail:null;if(f){const fo=f.o&&ch.includes(f.o)?f.o:ch.slice().sort((a,b)=>optG(a,l)-optG(b,l))[0];if(fo)g-=optG(fo,l);}return Math.max(0,g);};
-const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.loss&&l.loss.until>S.day?l.loss.f:1);
+const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.loss&&l.loss.until>S.day?l.loss.f:1)/* Karhutla: haze stops a terrestrial microwave shot, so land links lose a third of their
+   capacity while it lasts. Subsea cable sits on the seabed and is unaffected. */*((S&&S.ev&&S.ev.karhutla>S.day&&!l.sub&&!l.cable&&((CITY[l.a]&&['sum','kal','btm','jav'].includes(CITY[l.a].land))||(CITY[l.b]&&['sum','kal','btm','jav'].includes(CITY[l.b].land))))?0.66:1);
 // A sick LAG (LACP trouble) keeps only part of its capacity until the incident clears.
 const lagF=o=>o&&o.lacp&&o.lacp.until>S.day?o.lacp.f:1,ixLagF=x=>lagF(S.ev&&S.ev.ixlacp&&{lacp:S.ev.ixlacp[x]});
 const tierW=l=>{if(l.kind==='wave')return l.tier;if(l.kind==='vxc')return 0;const g=dfCap(l);return g>=6400?4:g>=1600?3:g>=400?2:g>=100?1:0;};
 const capName=l=>l.kind==='vxc'?VXC[l.vt].n:l.kind==='df'?(l.ready>S.day?tr('common.building'):(l.ch||[]).length?fmtCap(dfCap(l)||(l.ch||[]).reduce((a,c)=>a+optG(c,l),0))+' DF':tr('common.dark')):LT[l.tier].n;
-

@@ -36,7 +36,10 @@ function spawnMega(t,T,nm,mine){
     S.offers.push({id:uid(),city:hub.c,city2:null,sites,name:tr('customers_and_events.name_hub_site',{name:nm(),site:hub.n}),type:t,bw,rate:Math.round((150+avg*0.08)*0.6),reqs:[],exp:S.day+45,mega:true});return;}
   /* A fiber-pairs deal is about the trench you dug, not about an AI campus: it must not inherit
      the campus gate above, or a map with no campus can never sell a pair of fibers. */
-  if(t==='pairs'){const ls=S.links.filter(l=>l.kind==='df'&&l.own&&l.ready<=S.day&&!S.biz.some(b=>(b.type==='pairs'||b.type==='dfpair')&&b.link===l.id)&&!S.offers.some(o=>o.link===l.id));if(!ls.length)return;const l=pick(ls),n=100+50*Math.floor(Math.random()*7);
+  /* A trench buyer is still demand on that route, so a route whose market is already full does
+     not get one: otherwise the broker's listings and the random offer pool compete for the same
+     waves and the player is offered capacity the route no longer wants. */
+  if(t==='pairs'){const ls=S.links.filter(l=>l.kind==='df'&&l.own&&l.ready<=S.day&&brFree(l)>=1&&!S.biz.some(b=>(b.type==='pairs'||b.type==='dfpair')&&b.link===l.id)&&!S.offers.some(o=>o.link===l.id));if(!ls.length)return;const l=pick(ls),n=100+50*Math.floor(Math.random()*7);
     S.offers.push({id:uid(),city:l.a,city2:l.b,link:l.id,what:tr('customers_and_events.n_fiber_pairs_in_your_a',{n,a:CITY[l.a].name,b:CITY[l.b].name}),name:nm(),type:t,bw:1,rate:Math.round(dfLeaseMo(l.km)*n*0.2),reqs:[],exp:S.day+30,mega:true});}
 }
 /* Brief 18 §B: Indonesian customer names for the Indonesia map. Every one is a parody —

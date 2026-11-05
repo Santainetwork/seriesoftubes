@@ -40,7 +40,11 @@ test('LAG: bundling identical ports adds ~95% of their capacity and costs each m
 
   // A PNI bundle behaves the same way and charges a cross-connect per member.
   // 'drz' is an open Tier 2 that will take a PNI at this size.
-  ev("ACT.pni({city:'fra',net:'drz',tier:1});const p=S.pni[0];window.__p0=S.cash;ACT.lagP({id:p.id,d:1});compute()");
+  /* Upstream 2.7 gives every PNI a provisioning lead (the order is not up the day it is placed),
+     so light it before bundling: a LAG member can only join a PNI that is up. */
+  ev("ACT.pni({city:'fra',net:'drz',tier:1});S.pni[0].ready=S.day;const p=S.pni[0];window.__p0=S.cash;ACT.lagP({id:p.id,d:1});compute()");
+  /* 2.7 lead time: the second member is an augment, so it lands as pni.up until its lead runs out. */
+  ev("S.pni.forEach(p=>{if(p.up)pniUpDone(p)});compute()");
   assert.equal(ev("S.pni[0].n"), 2);
   assert.ok(ev("__p0-S.cash") > 0, 'the extra PNI member was charged');
   assert.equal(ev("lagCap(PORT[S.pni[0].tier].g,S.pni[0].n)"), 190);

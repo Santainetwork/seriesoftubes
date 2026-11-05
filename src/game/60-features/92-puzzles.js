@@ -36,10 +36,17 @@ const pzStarsTotal=p=>PZ.reduce((a,x)=>a+((p.s[x.id]||{}).st|0),0);
 const pzPackOpen=(k,p)=>{const P=PZ_PACKS.find(x=>x.id===k);return !!P&&pzStarsTotal(p||pzLoad())>=P.need;};
 // ---------- prices: the real game's waves and routers, on day 0, for a year ----------
 const pzMood=(a,b,sub)=>{const k=waveMarket(a,b,sub);return k.m/k.ero;};
+/* A puzzle prices and times a cable over the route the cable data describes, not over the sea path the fork's
+   renderer draws for it: that drawn path wanders, so CABLE_PAIRS.km can be ~10% longer than the cable's own
+   route. Puzzle budgets and latency caps are authored against the real route, and with the drawn length the
+   baltic shortcut is no longer a shortcut at all. The drawing still uses the routed points; only the numbers
+   a puzzle charges and times by use the canonical route. */
+const pzCableKm=(cid,a,b)=>{const C=CAB[cid],P=C&&C.pairs.find(p=>(p[0]===a&&p[1]===b)||(p[0]===b&&p[1]===a));if(!P)return null;
+  const A=CITY[a],B=CITY[b],ll=[[A.lon,A.lat],...(P[2]||[]),[B.lon,B.lat]];let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);return Math.round(L);};
 // Overland (when the two cities share a landmass) and every cable between them, each with its price factor and latency.
 function pzRoutes(a,b){const out=[],sub=isSub(a,b);
   if(!sub){const km=kmBetween(a,b);out.push({via:'land',cab:null,km,sub:false,f:landMult(a,b)*pzMood(a,b,false),ms:km*1.3/200});}
-  for(const c of cablesFor(a,b))if(!out.some(r=>r.via===c.cid))out.push({via:c.cid,cab:c.cid,km:c.km,sub:true,f:CAB[c.cid].price*pzMood(a,b,true),ms:c.km*(CAB[c.cid].lat||1)/200});
+  for(const c of cablesFor(a,b))if(!out.some(r=>r.via===c.cid)){const km=pzCableKm(c.cid,c.a,c.b)||c.km;out.push({via:c.cid,cab:c.cid,km,sub:true,f:CAB[c.cid].price*pzMood(a,b,true),ms:km*(CAB[c.cid].lat||1)/200});}
   return out;}
 const pzMo=(r,tier,div)=>Math.round(waveMo(r.km,r.sub,tier)*r.f*(div?DIVERSE:1));
 const pzLinkCost=(r,tier,div)=>pzMo(r,tier,div)*PZ_YEAR;// leased waves have no setup fee: a year of rent

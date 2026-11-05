@@ -717,6 +717,7 @@ const API_STATE_DOC={
  confReg:{type:'map',doc:'Conferences registered for, by key; "sp" when sponsoring.'},
  hw:{type:'map',doc:'Hardware market: price shocks and any price lock.'},
  capDeal:{type:'map',doc:'The pending capacity deal from a capacity conference.'},
+ savedAt:{type:'integer',doc:'Wall-clock time (ms) of the last write to the save. The fork keeps it in S so a device save can be ordered by recency.'},
  cam:{type:'map',doc:'Map camera position. View state that save() happens to store inside S.'},
  uiSpeed:{type:'number',doc:'The speed you left the game at. View state that save() stores inside S.'},
  won:{type:'boolean',doc:'You reached Tier 1.'},

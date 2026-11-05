@@ -29,7 +29,10 @@ test('trace: the network list matches the region, not the global NETS', () => {
   /* The point is that each region offers its own list, not the global one. Global grows as
      upstream adds carriers, so the assertion is that global is larger than the regional lists and
      that SEA/IDN stay at their own sizes, rather than pinning a global count that moves. */
-  const expected = { sea: 45, idn: 51 };
+  /* Upstream 2.7 added carriers with POPs in Singapore and Jakarta, so each regional list grew.
+     The invariant this test protects is that each region offers its own list, not the Global one,
+     hence the exact regional counts below rather than a Global figure. */
+  const expected = { sea: 63, idn: 65 };
   for (const reg of Object.keys(expected)) {
     const { ev } = load();
     ev(`beginGame('T','jkt',{region:'${reg}',role:'isp'})`);

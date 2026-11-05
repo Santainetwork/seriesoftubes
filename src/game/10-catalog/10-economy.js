@@ -68,7 +68,7 @@ const MYIX_COST=80000, MYIX_MO=3000, MYIX_FEE=1500, START_CASH=200000;
 // Your own exchange's switching fabric. Bigger fabrics carry more and attract more members.
 const MYIX_FAB=[{n:'400G',g:400,cost:0,mo:3000,max:12},{n:'1.6T',g:1600,cost:60000,mo:6000,max:20,lvl:2},{n:'6.4T',g:6400,cost:200000,mo:12000,max:30,lvl:3},{n:'25.6T',g:25600,cost:600000,mo:25000,max:45,lvl:4},{n:'102.4T',g:102400,cost:1800000,mo:60000,max:60,lvl:9}];
 const myFab=c=>MYIX_FAB[Math.min(MYIX_FAB.length-1,Math.max(0,(S.myIx[c]&&S.myIx[c].fab)|0))];
-const LT=[{n:'10G',g:10,m:1},{n:'100G',g:100,m:2.8},{n:'400G',g:400,m:6},{n:'800G',g:800,m:9},{n:'1.6T',g:1600,m:13},{n:'6.4T',g:6400,m:28,car:1600,note:'handed off as 4×1.6T'},{n:'12.8T',g:12800,m:45,car:3200,note:'handed off as 4×3.2T'}];
+const LT=[{n:'10G',g:10,m:1},{n:'100G',g:100,m:2.8},{n:'400G',g:400,m:6},{n:'800G',g:800,m:9},{n:'1.6T',g:1600,m:13},{n:'6.4T',g:6400,m:28,car:1600,note:tr('economy.handed_off_as_4_1_6t')},{n:'12.8T',g:12800,m:45,car:3200,note:tr('economy.handed_off_as_4_3_2t')}];
 /* Brief 18: the port ladder runs from a copper 1G hand-off to a 6.4T fibre port, and every
    port carries two charges — the port itself, and the cross-connect that patches it into the
    meet-me room. Indices are load bearing (saves and tests store `tier` as an index), so the

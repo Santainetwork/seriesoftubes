@@ -117,7 +117,12 @@ function drawFrame(now){
     if(ly===null&&prio(v)===1)for(const y of [below,above]){const r={x:v.sx-tw/2,y:y-10,w:tw,h:21};if(!labs.some(q=>r.x<q.x+q.w&&q.x<r.x+r.w&&r.y<q.y+q.h&&q.y<r.y+r.h)){ly=y;rects.push(r);labs.push(r);break;}}
     if(ly===null&&(prio(v)===0||(prio(v)===1&&(v.C.id===S.home||UI.hover===v.C.id)))){ly=below;const r={x:v.sx-tw/2,y:below-10,w:tw,h:21};rects.push(r);labs.push(r);}
     v.ly=ly;}
-  if(pzOn()){for(const v of vis.slice().reverse())pzDrawCity(v,csc,now);}else for(const v of vis.slice().reverse())drawCity(v.C,v.sx,v.sy,csc,now,v.ly,v.dem);
+  /* A city that lost both label slots is not drawn at all when it has no POP: zoomed out, the dots
+     for tiny non-POP cities outnumber the names and read as dirt on the map. A selected, hovered,
+     snapped or offer/incident city keeps its art even without a name. */
+  if(pzOn()){for(const v of vis.slice().reverse())pzDrawCity(v,csc,now);}else for(const v of vis.slice().reverse()){
+    if(v.ly===null&&!S.pops[v.C.id]&&UI.hover!==v.C.id&&!(UI.sel&&UI.sel.type==='city'&&UI.sel.id===v.C.id)&&!(UI.snap&&UI.snap.id===v.C.id)&&!CM.off.has(v.C.id)&&!CM.inc.has(v.C.id))continue;
+    drawCity(v.C,v.sx,v.sy,csc,now,v.ly,v.dem);}
   // cable ships at sea (88-cable-ships.js), over the city labels so a ship leaving port stays in sight
   drawShips(ks,now);
   // Architect runs: what the tubes between two cities are (one trench, or separate paths), above the cities.

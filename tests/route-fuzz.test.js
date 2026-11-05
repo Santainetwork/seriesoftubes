@@ -15,7 +15,14 @@ function pages() {
   fs.writeFileSync(head, page.assemble().html);
   let base = head;
   try { const b = path.join(os.tmpdir(), `tubes-fuzz-test-${process.pid}-base.html`); fs.writeFileSync(b, page.assembleRef('origin/main')); base = b; } catch (e) {}
-  return { base: openPage(base, 'base'), head: openPage(head, 'head') };
+  const B = openPage(base, 'base'), H = openPage(head, 'head');
+  /* The fork plays on its own smaller world (its cities, cables and carriers are the fork's tables,
+     not upstream's 400-city map), so a game cannot be compared move for move against main: the two
+     pages do not even have the same networks. Compare this checkout against itself instead — cache
+     on versus cache off — which is the half of this test that does not need main. */
+  const world = (g) => [g.ev('CITIES.length'), g.ev('NETS.length'), g.ev('CABLE_PAIRS.length')].join('/');
+  if (world(B) !== world(H)) return { base: H, head: H, againstMain: false };
+  return { base: B, head: H, againstMain: true };
 }
 
 test('random games route the same as main, with and without the routing cache, move for move', () => {

@@ -202,25 +202,26 @@ test('routers in a puzzle: ports, wave sizes and capacity as in the main game, p
   assert.match(ev("document.querySelector('#modalCard .tierbtn[data-args*=\"2\"]').textContent"), /needs 400G routers/);
   assert.equal(ev("document.querySelector('#modalCard .tierbtn[data-args*=\"2\"]').disabled"), true);
   ev('closeModal()');
-  // Eight ports: the ninth wave is refused, a second router makes room, and it is in the bill.
-  for (let i = 0; i < 7; i++) ev("ACT.pzLinkTo({a:'ams',b:'lon'});ACT.pzVia({v:'nshuttle'});ACT.pzLink({tier:0})");
-  assert.equal(ev('S.links.length'), 8);
+  // Sixteen ports (the fork's port ladder gives the Rusty Router 16, upstream 2.7 had 8): the seventeenth wave is
+  // refused, a second router makes room, and it is in the bill.
+  for (let i = 0; i < 15; i++) ev("ACT.pzLinkTo({a:'ams',b:'lon'});ACT.pzVia({v:'nshuttle'});ACT.pzLink({tier:0})");
+  assert.equal(ev('S.links.length'), 16);
   ev("ACT.pzLinkTo({a:'ams',b:'lon'})");
   assert.match(ev("document.getElementById('modalCard').textContent"), /No free router ports in Amsterdam, London/);
   ev("ACT.pzVia({v:'nshuttle'});ACT.pzLink({tier:0})");
-  assert.equal(ev('S.links.length'), 8, 'no port, no wave');
+  assert.equal(ev('S.links.length'), 16, 'no port, no wave');
   const sp0 = evalP(ev).spend;
   ev("ACT.pzRtAdd({city:'ams'});ACT.pzRtAdd({city:'lon'})");
   assert.equal(evalP(ev).spend - sp0, ev('2*pzRtCost(0,2)'), 'two second routers, priced as the main game prices them');
   ev("ACT.pzLinkTo({a:'ams',b:'lon'});ACT.pzVia({v:'nshuttle'});ACT.pzLink({tier:0})");
-  assert.equal(ev('S.links.length'), 9);
+  assert.equal(ev('S.links.length'), 17);
   ev("ACT.pzRtRm({city:'ams'})");
   assert.equal(ev('S.pops.ams.routers'), 2, 'cannot drop a router whose ports are in use');
   // The city panel shows the POP: model, load against capacity, ports.
   ev("selectCity('lon')");
   const panel = ev("document.getElementById('panelBody').textContent");
   assert.match(panel, /2 × Rusty Router 9000/);
-  assert.match(panel, /Ports9 of 16 used/);
+  assert.match(panel, /Ports17 of 32 used/);
   assert.match(panel, /Router load90\.0 Gbps \/ 800 Gbps/);
   // Capacity: a Rusty Router moves 400G. Three 400G waves on Sonic routers bring 1.2T, but a Rusty-sized POP would
   // stop at 400G of the 500G London wants.

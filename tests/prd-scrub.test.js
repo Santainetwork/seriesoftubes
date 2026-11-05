@@ -27,9 +27,11 @@ test('ddos: the scrubbing center button calls an action that exists', () => {
 test('ddos: building one actually stands it up', () => {
   const { ev } = idn();
   ev('S.cash=3.4e9;S.lvl=2;');
-  assert.equal(ev('S.scrubAt'), null);
+  /* Upstream 2.7 (#117) replaced the single S.scrubAt slot with a per-city S.scrubs list, so a
+     player can run scrubbing centers in several POPs at once. These assertions follow that API. */
+  assert.equal(ev('S.scrubs.length'), 0);
   ev("ACT.buildScrub({city:'upg',tier:0})");
-  assert.equal(ev('S.scrubAt'), 'upg', 'the scrubbing center was not recorded');
+  assert.ok(ev("S.scrubs.some(x=>x.city==='upg')"), 'the scrubbing center was not recorded');
   assert.ok(ev('S.cash') < 3.4e9, 'nothing was paid');
 });
 
@@ -38,7 +40,7 @@ test('ddos: shutting it down asks first, then clears it', () => {
   ev('S.cash=3.4e9;S.lvl=2;');
   ev("ACT.buildScrub({city:'upg',tier:0})");
   ev("ACT.rmScrub({city:'upg'})");
-  assert.equal(ev('S.scrubAt'), 'upg', 'the first click must only ask');
+  assert.ok(ev("S.scrubs.some(x=>x.city==='upg')"), 'the first click must only ask');
   ev("ACT.rmScrub({city:'upg'})");
-  assert.equal(ev('S.scrubAt'), null, 'the second click must shut it down');
+  assert.equal(ev("S.scrubs.some(x=>x.city==='upg')"), false, 'the second click must shut it down');
 });

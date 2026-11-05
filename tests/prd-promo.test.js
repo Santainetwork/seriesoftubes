@@ -66,7 +66,11 @@ test('promo: survives a save and reload', () => {
   a.ev('S.cash=1e9');
   a.ev("ACT.promo({city:'fra'})");
   a.ev('save()');
-  const raw = a.ev("localStorage.getItem('sot-save-v1:global')");
-  const b = load({ storage: { 'sot-save-v1:global': raw } });
+  /* Upstream 2.7 (PRD save gate) keys saves per network slot: sot-save-v1:<UI.slot>, with the
+     shared sot-slots index. The old fixed 'global' key no longer exists. */
+  const id = a.ev('UI.slot');
+  const raw = a.ev(`localStorage.getItem('sot-save-v1:${id}')`);
+  const b = load({ storage: { ['sot-save-v1:' + id]: raw, 'sot-slots': a.ev("localStorage.getItem('sot-slots')") } });
+  b.ev(`ACT.cont({id:'${id}'})`);
   assert.ok(b.ev('S.promo.fra') > 0, 'the campaign is still running');
 });

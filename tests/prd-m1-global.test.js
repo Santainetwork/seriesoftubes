@@ -1,7 +1,8 @@
 // PRD M1 gate — tests/prd-m1-global.test.js (renamed: tests Global, not absence of others).
 // REGION + applyRegion + rebuildDerived. Global entry must always exist;
-// sea/idn entries were added later (M3) and are allowed. The permanent invariant
-// is tests/prd-baseline.test.js (CITIES 178, CABLE_PAIRS 209, non-tail 94, ...).
+// sea/idn entries were added later (M3) and are allowed. The permanent invariant is
+// tests/prd-baseline.test.js. Its numbers moved with the 2.7 merge (upstream's global map carries
+// every world capital and far more carriers than the v1.27 snapshot this gate was written against).
 // Run: node --test tests/prd-m1-global.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -18,17 +19,19 @@ test('M1: REGION registry always has global', () => {
 test('M1: global region untouched (§16.1)', () => {
   const { ev, errors } = load();
   ev("applyRegion('global')");
-  assert.equal(ev('CITIES.length'), 178);
-  assert.equal(ev('CABLE_PAIRS.length'), 209);
-  assert.equal(ev('XIX.length'), 26);
+  /* 2.7 merge: upstream's global map (242 cities, 482 pairs, 28 exchanges, 281 carriers, 100 land
+     rings) replaced the v1.27 world this gate snapshotted. Same values as prd-baseline.test.js. */
+  assert.equal(ev('CITIES.length'), 242);
+  assert.equal(ev('CABLE_PAIRS.length'), 482);
+  assert.equal(ev('XIX.length'), 28);
   assert.equal(ev('TAIL.length'), 60);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 94);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 221);
   assert.equal(ev("regionMult('sin')"), 2.5);
   assert.equal(ev("kmBetween('fra','ams')"), 364);
   assert.equal(ev('proj0(0,0)[0]'), 1000);
   assert.equal(ev('LENSES.length'), 7);
-  assert.equal(ev('LANDS_LL.length'), 14);
-  assert.equal(ev('Object.keys(CITY_LL).length'), 178);
+  assert.equal(ev('LANDS_LL.length'), 100);
+  assert.equal(ev('Object.keys(CITY_LL).length'), 242);
   assert.equal(JSON.stringify(ev('proj0(0,0)')), '[1000,537.6]');
   assert.deepEqual(errors, []);
 });
@@ -59,7 +62,7 @@ test('M1: boot rebinds through applyRegion with no errors', () => {
   const { ev, errors } = load();
   ev("boot()");
   assert.equal(ev('curRegion'), 'global');
-  assert.equal(ev('CITIES.length'), 178);
-  assert.equal(ev('NETS.length'), 157);
+  assert.equal(ev('CITIES.length'), 242);
+  assert.equal(ev('NETS.length'), 281);
   assert.deepEqual(errors, []);
 });

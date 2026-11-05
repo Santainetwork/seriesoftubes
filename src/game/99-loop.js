@@ -28,6 +28,11 @@ function frame(now){
     // With the route worker one day is in flight at a time; time does not pile up behind it.
     if(rwOn()){if(!RW.w)rwStart();if(RW.job)acc=Math.min(acc,DAY_MS);else if(acc>=DAY_MS){acc=Math.min(acc-DAY_MS,DAY_MS);try{rwDay();}catch(e){tickErr(e);}}}
     else{while(acc>=DAY_MS&&n<4&&UI.speed){acc-=DAY_MS;try{dayTick();}catch(e){tickErr(e);}n++;}
+    /* A long stall (hidden tab, a slow frame) can bank minutes of sim time. The four-day cap keeps
+       the frame short, but leaving the rest in `acc` replays that whole backlog over the next few
+       frames, so one hiccup still queued hundreds of days. Once a frame is already behind by more
+       than a day's worth, drop the rest instead of carrying it. */
+    if(acc>DAY_MS*2)acc=0;
     if(n){UI.ticking=true;renderHUD();UI.ticking=false;UI.panelsDue=true;}}}
   if((UI.speed||pzOn())&&!(S&&S.lost))animT+=dt; /* paused = frozen dots, waves and clouds */
   const t=animOn()?animT:0;
@@ -61,6 +66,10 @@ function boot(data){
     let stored=null;try{stored=localStorage.getItem('sot-region');}catch(e){}
     if(stored&&REGION[stored])wantRegion=stored;
   }
+  /* The save's own region wins over the last card picked on the title (PRD §5.1): peek the slot we
+     are about to open and bind its map before anything is derived. A gzipped save is skipped here
+     and gets the same treatment in slotOpen() once its text is available. */
+  if(UI.slot){try{const raw=slotRaw(UI.slot);if(raw&&!raw.startsWith(GZ)){const s0=JSON.parse(raw);if(s0&&s0.region&&ensureRegion(s0.region))wantRegion=s0.region;}}catch(e){}}
   ensureRegion(wantRegion);
   applyRegion(wantRegion);
   UI.region=wantRegion;

@@ -1,7 +1,8 @@
 // Baseline assertions for PRD.md §16.1 — "Global must not change".
 // These pin the numbers after the upstream merge so a region refactor cannot silently shrink the
-// world. Bumped again for v1.28/v1.29: upstream added 79 cities (Africa, Brazil and twenty-one
-// more), 8 cables, 64 cable pairs and 23 networks on top of the v1.27 figures (99/83/145/134).
+// world. Bumped for the 2.7 merge: upstream added every world capital (402 cities upstream before
+// the regional carve-up) plus cables and carriers, so the fork-merged page no longer matches the
+// v1.27 snapshot (99/83/145/134). The numbers below are the assembled src/ state at that merge.
 // Run: node --test tests/prd-baseline.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,18 +10,19 @@ const { load } = require('./harness');
 
 test('PRD §16.1: global region baseline is unchanged', () => {
   const { ev, errors } = load();
-  assert.equal(ev('CITIES.length'), 178, 'cities');
-  assert.equal(ev('CABLES.length'), 91, 'cables');
-  assert.equal(ev('CABLE_PAIRS.length'), 209, 'cable pairs');
-  assert.equal(ev('XIX.length'), 26, 'rival exchanges');
+  assert.equal(ev('CITIES.length'), 242, 'cities');
+  assert.equal(ev('CABLES.length'), 166, 'cables');
+  assert.equal(ev('CABLE_PAIRS.length'), 482, 'cable pairs');
+  assert.equal(ev('XIX.length'), 28, 'rival exchanges');
   assert.equal(ev('TAIL.length'), 60, 'long tail');
-  /* Upstream v1.29 carries 154 networks; the fork's three Korean sender-pays carriers (Kay-Tea,
-     SK Broadbandit, LG You-Pay-Plus) make 157. Taking either side of that hunk alone loses one. */
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 94, 'non-tail networks');
-  assert.equal(ev('NETS.length'), 157, 'all networks');
+  /* Upstream 2.7 carries far more carriers; the fork's three Korean sender-pays carriers (Kay-Tea,
+     SK Broadbandit, LG You-Pay-Plus) are part of the merged total. Taking either side of that hunk
+     alone loses one. */
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 221, 'non-tail networks');
+  assert.equal(ev('NETS.length'), 281, 'all networks');
   assert.equal(ev('LENSES.length'), 7, 'lenses');
-  assert.equal(ev('LANDS_LL.length'), 14, 'land polygons');
-  assert.equal(ev('Object.keys(CITY_LL).length'), 178, 'city coordinates');
+  assert.equal(ev('LANDS_LL.length'), 100, 'land polygons');
+  assert.equal(ev('Object.keys(CITY_LL).length'), 242, 'city coordinates');
   assert.equal(ev('regionMult("sin")'), 2.5, 'Asia multiplier');
   assert.equal(ev('kmBetween("fra","ams")'), 364, 'reference distance');
   // Cross-realm arrays: compare via JSON, not deepEqual.

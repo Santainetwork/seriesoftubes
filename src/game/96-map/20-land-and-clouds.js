@@ -637,12 +637,25 @@ function rebuildDerived(){
  rebuildFar();
  CAB=Object.fromEntries(CABLES.map(c=>[c.id,c]));
  CABLE_PAIRS=CABLES.flatMap(c=>c.pairs.map(([a,b,mid])=>{const A=CITY[a],B=CITY[b];const near=(x,ref)=>x+W*Math.round((ref-x)/W);
-  const routed=(A&&B&&typeof cablePts==="function")?cablePts(c.id,a,b):null;
+  /* The sea-routed waypoints and the fork's cable-shape repair passes (bowCables, smoothCables,
+     tidyCables, separateDuplicates; they run below) were tuned for the regional maps. On Global
+     they bent upstream 2.7's hand-placed routes and, worse, clearLand() treated the coarse
+     landmass polygons as the coastline: it ranked most of the Red Sea as land and collapsed long
+     runs of the Suez route onto a handful of water points, leaving straight jumps across Egypt.
+     Global therefore keeps upstream's own route data untouched; the regional maps still use
+     CABLE_PTS and the repair passes, which their denser coastlines need. */
+  const regional=curRegion!=='global';
+  const routed=(regional&&A&&B&&typeof cablePts==="function")?cablePts(c.id,a,b):null;
   const raw=(routed&&routed.length?routed:(mid&&mid.length?mid:[[(A.lon+B.lon)/2,(A.lat+B.lat)/2]]));
   const mp=raw.map(q=>proj(q[0],q[1]));
   for(let j=1;j<mp.length;j++){mp[j][0]+=W*Math.round((mp[j-1][0]-mp[j][0])/W);}
   const pts=[[near(A.x,mp[0][0]),A.y]].concat(mp,[[near(B.x,mp[mp.length-1][0]),B.y]]);
-  const ll=[[A.lon,A.lat]].concat(raw,[[B.lon,B.lat]]);let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);
+  /* The sea-routed shape is for drawing only: a CABLE_PTS detour around a headland is not extra
+     seabed, and pricing and latency have always used the cable's declared route. Measuring the
+     drawn shape made every short European cable 40-45% longer than its landing points (London-
+     Amsterdam quoted 520 km instead of 358) and pushed architect reference builds over budget. */
+  const decl=mid&&mid.length?mid:[[(A.lon+B.lon)/2,(A.lat+B.lat)/2]];
+  const ll=[[A.lon,A.lat]].concat(decl,[[B.lon,B.lat]]);let L=0;for(let i=1;i<ll.length;i++)L+=hav(ll[i-1][0],ll[i-1][1],ll[i][0],ll[i][1]);
   return {cid:c.id,a,b,pts,km:Math.round(L)};}));
  /* Order matters. bowCables() spreads the hub fan on the raw route; smoothCables() then rebuilds
     every polyline with Chaikin, roughly doubling the vertex count; only after that is the point
@@ -655,8 +668,8 @@ function rebuildDerived(){
     normal that changes direction every few vertices. The player-visible result was the same
     complaint it was meant to fix: "beberapa kabel masih ada yang kurang rapih".
     What actually needed fixing was the line's SHAPE, which tidyCables() now does. */
- bowCables();clearLand();dedup();smoothCables();clearLand();dedup();
- tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();
+ if(curRegion!=='global'){bowCables();clearLand();dedup();smoothCables();clearLand();dedup();
+ tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();}
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
  /* OFFC (the cities an offer may land in) is derived from ALLC at load; it has to follow the map too,
     or a regional game picks global city ids that CITY no longer holds. */
@@ -715,6 +728,10 @@ function applyRegion(id){
     previous region's rule in place for the whole rebuild. */
  curRegion=id;
  rebuildDerived();
+ /* The title screen's home-city picker remembers a city id; after swapping the map that id may not
+    exist here any more (Global 'fra' is not on the Indonesia map), and homeWhat() would crash on
+    CITY[UI.startCity].name. Fall back to the region's own first start city. */
+ if(typeof UI!=='undefined'&&UI&&!CITY[UI.startCity])UI.startCity=(r.startCities&&r.startCities[0])||(CITIES[0]&&CITIES[0].id);
  return r;
 }
 const FLOATS=[];

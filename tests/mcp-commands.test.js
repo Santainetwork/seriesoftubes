@@ -203,7 +203,8 @@ test('dry runs do not use up the dice: the seeded game plays on exactly as witho
       ['orderDf', { a: 'fra', b: 'ams', source: 'lease', system: 'lite' }], ['hackback', {}], ['coreUp', {}]]) assert.equal(act(T, n, a, true).outcome, 'quote');
     T('advance', { days: 90 });
     // Entity ids and the log's wall-clock stamps differ from run to run anyway; everything else is the game.
-    return JSON.stringify(JSON.parse(s.game.ev('JSON.stringify(S)'), (k, v) => (k === 'id' || k === 'at' ? undefined : v)));
+    // savedAt is the fork's wall-clock write marker (src/game/91-save.js), the same kind of stamp as `at`.
+    return JSON.stringify(JSON.parse(s.game.ev('JSON.stringify(S)'), (k, v) => (k === 'id' || k === 'at' || k === 'savedAt' ? undefined : v)));
   };
   assert.equal(play(true), play(false));
 });

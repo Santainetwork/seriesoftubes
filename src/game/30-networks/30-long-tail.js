@@ -74,9 +74,9 @@ TAIL.forEach(([name,type,home,blurb,sh],i)=>{const h=hstr(name),cand=home.flatMa
   const sel=(h>>>4)%10>=8;
   NETS.push({id:'tail'+i,name,asn:200000+(h%190000),type,tail:true,up:tailUp(name,home),pol:sel?'selective':'open',...(sel?{minIx:1+(h>>>16)%3,minPni:6+(h>>>18)%8}:{}),share:sh||+(0.0006+((h>>>20)%15)*0.0001).toFixed(4),col:`hsl(${h%360} 55% 46%)`,pops:home.slice(),ix,blurb});});
 NETS.push(
- {id:'ktt',name:'Kay-Tea',asn:4766,type:'eye',cc:'KR',pol:'paid',paidFee:5000,perG:90,kr:true,share:.012,col:'#E4002B',pops:['icn','hkg','tok','lax'],ix:[],blurb:'Korea’s incumbent. Sender pays: every gigabit you hand it is billed, on top of the port.'},
- {id:'skb',name:'SK Broadbandit',asn:9318,type:'eye',cc:'KR',pol:'paid',paidFee:4000,perG:110,kr:true,share:.01,col:'#EA002C',pops:['icn','hkg','sjc'],ix:[],blurb:'Took a streaming giant to court over who pays for the traffic its own customers asked for. Paid peering, per gigabit.'},
- {id:'lgu',name:'LG You-Pay-Plus',asn:3786,type:'eye',cc:'KR',pol:'paid',paidFee:3000,perG:80,kr:true,share:.008,col:'#E6007E',pops:['icn','tok'],ix:[],blurb:'The plus is a usage fee. Paid peering, per gigabit.'});
+ {id:'ktt',name:'Kay-Tea',asn:4766,type:'eye',cc:'KR',pol:'paid',paidFee:5000,perG:90,kr:true,share:.012,col:'#E4002B',pops:['icn','hkg','tok','lax'],ix:[],blurb:tr('long_tail.korea_s_incumbent_sender_pays_every')},
+ {id:'skb',name:'SK Broadbandit',asn:9318,type:'eye',cc:'KR',pol:'paid',paidFee:4000,perG:110,kr:true,share:.01,col:'#EA002C',pops:['icn','hkg','sjc'],ix:[],blurb:tr('long_tail.took_a_streaming_giant_to_court')},
+ {id:'lgu',name:'LG You-Pay-Plus',asn:3786,type:'eye',cc:'KR',pol:'paid',paidFee:3000,perG:80,kr:true,share:.008,col:'#E6007E',pops:['icn','tok'],ix:[],blurb:tr('long_tail.the_plus_is_a_usage_fee')});
 NETS.push(
  {id:'btt',name:'Bee-Tee',asn:2856,type:'eye',cc:'GB',pol:'selective',minIx:10,minPni:30,share:.012,col:'#5514B4',pops:['lon','man','edi','bde'],ix:['lon','man'],blurb:tr('long_tail.the_uk_s_incumbent_buzzes_politely')},
  {id:'sky',name:'Sky-High Broadband',asn:5607,type:'eye',cc:['GB','IE'],pol:'selective',minIx:6,minPni:25,share:.008,up:['tly','lvl'],col:'#0072C9',pops:['lon','man','edi','dub'],ix:['lon','man','edi'],blurb:tr('long_tail.football_films_and_a_router_that')},
