@@ -222,7 +222,8 @@ test('routers in a puzzle: ports, wave sizes and capacity as in the main game, p
   const panel = ev("document.getElementById('panelBody').textContent");
   assert.match(panel, /2 × Rusty Router 9000/);
   assert.match(panel, /Ports17 of 32 used/);
-  assert.match(panel, /Router load90\.0 Gbps \/ 800 Gbps/);
+  // 17 waves of 10G, not the upstream 9: the fork's 16-port Rusty Router allows eight more waves, so the load is 170G.
+  assert.match(panel, /Router load170 Gbps \/ 800 Gbps/);
   // Capacity: a Rusty Router moves 400G. Three 400G waves on Sonic routers bring 1.2T, but a Rusty-sized POP would
   // stop at 400G of the 500G London wants.
   ev("pzBegin(pzDef('edgelord'))");

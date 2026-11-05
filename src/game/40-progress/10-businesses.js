@@ -194,7 +194,11 @@ function roleAllowsType(t){const R=roleDef();return !!R.all||(R.types||[]).inclu
    one deliberate exception — a NAP sells small ISP jobs from day one (brief 7 §4.1c), so ISP work
    is allowed below its usual level. */
 function typeAtLevel(t){const T=BIZ_T[t];if(!T)return false;if(!T.lv||T.lv<=((S&&S.lvl)||1))return true;return (roleDef().early||[]).includes(t);}
-function roleOfferOk(o){if(!o||!roleAllowsType(o.type))return false;if(!typeAtLevel(o.type))return false;if(roleBlockOffers())return false;if(S.role==='rtnet'&&!S.transit.length)return false;return true;}
+/* An offer already on the table was vetted when it spawned (spawnOffer applies typeAtLevel). The
+   panels only hide what the role cannot take at all: re-applying the level gate there would make
+   Deals list a contract the city panel silently hides (and vice versa). Level still gates spawning. */
+function roleOfferVisible(o){if(!o||!roleAllowsType(o.type))return false;if(roleBlockOffers())return false;if(S.role==='rtnet'&&!S.transit.length)return false;return true;}
+function roleOfferOk(o){return roleOfferVisible(o)&&typeAtLevel(o.type);}
 /* Brief 8 §2.2: Singapore unlock for the Indonesia map. Mirrors the roleUpOffer() checklist
    pattern (items with ok flags, missing list). The APJII leg uses the 'APJII Conneck'
    conference stamp because M5 licences do not exist yet. */

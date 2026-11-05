@@ -95,7 +95,9 @@ test('one-site requests add only A, then a new second site gets exactly its miss
 
 test('cache requests reject stale eligibility and insufficient port capacity atomically', t => {
   const { ev, errors } = setup(t);
-  ev("S.pops.fra.site2=true;for(let i=0;i<7;i++)S.caches.push({id:'full'+i,city:'fra',net:'nfx'});compute();R.demTo={cfl:NET.cfl.cache.min};window.q=utilityCaches('fra');ACT.utilities()");
+  // The fork's Rusty Router gives 16 ports (upstream 2.7 had 8), so fill 15 of them: one free port
+  // is not enough for the two boxes the cfl quote asks for.
+  ev("S.pops.fra.site2=true;for(let i=0;i<15;i++)S.caches.push({id:'full'+i,city:'fra',net:'nfx'});compute();R.demTo={cfl:NET.cfl.cache.min};window.q=utilityCaches('fra');ACT.utilities()");
   assert.equal(ev('q.free'), 1);
   assert.equal(ev('q.add.length'), 2);
   assert.equal(ev("document.querySelector('[data-act=utilityCaches]').disabled"), true);
