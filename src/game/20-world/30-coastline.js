@@ -276,6 +276,12 @@ const CABLE_PTS={
  "vncs|sgn|han":[[106.66,10.76],[106.9,10.3],[107.0,10.4],[107.4,10.4],[107.74,10.6],[108.08,10.8],[108.42,11.0],[108.76,11.2],[109.1,11.4],[109.2,11.9],[109.3,12.0],[109.3,12.3],[109.5,12.7],[109.5,13.4],[109.3,13.8],[109.3,14.25],[109.3,14.7],[109.05,15.03],[108.8,15.35],[108.55,15.68],[108.3,16.0],[108.14,16.34],[107.97,16.67],[107.81,17.01],[107.65,17.34],[107.48,17.68],[107.32,18.01],[107.16,18.35],[106.99,18.68],[106.83,19.02],[106.67,19.35],[106.5,19.69],[106.34,20.02],[106.18,20.36],[106.01,20.69],[105.85,21.03]],
 }
 
+/* Declared here, not next to its other use far below: bowCables() runs during boot and calls this,
+   and a `const` in the temporal dead zone throws "Cannot access 'onLand' before initialization"
+   even though the declaration exists later in the file. ALLPOLY is built before this point.
+   (Without the `let`, the assignment in 96-map is an undeclared-global write, which the page's
+   'use strict' turns into a ReferenceError that kills the rest of that script — REGION included.) */
+let onLand=(x,y)=>false;
 function bowCables(){
  /* Two things made the fan collapse back into a pile.
     1. Order is not direction. Handing out slots in CABLE_PAIRS order, with an alternating sign,
