@@ -13,13 +13,22 @@ let LANDP_FAR=COAST.map((p,i)=>ringArea(p)>=600||CITIES.some(c=>inPoly(c.x,c.y,p
    projected the region's cities, so the city test matched nothing and every small island with a
    city (Hawaii, the Pacific, the Caribbean) was dropped from the far view. Cities with no COAST
    ring at all (Cebu) get a micro-islet so the far view keeps them. Idempotent: re-runs match. */
-function rebuildFar(){for(const c of CITIES){if(!COAST.some(p=>inPoly(c.x,c.y,p)))COAST.push([[c.x-4,c.y-4],[c.x+4,c.y-4],[c.x+4,c.y+4],[c.x-4,c.y+4]]);}LANDP_ALL=COAST.map(smoothPath);LANDP_FAR=COAST.map((p,i)=>ringArea(p)>=600||CITIES.some(c=>inPoly(c.x,c.y,p))?LANDP_ALL[i]:null).filter(Boolean);}
+/* The micro-islets pushed below are 8px squares standing in for a dot of real island that the
+   coastline tables do not carry. They are a drawing aid, not a coastline: CITY_DOTS records them
+   so the cable guard can tell the two apart (an 8px box at this scale is ~130 km of "land", which
+   would read as a transatlantic cable cutting across an island). */
+const CITY_DOTS=[];
+function rebuildFar(){CITY_DOTS.length=0;for(const c of CITIES){if(!COAST.some(p=>inPoly(c.x,c.y,p))){const box=[[c.x-4,c.y-4],[c.x+4,c.y-4],[c.x+4,c.y+4],[c.x-4,c.y+4]];COAST.push(box);CITY_DOTS.push(box);}}LANDP_ALL=COAST.map(smoothPath);LANDP_FAR=COAST.map((p,i)=>ringArea(p)>=600||CITIES.some(c=>inPoly(c.x,c.y,p))?LANDP_ALL[i]:null).filter(Boolean);}
 let ALLPOLY=COAST;
 /* The real implementation, installed as soon as ALLPOLY exists. The early stub (a `let` declared
    next to bowCables, which runs during boot) returns false, so forgetting this line silently
    disables every land test: all 34 IDN cities read as "at sea", the cable guard never fires, and
    the whole map is treated as water. */
 onLand=(x,y)=>ALLPOLY.some(p=>inPoly(x,y,p));
+/* The same question over *every* ring, painted or not. A one-ring island the map does not draw
+   (a dot the size of Kiribati) is still land: a city on it is not at sea. The drawn set stays
+   narrower on purpose, so a cable may pass over an island too small to see. */
+const onAnyLand=(x,y)=>LANDS.some(l=>inPoly(x,y,l.pts));
 
 let R1=rng(7);let WAVES=[],HILLS=[];
 while(WAVES.length<220){const x=R1()*W,y=R1()*H;if(!onLand(x,y)&&!onLand(x+12,y)&&!onLand(x-12,y))WAVES.push([x,y,R1()]);}

@@ -10,19 +10,19 @@ const { load } = require('./harness');
 
 test('PRD §16.1: global region baseline is unchanged', () => {
   const { ev, errors } = load();
-  assert.equal(ev('CITIES.length'), 242, 'cities');
-  assert.equal(ev('CABLES.length'), 166, 'cables');
-  assert.equal(ev('CABLE_PAIRS.length'), 482, 'cable pairs');
+  assert.equal(ev('CITIES.length'), 402, 'cities');
+  assert.equal(ev('CABLES.length'), 180, 'cables');
+  assert.equal(ev('CABLE_PAIRS.length'), 558, 'cable pairs');
   assert.equal(ev('XIX.length'), 28, 'rival exchanges');
   assert.equal(ev('TAIL.length'), 60, 'long tail');
   /* Upstream 2.7 carries far more carriers; the fork's three Korean sender-pays carriers (Kay-Tea,
      SK Broadbandit, LG You-Pay-Plus) are part of the merged total. Taking either side of that hunk
      alone loses one. */
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 221, 'non-tail networks');
-  assert.equal(ev('NETS.length'), 281, 'all networks');
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 321, 'non-tail networks');
+  assert.equal(ev('NETS.length'), 381, 'all networks');
   assert.equal(ev('LENSES.length'), 7, 'lenses');
-  assert.equal(ev('LANDS_LL.length'), 100, 'land polygons');
-  assert.equal(ev('Object.keys(CITY_LL).length'), 242, 'city coordinates');
+  assert.equal(ev('LANDS_LL.length'), 121, 'land polygons');
+  assert.equal(ev('Object.keys(CITY_LL).length'), 402, 'city coordinates');
   assert.equal(ev('regionMult("sin")'), 2.5, 'Asia multiplier');
   assert.equal(ev('kmBetween("fra","ams")'), 364, 'reference distance');
   // Cross-realm arrays: compare via JSON, not deepEqual.
@@ -32,8 +32,10 @@ test('PRD §16.1: global region baseline is unchanged', () => {
 
 test('PRD §16.1: every city sits on land in the global map', () => {
   const { ev } = load();
-  // Cross-realm array: compare as JSON, not deepEqual.
-  const atSea = ev(`JSON.stringify(Object.keys(CITY).filter(c=>!onLand(CITY[c].x,CITY[c].y)))`);
+  /* Every ring, painted or not: the map hides islands too small to draw (a dot the size of
+     Kiribati), and their capital is still on land. onLand() only knows the drawn rings, which is
+     what the cable guard wants; onAnyLand() is what this invariant means. */
+  const atSea = ev(`JSON.stringify(Object.keys(CITY).filter(c=>!onAnyLand(CITY[c].x,CITY[c].y)))`);
   assert.equal(atSea, '[]', `cities in the sea: ${atSea}`);
 });
 

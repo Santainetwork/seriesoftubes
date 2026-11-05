@@ -39,8 +39,10 @@ const PLAY = {
   baltic: { ref: [['bb', 'tll'], ['ix', 'tll'], ['link', 'tll', 'hel', 1, 'balt'], ['tr', 'hel', 1], ['link', 'tll', 'sto', 1, 'balt'], ['tr', 'sto', 1], ['link', 'tll', 'hel', 1, 'elisa'], ['link', 'tll', 'rix', 1], ['tr', 'rix', 1], ['hire', ['transit', 'routers', 'repair', 'ix']]],
     win: [90, 200], cheese: [['bb', 'tll'], ['ix', 'tll'], ['loans']], by: null },
   // The 1.6T chains: grow the traffic first, then light every hop at once (a day-0 build also gets there, just).
+  // The 2.7 world brings the real cable pairings for the Pacific (seaus, scx), so the chain lights on day 33
+  // instead of the 2.0.0 playtest's 50; the floor moves with it, the ceiling and the shortcut do not.
   pac: { ref: [...home('hnl'), ...home('lax'), ...home('syd'), ['link', 'lax', 'tok', 1, 'jup'], HIRE, ['served', 145], ['link', 'lax', 'hnl', 4, 'seaus'], ['link', 'hnl', 'suv', 4, 'scx'], ['link', 'suv', 'syd', 4, 'scx']],
-    win: [50, 120], cheese: [...home('hnl'), ...home('lax'), ...home('syd'), ['link', 'lax', 'tok', 1, 'jup'], ['link', 'lax', 'syd', 3, 'hwk'], ['loans']], by: null },
+    win: [30, 120], cheese: [...home('hnl'), ...home('lax'), ...home('syd'), ['link', 'lax', 'tok', 1, 'jup'], ['link', 'lax', 'syd', 3, 'hwk'], ['loans']], by: null },
   // The win day swings with the seed (34 to 58 over five seeds in 2.5.0), so the floor sits below that spread.
   atl: { ref: [['bb', 'pdl'], ['tr', 'pdl', 1], ...home('mia'), ...home('mad'), ...home('lis'), HIRE, ['link', 'mia', 'bda', 4, 'sol'], ['link', 'bda', 'pdl', 4, 'sol'], ['link', 'pdl', 'mad', 4, 'sol'], ['served', 90], ['link', 'lis', 'tci', 4, 'ace'], ['link', 'tci', 'lag', 4, 'twoaf'], ['bb', 'lag']],
     win: [30, 120], cheese: [['bb', 'pdl'], ['tr', 'pdl', 1], ...home('mia'), ...home('mad'), ...home('lis'), ['link', 'mia', 'mad', 3, 'col3'], ['link', 'lis', 'lag', 3, 'equi'], ['loans']], by: null },

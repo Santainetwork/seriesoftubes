@@ -94,8 +94,10 @@ test('M3: SEA has a real coastline and 49 cities', () => {
 
 test('M3: every SEA city sits on land (49/49)', () => {
   const ev = sea();
+  /* Every ring, drawn or not: the map hides islands too small to paint, and their capital is still
+     on land (see the same note in prd-baseline.test.js). */
   const atSea = JSON.parse(ev(
-    'JSON.stringify(Object.keys(CITY).filter(c=>!onLand(CITY[c].x,CITY[c].y)))'));
+    'JSON.stringify(Object.keys(CITY).filter(c=>!onAnyLand(CITY[c].x,CITY[c].y)))'));
   assert.deepEqual(atSea, [], `cities in the sea: ${atSea.join(', ')}`);
   assert.equal(ev('Object.keys(CITY).filter(c=>onLand(CITY[c].x,CITY[c].y)).length'), 49);
 });
@@ -329,7 +331,9 @@ test('M3: switching back to global restores the untouched world', () => {
   assert.equal(ev("kmBetween('fra','ams')"), 364);
   /* NSH is normalised to 1; floating point leaves it a hair under. */
   assert.ok(Math.abs(ev('Object.values(NSH).reduce((a,b)=>a+b,0)') - 1) < 1e-9, 'NSH sums to 1');
+  /* onAnyLand, not onLand: upstream 2.7's Pacific islets (Nukualofa, Apia, Majuro…) are drawn as
+     eight-pixel dots in COAST rather than rings in LANDS, so onLand alone calls them open sea. */
   const atSea = JSON.parse(ev(
-    'JSON.stringify(Object.keys(CITY).filter(c=>!onLand(CITY[c].x,CITY[c].y)))'));
+    'JSON.stringify(Object.keys(CITY).filter(c=>!onAnyLand(CITY[c].x,CITY[c].y)))'));
   assert.deepEqual(atSea, []);
 });

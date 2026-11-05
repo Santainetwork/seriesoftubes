@@ -32,7 +32,9 @@ test('trace: the network list matches the region, not the global NETS', () => {
   /* Upstream 2.7 added carriers with POPs in Singapore and Jakarta, so each regional list grew.
      The invariant this test protects is that each region offers its own list, not the Global one,
      hence the exact regional counts below rather than a Global figure. */
-  const expected = { sea: 63, idn: 65 };
+  /* Upstream 2.7's full carrier list (381 networks, up from the fork's 281) added carriers with
+     POPs in Singapore and Jakarta, so each regional list grew again: SEA 63 -> 69, IDN 65 -> 67. */
+  const expected = { sea: 69, idn: 67 };
   for (const reg of Object.keys(expected)) {
     const { ev } = load();
     ev(`beginGame('T','jkt',{region:'${reg}',role:'isp'})`);

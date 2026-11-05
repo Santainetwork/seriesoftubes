@@ -19,19 +19,19 @@ test('M1: REGION registry always has global', () => {
 test('M1: global region untouched (§16.1)', () => {
   const { ev, errors } = load();
   ev("applyRegion('global')");
-  /* 2.7 merge: upstream's global map (242 cities, 482 pairs, 28 exchanges, 281 carriers, 100 land
+  /* 2.7 merge: upstream's global map (402 cities, 558 pairs, 28 exchanges, 381 carriers, 121 land
      rings) replaced the v1.27 world this gate snapshotted. Same values as prd-baseline.test.js. */
-  assert.equal(ev('CITIES.length'), 242);
-  assert.equal(ev('CABLE_PAIRS.length'), 482);
+  assert.equal(ev('CITIES.length'), 402);
+  assert.equal(ev('CABLE_PAIRS.length'), 558);
   assert.equal(ev('XIX.length'), 28);
   assert.equal(ev('TAIL.length'), 60);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 221);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 321);
   assert.equal(ev("regionMult('sin')"), 2.5);
   assert.equal(ev("kmBetween('fra','ams')"), 364);
   assert.equal(ev('proj0(0,0)[0]'), 1000);
   assert.equal(ev('LENSES.length'), 7);
-  assert.equal(ev('LANDS_LL.length'), 100);
-  assert.equal(ev('Object.keys(CITY_LL).length'), 242);
+  assert.equal(ev('LANDS_LL.length'), 121);
+  assert.equal(ev('Object.keys(CITY_LL).length'), 402);
   assert.equal(JSON.stringify(ev('proj0(0,0)')), '[1000,537.6]');
   assert.deepEqual(errors, []);
 });
@@ -62,7 +62,7 @@ test('M1: boot rebinds through applyRegion with no errors', () => {
   const { ev, errors } = load();
   ev("boot()");
   assert.equal(ev('curRegion'), 'global');
-  assert.equal(ev('CITIES.length'), 242);
-  assert.equal(ev('NETS.length'), 281);
+  assert.equal(ev('CITIES.length'), 402);
+  assert.equal(ev('NETS.length'), 381);
   assert.deepEqual(errors, []);
 });

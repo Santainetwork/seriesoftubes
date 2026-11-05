@@ -364,7 +364,9 @@
         const a = spec.pass ? spec.pass(args) : args;
         ACT[name](a);
         if (spec.confirm === 'double') ACT[name](a);
-        if (spec.reads === 'modal' && modalOpen()) { report = text($('modal')); closeModal(); }
+        // A window can mark the part that is the answer (data-report): the traceroute window's text is
+        // mostly its target dropdown, which grew past the report budget once the world did.
+        if (spec.reads === 'modal' && modalOpen()) { const m = $('modal'), rp = m.querySelector && m.querySelector('[data-report]'); report = text(rp || m); closeModal(); }
       } else ACT[name](args);
     } catch (e) { threw = e; }
     const charged = paid();

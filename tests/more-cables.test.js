@@ -46,7 +46,10 @@ test('the Indian Ocean and Asia-Pacific: the big real cables, Muscat, the Maldiv
   assert.ok(ev("cablePair('fast','sea','osa').km") < 9500, 'FASTEST to Osaka crosses the Pacific, not the world');
   // subsea cables stay at sea: a stretch over land with sea on both sides is the line cutting across a coast.
   // Allowed: the Suez Canal and the Dardanelles (not water in the coastline), and Quintillion's overland Alaska leg.
-  const cross = JSON.parse(ev(`JSON.stringify((()=>{const big=COAST.filter(p=>ringArea(p)>=40).map(p=>{let a=1e9,b=-1e9,c=1e9,d=-1e9;for(const [x,y] of p){a=Math.min(a,x);b=Math.max(b,x);c=Math.min(c,y);d=Math.max(d,y);}return {p,a,b,c,d};});
+  const cross = JSON.parse(ev(`JSON.stringify((()=>{/* The 8px micro-islets rebuildFar() adds so an island city stays visible at far zoom are drawing
+     aids, not coastline: skip them, or a cable passing within a few pixels of one reads as cutting
+     across an island. */
+    const big=COAST.filter(p=>ringArea(p)>=40&&!CITY_DOTS.includes(p)).map(p=>{let a=1e9,b=-1e9,c=1e9,d=-1e9;for(const [x,y] of p){a=Math.min(a,x);b=Math.max(b,x);c=Math.min(c,y);d=Math.max(d,y);}return {p,a,b,c,d};});
     const on=(x,y)=>{x=((x%W)+W)%W;return big.some(q=>x>=q.a&&x<=q.b&&y>=q.c&&y<=q.d&&inPoly(x,y,q.p));};const out=[];
     for(const p of CABLE_PAIRS){if(p.cid==='qtl'&&[p.a,p.b].sort().join()==='anc,brw')continue;const s=[];
       for(let i=1;i<p.pts.length;i++){const [x0,y0]=p.pts[i-1],[x1,y1]=p.pts[i];const n=Math.max(1,Math.ceil(Math.hypot(x1-x0,y1-y0)/1.5));for(let k=(i===1?0:1);k<=n;k++)s.push([x0+(x1-x0)*k/n,y0+(y1-y0)*k/n]);}

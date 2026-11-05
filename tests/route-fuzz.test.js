@@ -16,11 +16,13 @@ function pages() {
   let base = head;
   try { const b = path.join(os.tmpdir(), `tubes-fuzz-test-${process.pid}-base.html`); fs.writeFileSync(b, page.assembleRef('origin/main')); base = b; } catch (e) {}
   const B = openPage(base, 'base'), H = openPage(head, 'head');
-  /* The fork plays on its own smaller world (its cities, cables and carriers are the fork's tables,
-     not upstream's 400-city map), so a game cannot be compared move for move against main: the two
-     pages do not even have the same networks. Compare this checkout against itself instead — cache
-     on versus cache off — which is the half of this test that does not need main. */
-  const world = (g) => [g.ev('CITIES.length'), g.ev('NETS.length'), g.ev('CABLE_PAIRS.length')].join('/');
+  /* Compare against main only when both pages are the same lineage. Since the 2.7 merge the fork
+     carries upstream's world (402 cities, 381 carriers, 558 pairs), so the size check alone no
+     longer tells them apart: the pages still differ by the fork's own features (the role ladder's
+     roleUp action, peakL2 and offersSeen in the stats), which no world port removes. When they do
+     differ, compare this checkout against itself — cache on versus cache off — which is the half
+     of this test that does not need main. */
+  const world = (g) => [g.ev('CITIES.length'), g.ev('NETS.length'), g.ev('CABLE_PAIRS.length'), g.ev("typeof ACT.roleUp")].join('/');
   if (world(B) !== world(H)) return { base: H, head: H, againstMain: false };
   return { base: B, head: H, againstMain: true };
 }

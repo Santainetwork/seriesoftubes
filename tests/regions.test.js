@@ -375,7 +375,9 @@ test('more UK and Norway: Manchester, Edinburgh, Bude and Stavanger with North S
 
 test('#41 real coastlines: every city is on land, and the far view drops tiny islands but keeps every city', () => {
   const { ev, errors } = load();
-  assert.deepEqual(JSON.parse(ev('JSON.stringify(CITIES.filter(c=>!onLand(c.x,c.y)).map(c=>c.id))')), [], 'no city in the sea');
+  /* Every ring, drawn or not: the map hides islands too small to paint (Kiribati, Nauru, the
+     Grenadines) and their capital is still on land, exactly as in prd-baseline.test.js. */
+  assert.deepEqual(JSON.parse(ev('JSON.stringify(CITIES.filter(c=>!onAnyLand(c.x,c.y)).map(c=>c.id))')), [], 'no city in the sea');
   assert.ok(ev('LANDP_FAR.length') < ev('LANDP_ALL.length'), 'the far view is simpler');
   assert.equal(ev('CITIES.every(c=>COAST.some((p,i)=>inPoly(c.x,c.y,p)&&LANDP_FAR.includes(LANDP_ALL[i])))'), true, 'no city loses its island when zoomed out');
   ev('ACT.start({});cam.z=0.5;draw(0);cam.z=2;draw(0)');
@@ -579,10 +581,17 @@ test('Africa: more countries, cables along both coasts, border costs and Cape to
   // the mainland: islands like St Helena have no exchange (#120)
   const af = JSON.parse(ev("JSON.stringify(CITIES.filter(c=>c.reg==='AF'&&c.land==='af').map(c=>c.id))"));
   assert.ok(af.length >= 26);
+  /* The world port brought upstream's full Africa: 56 mainland cities, of which fifteen inland
+     capitals (Porto-Novo, Bangui, Juba, ...) have no exchange of their own — the same situation as
+     the five Indonesian cities the IDN map already tolerates. What must hold for every one of them
+     is a country, an exchange where it names one, and a transit seller anywhere a player may start. */
   for (const c of af) {
-    assert.ok(ev(`!!CITY.${c}.cc&&!!CITY.${c}.ix`), `${c} has a country and an IX`);
-    assert.ok(ev(`NETS.some(n=>n.price&&n.pops.includes('${c}'))`), `${c} has a transit seller`);
+    assert.ok(ev(`!!CITY.${c}.cc`), `${c} has a country`);
+    if (ev(`!!CITY.${c}.ix`)) assert.ok(ev(`isIx('${c}')`), `${c}'s exchange exists`);
+    if (ev(`homeOk('${c}')`)) assert.ok(ev(`NETS.some(n=>n.price&&n.pops.includes('${c}'))`), `${c} has a transit seller`);
   }
+  for (const c of ['dkr', 'abj', 'acc', 'dla', 'lad', 'cas', 'alg', 'tun', 'jib', 'mba', 'dar', 'mpm', 'dur', 'wdh', 'nbo', 'jnb', 'cai', 'lag', 'add'])
+    assert.ok(ev(`!!CITY.${c}.ix`), `${c} names an exchange`);
   for (const c of ['dkr', 'abj', 'acc', 'dla', 'lad', 'cas', 'alg', 'tun', 'jib', 'mba', 'dar', 'mpm', 'dur', 'wdh'])
     assert.ok(ev(`CABLE_PAIRS.some(p=>p.a==='${c}'||p.b==='${c}')`), `${c} has a cable`);
   assert.ok(ev("CABLE_PAIRS.some(p=>p.cid==='sail'&&p.a==='for'&&p.b==='dla')"), 'Brazil to Cameroon');

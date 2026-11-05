@@ -16,6 +16,18 @@ const EXCEPTIONS = {
     MH: 'the Marshall Islands have one telco (NTA)',
     PN: 'Pitcairn has no network at all: land your own cable (#124)',
     SH: 'St Helena has one operator (Sure South Atlantic)',
+    /* The world port (upstream 2.7's capitals) added small markets that really do have one
+       operator, or one operator the game models: the same reason Cuba and Djibouti are here. */
+    AD: 'Andorra has one telco, by law (Andorable Telecom)',
+    BN: 'Brunei is served by one incumbent (UN-Natural Networks)',
+    ER: 'Eritrea has a single state network',
+    FM: 'Micronesia has one telco (Flying Spaghetti Micronesia)',
+    GL: 'Greenland has one operator (Too Sassy)',
+    KP: 'North Korea: one state network, the Star Gazer JV',
+    MC: 'Monaco is a single micro-state operator',
+    TM: 'Turkmenistan has one state telco',
+    TV: 'Tuvalu has one telco (Too-Valuable Telecom)',
+    YE: 'Yemen: one operator the game models (Mocha-Net)',
   },
   // W3: cities nobody sells transit in.
   W3: {
@@ -23,6 +35,13 @@ const EXCEPTIONS = {
     pcn: 'Pitcairn: no cable, no network, land your own (#124)',
     prr: 'Prince Rupert is a remote town with no carrier in it',
     stg: 'Stuttgart is the Only Spätzle-IX scenario city: peering only, by design (#114)',
+    /* Upstream's full world adds towns and islands that land cables but have no carrier POP:
+       they are reachable by cable, not by buying a port. */
+    yyj: 'Victoria BC lands cables; no carrier sells a port there',
+    yfb: 'Iqaluit is the Arctic landing point; nobody sells transit there',
+    sre: 'Sucre is a constitutional capital with no carrier of its own',
+    smr: 'San Marino is reached over Italian transit; no carrier sells there',
+    jub: 'Juba has peering networks only (MTX), no reseller of transit',
   },
   // N3: networks in no founding Tier 1's customer cone. Old saves need PNIs with the founding five for Tier 1,
   // so anyone outside their cones has to be peered with directly.
@@ -48,6 +67,7 @@ const EXCEPTIONS = {
     jio: 'transit-free in India',
     kdi: 'transit-free in Japan',
     ktt: 'Korea: sender pays, peer with it yourself',
+    stj: 'North Korea (Star Gazer JV): no founding Tier 1 reaches it, peer or leave it',
     lgu: 'Korea: sender pays',
     lnt: 'Australian (#148)',
     lpt: 'Australian (#148)',

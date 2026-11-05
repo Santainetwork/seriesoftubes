@@ -87,8 +87,8 @@ test('NSH sums to 1 in every region', () => {
 
 test('global NETS untouched after visiting sea', () => {
   const ev = region('global');
-  /* 2.7 merge: the Global snapshot is far larger now (281 carriers, 482 pairs), and it will keep
-     moving as upstream adds data. Capture the live counts instead of pinning them: the behaviour
+  /* 2.7 merge: the Global snapshot is now upstream's whole world (402 cities, 381 carriers,
+     558 cable pairs), and it will keep moving as upstream adds data. Capture the live counts instead of pinning them: the behaviour
      under test is that a regional round trip restores Global exactly, not that the world is a
      particular size. */
   const globalNets = ev('NETS.length');
@@ -110,8 +110,8 @@ test('live network counts match the brief (45 SEA, own IDN list)', () => {
      Level Tree keeps the Singapore, Jakarta and Hong Kong POPs the fork added in 1.27.6 (the
      prd-t1reach fix), and upstream's own Level Tree list never had them. */
   /* 2.7 merge: upstream added global carriers with POPs in SEA cities, so the live subset grew
-     from 45 to 63. This is a data count, not a rule. */
-  assert.equal(ev('Object.keys(NET).length'), 63);
+     from 45 to 69 (63 before the full world data landed). This is a data count, not a rule. */
+  assert.equal(ev('Object.keys(NET).length'), 69);
   /* Six since the v1.29 merge: Level Tree is live on the Asia maps again, because the fork's
      prd-t1reach fix gave it Singapore, Jakarta and Hong Kong POPs. The union in the NETS hunk
      keeps them, and prd-t1reach requires them: without a POP on the map a PNI is impossible and
@@ -146,8 +146,8 @@ test('live network counts match the brief (45 SEA, own IDN list)', () => {
 
 test('exchange member lists only include live networks', () => {
   const ev = region('sea');
-  /* 2.7 merge: 45 -> 63 live SEA networks, same data growth as the count test above. */
-  assert.equal(ev('Object.keys(NET).length'), 63);
+  /* 2.7 merge: 45 -> 69 live SEA networks, same data growth as the count test above. */
+  assert.equal(ev('Object.keys(NET).length'), 69);
   assert.equal(ev(`XIX.every(x=>x.members.every(id=>!!NET[id]))`), true);
   ev("applyRegion('idn')");
   /* Brief 18 §G: on the Indonesia map every global Tier 1 and Tier 2 is an exchange member even
@@ -176,9 +176,9 @@ test('global baseline unchanged', () => {
   const ev = region('global');
   /* 2.7 merge: upstream's global map replaced the v1.27 world this gate snapshotted. These match
      prd-baseline.test.js and prd-m1-global.test.js. */
-  assert.equal(ev('CITIES.length'), 242);
-  assert.equal(ev('CABLES.length'), 166);
-  assert.equal(ev('CABLE_PAIRS.length'), 482);
-  assert.equal(ev('NETS.length'), 281);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 221);
+  assert.equal(ev('CITIES.length'), 402);
+  assert.equal(ev('CABLES.length'), 180);
+  assert.equal(ev('CABLE_PAIRS.length'), 558);
+  assert.equal(ev('NETS.length'), 381);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 321);
 });
