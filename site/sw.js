@@ -1,70 +1,38 @@
-/* Series of Tubes — offline shell.
+/* Series of Tubes service worker: makes the game installable and playable offline.
    The page always comes from the network when there is one, so a new release shows up on the
-   next visit; everything else is served from the cache and refreshed in the background. A
-   cache-first shell would keep players on a stale build forever, which is exactly what happened
-   when the Indonesia map shipped: the game kept loading the old one. */
-const SHELL = 'sot-shell-v2';
-/* The dictionaries are cached too, so a player who picked a language keeps it offline instead of
-   dropping back to English. They carry the version so a release that changes strings also refreshes
-   them; scripts/build.sh stamps __VERSION__ in this file for that reason. */
-const ASSETS = [
-  '/',
-  '/index.html',
-  '/site.webmanifest',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-maskable-512.png',
-  '/apple-touch-icon.png',
-  '/favicon.svg',
-  '/i18n/it.js?v=__VERSION__',
-  '/i18n/pt.js?v=__VERSION__',
-];
+   next visit; everything else is served from the cache and refreshed in the background. */
+const CACHE = 'sot-__VERSION__';
+const CORE = ['/', '/index.html', '/site.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/i18n/it.js?v=__VERSION__', '/i18n/pt.js?v=__VERSION__', '/i18n/fr.js?v=__VERSION__', '/i18n/es.js?v=__VERSION__', '/i18n/de.js?v=__VERSION__'];
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(SHELL)
-      /* addAll rejects the whole batch if one file 404s, so each asset is added on its own. */
-      .then(c => Promise.all(ASSETS.map(u => c.add(u).catch(() => {}))))
-      .then(() => self.skipWaiting())
-  );
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys()
-      .then(ks => Promise.all(ks.filter(k => k !== SHELL).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('sot-') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-self.addEventListener('fetch', e => {
-  const r = e.request;
-  if (r.method !== 'GET') return;
-  const url = new URL(r.url);
-  if (url.origin !== self.location.origin) return;
-
-  /* Navigations: network first, cached shell as the offline fallback. */
-  if (r.mode === 'navigate') {
-    e.respondWith(
-      fetch(r).then(res => {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(SHELL).then(c => c.put('/index.html', copy));
-        }
-        return res;
-      }).catch(() => caches.match('/index.html').then(hit => hit || caches.match('/')))
-    );
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  // The update check must always ask the network.
+  if (url.origin === location.origin && url.pathname === '/version.json') return;
+  if (req.mode === 'navigate') {
+    e.respondWith(fetch(req).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put('/', copy)); return r; })
+      .catch(() => caches.match('/').then((r) => r || caches.match('/index.html'))));
     return;
   }
-
-  /* Everything else: cache first, refreshed in the background. */
-  e.respondWith(
-    caches.match(r).then(hit => hit || fetch(r).then(res => {
-      if (res && res.ok && res.type === 'basic') {
-        const copy = res.clone();
-        caches.open(SHELL).then(c => c.put(r, copy));
-      }
-      return res;
-    }).catch(() => hit))
-  );
+  const local = url.origin === location.origin, fonts = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
+  if (!local && !fonts) return;
+  // Weekly puzzles, scenarios and Architect runs are published between releases: ask the network first, and keep a copy for offline.
+  if (local && (url.pathname.startsWith('/puzzles/weekly/') || url.pathname.startsWith('/scenarios/weekly/') || url.pathname.startsWith('/architect/weekly/'))) {
+    e.respondWith(fetch(req).then((r) => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); } return r; })
+      .catch(() => caches.match(req).then((r) => r || Response.error())));
+    return;
+  }
+  e.respondWith(caches.open(CACHE).then((c) => c.match(req).then((hit) => {
+    const net = fetch(req).then((r) => { if (r && (r.ok || r.type === 'opaque')) c.put(req, r.clone()); return r; }).catch(() => hit);
+    return hit || net;
+  })));
 });

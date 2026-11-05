@@ -3,18 +3,20 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { load, seed } = require('./harness');
-const { loadDict, brokenEntries, sourceKeys, check, unportedKeys } = require('../scripts/i18n-check');
+const { loadDict, brokenEntries } = require('../scripts/i18n-check');
 
 const SCREENS = ['hud', 'panelBody', 'leftBody', 'modalCard', 'dashCard', 'bankCard', 'toasts', 'coach', 'hint', 'mega'];
 
 // Drives the game through nearly every screen, every failure and every event, and returns what threw
-// plus any rendered text with an unfilled {placeholder}, "undefined" or "NaN" in it.
+// plus any rendered text with an unfilled {placeholder}, "undefined", "NaN" or a raw label (text shown without
+// tr(), such as an N_() label from a table) in it.
 function tour(ev) {
   const thrown = [], leaks = new Set();
   const step = (label, src) => {
     try { ev(src); } catch (e) { thrown.push(`${label}: ${e.message}`); }
     const txt = ev(`${JSON.stringify(SCREENS)}.map(i=>{const e=document.getElementById(i);return e?e.textContent:''}).join('\\n')`);
     for (const m of txt.match(/[^\n]{0,40}(\{[a-z]\w*\}|undefined|NaN)[^\n]{0,40}/g) || []) leaks.add(m.trim());
+    for (const m of txt.match(/[a-z0-9_]+(\.[a-z0-9_]+)+/g) || []) if (ev(`!!EN[${JSON.stringify(m)}]`)) leaks.add(`raw label: ${m}`);
   };
   step('title', 'showTitle()');
   step('start', 'ACT.start({});S.cash=1e8;S.lvl=4;S.day=100');
@@ -31,12 +33,12 @@ function tour(ev) {
   for (const [label, src] of [['dash', 'ACT.dash({});ACT.dashClose()'], ['bank', 'ACT.bank();ACT.bankClose()'],
     ['help', 'showHelp();closeModal()'], ['menu', 'ACT.menu();closeModal()'], ['reset', 'ACT.resetAsk();closeModal()'],
     ['scenarios', 'scenarioModal();closeModal()'], ['trace', "traceModal('fra');closeModal()"],
-    ['route script', 'ACT.buyTE();ACT.teEdit();ACT.teExample();ACT.teCheck();closeModal()'],
+    ['route script', 'S.lvl=Math.max(S.lvl,3);S.cash+=1e6;ACT.coreUp();ACT.coreUp();ACT.buyTE();ACT.teEdit();ACT.teExample();ACT.teCheck();closeModal()'],
     ['routers', "selectCity('fra');ACT.tab({t:'links'});ACT.models()"], ['vxc', "openVxcModal({from:'fra',to:'ams'});closeModal()"],
     ['tutorial', 'S.tut=0;renderCoach();S.tut=3;renderCoach();S.tut=null;renderCoach()'], ['win', 'showWin()']]) step(label, src);
   const failSrc = ev('fireFailure.toString()');
-  for (const t of ['harmless', 'fatwave', 'label', 'mtu', 'oops', 'cleaner', 'maxpfx', 'prepend', 'rpki', 'amp', 'roadmff', 'optic', 'ac', 'cut', 'crash', 'power', 'transit', 'ixloop', 'leak', 'ddos']) {
-    const kind = ['harmless', 'fatwave', 'label', 'mtu', 'oops', 'cleaner', 'maxpfx', 'prepend', 'rpki', 'roadmff', 'ac'].includes(t) ? 'funny' : t;
+  for (const t of ['harmless', 'fatwave', 'label', 'mtu', 'oops', 'cleaner', 'prepend', 'rpki', 'amp', 'roadmff', 'optic', 'ac', 'cut', 'crash', 'power', 'transit', 'ixloop', 'leak', 'ddos']) {
+    const kind = ['harmless', 'fatwave', 'label', 'mtu', 'oops', 'cleaner', 'prepend', 'rpki', 'roadmff', 'ac'].includes(t) ? 'funny' : t;
     const patched = failSrc.replace(/^function fireFailure/, 'function')
       .replace('let tot=opts.reduce', `if(!opts.some(o=>o[0]==='${kind}'))return;opts.splice(0,opts.length,['${kind}',1]);let tot=opts.reduce`)
       .replace('type=pick(f);}', `type=f.includes('${t}')?'${t}':pick(f);}`);
@@ -60,6 +62,10 @@ test('the game starts in English unless the player or the browser asks for anoth
   assert.equal(load().ev('LANG'), 'en');
   assert.equal(load({ navigatorLanguage: 'it-IT' }).ev('SOT_LANG'), 'it', 'an Italian browser asks for Italian');
   assert.equal(load({ navigatorLanguage: 'pt-BR' }).ev('SOT_LANG'), 'pt', 'a Brazilian browser asks for Portuguese');
+  assert.equal(load({ navigatorLanguage: 'fr-FR' }).ev('SOT_LANG'), 'fr', 'a French browser asks for French');
+  assert.equal(load({ navigatorLanguage: 'es-ES' }).ev('SOT_LANG'), 'es', 'a Spanish browser asks for Spanish');
+  assert.equal(load({ navigatorLanguage: 'de-DE' }).ev('SOT_LANG'), 'de', 'a German browser asks for German');
+  assert.equal(load({ navigatorLanguage: 'de-CH' }).ev('SOT_LANG'), 'de', 'so does a Swiss German one');
   const it = load({ lang: 'it' });
   assert.equal(it.ev('LANG'), 'it');
   assert.equal(it.ev('document.documentElement.lang'), 'it');
@@ -70,71 +76,114 @@ test('the game starts in English unless the player or the browser asks for anoth
   assert.equal(offline.ev('document.documentElement.lang'), 'en');
 });
 
-test('missing translations fall back to the English text, with placeholders filled', () => {
+test('missing translations fall back to the English, with placeholders filled', () => {
   const { ev } = load({ lang: 'it' });
-  assert.equal(ev("tr('No such text, {n} times',{n:3})"), 'No such text, 3 times');
-  assert.equal(ev("trn('{n} cat','{n} cats',1)"), '1 cat');
-  assert.equal(ev("trn('{n} cat','{n} cats',2)"), '2 cats');
+  ev("DICT['test.cats']=EN['test.cats']={one:'{n} cat',other:'{n} cats'}");
+  assert.ok(ev("Object.keys(EN).every(k=>DICT[k]===(I18N.it[k]??EN[k]))"), 'each label is Italian where there is Italian, else English');
+  assert.equal(ev("tr('test.no_such_label {n}',{n:3})"), 'test.no_such_label 3', 'an unknown label comes back as it is');
+  assert.equal(ev("trn('test.cats',1)"), '1 cat');
+  assert.equal(ev("trn('test.cats',2)"), '2 cats');
+  assert.equal(ev("trn('slots.n_day_ago',1)"), '1 giorno fa');
+  assert.equal(ev("trn('slots.n_day_ago',3)"), '3 giorni fa');
 });
 
-test('every Italian entry keeps the placeholders and HTML tags of its English text', () => {
-  const dict = loadDict(path.join(__dirname, '..', 'site', 'i18n', 'it.js'));
-  assert.ok(Object.keys(dict).length > 100);
-  assert.deepEqual(brokenEntries(dict), []);
+test('text that old saves stored in English is still translated', () => {
+  const { ev } = load({ lang: 'it' });
+  assert.equal(ev("tr('Delivery: 2 to 6 weeks')"), ev("tr('pnis.delivery_2_to_6_weeks')"));
+  assert.equal(ev("tr('{n} days ago',{n:3})"), '3 giorni fa', 'plural forms too');
+  assert.equal(load().ev("tr('Delivery: 2 to 6 weeks')"), 'Delivery: 2 to 6 weeks');
 });
 
-test('every dictionary translates every string the game shows, and nothing else', () => {
-  // The checker is the gate CI runs, so it is pinned here as well: a green suite with a red CI job
-  // would be a lie. Missing is zero with no allowance — the dictionaries are complete today, and the
-  // 495 strings this fork was short of were finished translations sitting in upstream, not new work.
-  const keys = sourceKeys(fs.readFileSync(path.join(__dirname, '..', 'site', 'index.html'), 'utf8'));
-  const unported = unportedKeys();
-  for (const lang of ['it', 'pt']) {
-    const r = check(keys, loadDict(path.join(__dirname, '..', 'site', 'i18n', `${lang}.js`)), unported);
-    assert.deepEqual(r.missing, [], `${lang}.js does not translate these strings the game shows`);
-    assert.deepEqual(r.broken, [], `${lang}.js breaks a placeholder or an HTML tag`);
-    assert.deepEqual(r.unused, [], `${lang}.js has entries for text the game no longer shows, and they are not in scripts/i18n-unported.json`);
+test('every translation keeps the placeholders, HTML tags and plural forms of its English', () => {
+  const D = require('../scripts/lib/dict');
+  const en = D.read('en').dict;
+  for (const lang of D.langs()) {
+    const dict = loadDict(D.fileOf(lang));
+    assert.ok(Object.keys(dict).length > 100, lang);
+    assert.deepEqual(brokenEntries(dict, en), [], lang);
   }
 });
 
-test('every language the game offers is in the offline cache, so it survives going offline', () => {
-  // Without this a player who picks Italian and loses signal gets English back: the dictionary was
-  // never in the service worker's cache. registration() checks it in CI; this keeps it checked here.
-  const sw = fs.readFileSync(path.join(__dirname, '..', 'site', 'sw.js'), 'utf8');
-  const offered = JSON.parse(load().ev('JSON.stringify(Object.keys(window.SOT_LANGS))')).filter((l) => l !== 'en');
-  assert.ok(offered.length > 0);
-  for (const lang of offered) {
-    assert.ok(sw.includes(`/i18n/${lang}.js`), `site/sw.js does not cache /i18n/${lang}.js, so ${lang} falls back to English offline`);
-  }
+test('the static markup is translated by label', () => {
+  const { ev } = load({ lang: 'it' });
+  ev('ACT.start({})');
+  assert.equal(ev("document.querySelector('[data-i18n=\"common.customers\"]').textContent"), 'Clienti');
+  assert.equal(ev("document.querySelector('[data-act=help]').getAttribute('aria-label')"), ev("tr('common.how_to_play')"));
 });
 
-test('the unported list only names strings upstream really translates', () => {
-  // scripts/i18n-unported.json is the one place an unused entry is forgiven. It has to stay honest:
-  // if it could name anything it would silence the unused check instead of recording upstream
-  // features this fork has not ported. Every key must be a real upstream key, and it must not be a
-  // key this fork already shows (that would be a string the fork forgot to translate).
-  const { execFileSync } = require('node:child_process');
-  const root = path.join(__dirname, '..');
-  let upHtml;
-  try {
-    upHtml = execFileSync('git', ['show', 'origin/main:site/index.html'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-  } catch {
-    return; // no upstream ref available (a tarball, a shallow clone)
-  }
-  const upKeys = sourceKeys(upHtml);
-  const forkKeys = sourceKeys(fs.readFileSync(path.join(root, 'site', 'index.html'), 'utf8'));
-  const unported = unportedKeys();
-  assert.ok(unported.size > 0, 'the list should not be empty while upstream has unported features');
-  assert.deepEqual([...unported].filter((k) => !upKeys.has(k)), [], 'scripts/i18n-unported.json names strings upstream does not have');
-  assert.deepEqual([...unported].filter((k) => forkKeys.has(k)), [], 'scripts/i18n-unported.json excuses strings this fork shows; translate them instead');
-});
-
-test('the language buttons on the title screen work before any game exists', () => {
+test('the language dropdown on the title screen works before any game exists', () => {
   const { ev } = load();
-  ev("[...document.querySelectorAll('#modalCard [data-act=langSet]')].find(b=>b.textContent==='Italiano').click()");
+  assert.equal(ev('S'), null);
+  ev("const s=document.querySelector('#modalCard select#langTitle');s.value='it';s.dispatchEvent(new Event('change',{bubbles:true}))");
   assert.equal(ev("localStorage.getItem('sot-lang')"), 'it');
 });
 
+test('picking a language saves the choice and the game, then reloads', () => {
+  const { ev } = load();
+  ev('ACT.start({});dayTick()');
+  ev("ACT.langSet({v:'it'})");
+  assert.equal(ev("localStorage.getItem('sot-lang')"), 'it');
+  assert.ok(ev("slotRaw(UI.slot)"));
+  ev("ACT.langSet({v:'klingon'})");
+  assert.equal(ev("localStorage.getItem('sot-lang')"), 'it');
+});
+
+test('a scenario started in English shows its Italian name after switching', () => {
+  const en = load();
+  en.ev("ACT.startScn({id:'stg'});save()");
+  const { ev } = load({ lang: 'it', storage: { 'sot-save-v1': en.ev("slotRaw(UI.slot)") } });
+  const name = ev("SCN.find(x=>x.id==='stg').n");
+  assert.notEqual(name, en.ev("SCN.find(x=>x.id==='stg').n"));
+  assert.ok(ev("document.getElementById('hAsn').textContent").includes(name));
+});
+
+for (const lang of ['en', 'it', 'pt', 'fr', 'es', 'de']) {
+  test(`${lang}: every screen, failure and event renders without errors or unfilled placeholders`, () => {
+    const { ev, errors } = load(lang === 'en' ? {} : { lang });
+    seed(ev, 3);
+    if (lang === 'it') {
+      assert.match(ev("document.getElementById('modalCard').textContent"), /Come si gioca/);
+      assert.equal(ev("document.querySelector('#hud [data-act=bank] .lbl').textContent"), 'Cassa · Banca');
+    }
+    if (lang === 'fr') {
+      assert.match(ev("document.getElementById('modalCard').textContent"), /Comment jouer/);
+      // short enough to stay on one line in the phone's top bar (Caisse · Banque wrapped and cut off the monthly line)
+      assert.equal(ev("document.querySelector('#hud [data-act=bank] .lbl').textContent"), 'Cash · Banque');
+    }
+    if (lang === 'es') {
+      assert.match(ev("document.getElementById('modalCard').textContent"), /Cómo jugar/);
+      assert.equal(ev("document.querySelector('#hud [data-act=bank] .lbl').textContent"), 'Caja · Banco');
+    }
+    if (lang === 'de') {
+      assert.match(ev("document.getElementById('modalCard').textContent"), /Spielanleitung/);
+      // the link card to the real "How the Internet Works" site used to be hard-coded English; it lives in How to play
+      assert.match(ev("(()=>{showHelp&&showHelp();return document.getElementById('modalCard').textContent})()"), /Wie funktioniert das Internet\?/);
+      ev("showTitle()");
+      assert.equal(ev("document.querySelector('#hud [data-act=bank] .lbl').textContent"), 'Kasse · Bank');
+      // networking jargon stays English in German (Peering, Dark Fiber); plain "fiber" is Glasfaser
+      assert.equal(ev("tr('common.peering')"), 'Peering');
+      assert.equal(ev("tr('common.dark_fiber')"), 'Dark Fiber');
+      assert.equal(ev("tr('common.terrestrial_fiber')"), 'Terrestrische Glasfaser');
+    }
+    const { thrown, leaks } = tour(ev);
+    assert.ok(ev('(S.stats.f||{}).anchor'), 'Baltic and Red Sea anchors count for the badge in every language');
+    assert.deepEqual(thrown, []);
+    assert.deepEqual(leaks, []);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test('the translation check catches labels the build could not see, and English-keyed calls', () => {
+  const { sourceLabels } = require('../scripts/i18n-check');
+  const { problems, labels } = sourceLabels("<html><body><script>const x='pnis.foo_bar';tr('pnis.ok_label');N_('pnis.kept');trn('{n} POP','{n} POPs',n)</script></body></html>");
+  assert.ok(labels.has('pnis.ok_label') && labels.has('pnis.kept'));
+  assert.ok(problems.some((p) => p.includes('pnis.foo_bar') && p.includes('N_()')), 'a bare label');
+  assert.ok(problems.some((p) => p.includes('not a label')), 'English text where a label belongs');
+});
+
+// Fork-side guards, kept on top of upstream's label-based tests: a dictionary that exists but is
+// never offered (pt was in this state once) and one that is offered but cannot translate anything
+// both pass a schema check and still leave the player reading English.
 test('every dictionary in site/i18n/ is offered in window.SOT_LANGS, and every offered language has one', () => {
   const dir = path.join(__dirname, '..', 'site', 'i18n');
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js')).map((f) => path.basename(f, '.js')).sort();
@@ -144,7 +193,7 @@ test('every dictionary in site/i18n/ is offered in window.SOT_LANGS, and every o
   // JSON round-trip because the value comes from the jsdom realm, whose Array.prototype is not ours.
   const offered = JSON.parse(load().ev('JSON.stringify(Object.keys(window.SOT_LANGS))')).sort();
 
-  // English is the source language: its strings are the keys, so it has no dictionary file.
+  // English is the source language: its strings are the labels, so it has no dictionary file.
   const withFiles = offered.filter((l) => l !== 'en');
 
   // Both directions, because they fail differently. A file nobody offers is a translation that was
@@ -174,37 +223,13 @@ test('a language the player picks actually loads its dictionary and translates t
   }
 });
 
-test('picking a language saves the choice and the game, then reloads', () => {
-  const { ev } = load();
-  ev('ACT.start({});dayTick()');
-  ev("ACT.langSet({v:'it'})");
-  assert.equal(ev("localStorage.getItem('sot-lang')"), 'it');
-  assert.ok(ev("localStorage.getItem('sot-save-v1')"));
-  ev("ACT.langSet({v:'klingon'})");
-  assert.equal(ev("localStorage.getItem('sot-lang')"), 'it');
+test('every language the game offers is in the offline cache, so it survives going offline', () => {
+  // Without this a player who picks Italian and loses signal gets English back: the dictionary was
+  // never in the service worker's cache. registration() checks it in CI; this keeps it checked here.
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'site', 'sw.js'), 'utf8');
+  const offered = JSON.parse(load().ev('JSON.stringify(Object.keys(window.SOT_LANGS))')).filter((l) => l !== 'en');
+  assert.ok(offered.length > 0);
+  for (const lang of offered) {
+    assert.ok(sw.includes(`/i18n/${lang}.js`), `site/sw.js does not cache /i18n/${lang}.js, so ${lang} falls back to English offline`);
+  }
 });
-
-test('a scenario started in English shows its Italian name after switching', () => {
-  const en = load();
-  en.ev("ACT.startScn({id:'stg'});save()");
-  const { ev } = load({ lang: 'it', storage: { 'sot-save-v1': en.ev("localStorage.getItem('sot-save-v1')") } });
-  const name = ev("SCN.find(x=>x.id==='stg').n");
-  assert.notEqual(name, en.ev("SCN.find(x=>x.id==='stg').n"));
-  assert.ok(ev("document.getElementById('hAsn').textContent").includes(name));
-});
-
-for (const lang of ['en', 'it', 'pt']) {
-  test(`${lang}: every screen, failure and event renders without errors or unfilled placeholders`, () => {
-    const { ev, errors } = load(lang === 'en' ? {} : { lang });
-    seed(ev, 3);
-    if (lang === 'it') {
-      assert.match(ev("document.getElementById('modalCard').textContent"), /Come si gioca/);
-      assert.equal(ev("document.querySelector('#hud [data-act=bank] .lbl').textContent"), 'Cassa · Banca');
-    }
-    const { thrown, leaks } = tour(ev);
-    assert.ok(ev('(S.stats.f||{}).anchor'), 'Baltic and Red Sea anchors count for the badge in every language');
-    assert.deepEqual(thrown, []);
-    assert.deepEqual(leaks, []);
-    assert.deepEqual(errors, []);
-  });
-}
