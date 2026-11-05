@@ -28,17 +28,30 @@ function lagName(tier,n){return (n||1)>1?`${n}×${PORT[tier].n} LAG`:tr('common.
 function ixCap(c){return ixLagF(c)*(S.myIx[c]?myFab(c).g*(myIxLive(c)?1:0):liveCap(PORT[S.ixp[c]].g,ixCity(c),(S.ixSite||{})[c],(S.ixn||{})[c])*(isRemote(c)?REMOTE_CAP:1));}
 function ixSessions(c){
   const s=new Set(); if(S.ixp[c]===undefined)return s;
-  for(const id of ixMembers(c)){const n=NET[id];
+  /* netOf() and not NET[]: after a region switch the cached member list can name a network the
+     current map does not carry, and a crash here took the whole exchange panel down. */
+  for(const id of ixMembers(c)){const n=netOf(id);if(!n)continue;
     if(S.peers[id+'@'+c]&&!snub(id,c)&&!(isRemote(c)&&noRemote(id)))s.add(id);
     else if(S.rs[c]&&n.pol==='open'&&ppol()==='open')s.add(id);
     else if(S.myIx[c]&&(n.pol==='open'||n.pol==='selective'))s.add(id);}
   return s;
 }
 function t1Club(){
+  /* Tier 1 thresholds are calibrated per region (brief 3): a "continent" is a projection
+     region, and SEA/IDN maps only ever cover one, so the global 3-continent rule made T1
+     impossible there. Global keeps the old numbers via the {} fallback. A continent gate is
+     capped at what the map actually offers: a requirement no map can honour is a bug, not a
+     difficulty setting, so every future region is safe by construction. */
+  const rr=(REGION[curRegion]&&REGION[curRegion].rules)||{};
+  const needPops=rr.t1Pops||10;
+  const needServed=rr.t1Served||1500;
+  const needCont=Math.min(rr.t1Continents!=null?rr.t1Continents:3,mapRegionsCount());
+  const needSess=rr.t1Sessions||20;
+  const needTxt=needServed>=1000?`${needServed/1000} Tbps`:`${needServed} Gbps`;
   const miss=[];const pops=Object.keys(S.pops).length;
-  if(regionsCount()<3)miss.push(tr('exchanges.pops_on_3_continents'));
-  if(pops<10)miss.push(tr('exchanges.10_pops_n',{n:pops}));
-  if(R.served<1500)miss.push(tr('exchanges.serve_1_5_tbps_v',{v:fmtG(R.served)}));
-  if(R.sessions<20)miss.push(tr('exchanges.20_peering_sessions_n',{n:R.sessions}));
+  if(regionsCount()<needCont)miss.push(tr('helpers.pops_on_k_continents',{k:needCont}));
+  if(pops<needPops)miss.push(tr('helpers.k_pops_n',{k:needPops,n:pops}));
+  if(R.served<needServed)miss.push(tr('helpers.serve_t_v',{t:needTxt,v:fmtG(R.served)}));
+  if(R.sessions<needSess)miss.push(tr('helpers.k_peering_sessions_n',{k:needSess,n:R.sessions}));
   return {ok:!miss.length,missing:miss};
 }

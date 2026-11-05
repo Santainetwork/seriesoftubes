@@ -179,7 +179,7 @@ let ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
    is a cable landing or a capital (tests/regions.test.js enforces it). Cities retired by that rule are marked off:
    they stay in the data so old saves keep their POPs there, but new games never see them. */
 const cityOn=id=>{const c=CITY[id];return !!c&&(!c.off||!!(S&&(S.pops[id]||S.ixp[id]!==undefined)));};
-const OFFC=ALLC.filter(c=>!CITY[c].off);
+let OFFC=ALLC.filter(c=>!CITY[c].off);
 const ruCity=c=>!!CITY[c].ru;
 const cnCity=c=>!!CITY[c].cn;
 const BIGC=['man','edi','bcn','mil','rom','lis','ath','atn','den','phx','bos','hou','ruh','jed','doh','kyv','mel','bne','osa','kul','bkk','sgn','khi','dac','waw','prg','vie','bud','buh','ist','rio','bue','scl','bog','lim','del','maa','blr','hyd','tpe','cpt','auh','ber','zrh','nbo','cai','jkt','mnl','per','akl','dub','lax','tor','mex','dxb','cph','icn','sjc','dal','chi','ash','nyc','mia','sao','lon','ams','fra','par','mrs','mad','sto','bom','sin','hkg','tok','syd','jnb','lag'];

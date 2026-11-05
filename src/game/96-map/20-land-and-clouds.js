@@ -658,12 +658,21 @@ function rebuildDerived(){
  bowCables();clearLand();dedup();smoothCables();clearLand();dedup();
  tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
+ /* OFFC (the cities an offer may land in) is derived from ALLC at load; it has to follow the map too,
+    or a regional game picks global city ids that CITY no longer holds. */
+ OFFC=ALLC.filter(c=>!CITY[c].off);
  /* Filter the networks that actually have a POP in this region before deriving NET,
     NSH and the exchange member lists. `NETS` itself is never resized: REGION.global.nets
     aliases that very array, so splicing it here would corrupt Global (brief 4 §1). */
  /* Index the full network list once, so netOf() is a hash lookup rather than a scan. Every
     exchange member row, peerOk() call and peer-all loop runs through it. */
  rebuildNetIndex();
+ /* Exchange member lists and their caches were built against the previous map's NETS; clear them so
+    a regional game does not keep replaying the global member ids (and crash on a missing NET). */
+ for(const k in IX_MEM) delete IX_MEM[k];
+ /* The routing cache is keyed by the graph, but its kept 'ok' table is indexed by NET_IDS, whose
+    length changes with the map. A new map means a new network count, so drop every kept table. */
+ if(typeof RC!=='undefined'){RC.gk=null;RC.g=null;RC.xk=null;RC.x=null;}
  /* NETS was just swapped for this region's list: every index derived from it has to follow. */
  NET_IDS=NETS.map(n=>n.id);
  const regionCityIds=new Set(CITIES.map(c=>c.id));

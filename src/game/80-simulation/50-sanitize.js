@@ -21,6 +21,23 @@ function sanitize(s){
   if(!isCity(s.home))s.home=Object.keys(s.pops)[0]||'fra';
   if(!own(REGION,s.region))s.region='global';
   if(!own(ROLES,s.role))s.role='isp';
+  /* Brief 6 §2.2: keep the record of the last promotion across reloads; drop anything malformed. */
+  if(s.roleUp!==null&&s.roleUp!==undefined){
+    const u=s.roleUp;
+    if(u&&typeof u==='object'&&own(ROLES,u.from)&&own(ROLES,u.to))s.roleUp={from:u.from,to:u.to,day:int(u.day,0,1e7,0)};
+    else s.roleUp=null;
+  } else s.roleUp=null;
+  /* Brief 8 §2.2: keep the Singapore unlock across reloads; drop unknown cities. */
+  if(s.unlocked&&typeof s.unlocked==='object'&&!Array.isArray(s.unlocked)){
+    const un={};
+    for(const k in s.unlocked) if(UNLOCK_CITIES[k]&&typeof s.unlocked[k]==='number') un[k]=int(s.unlocked[k],0,1e7,0);
+    s.unlocked=un;
+  } else s.unlocked={};
+  /* Brief 13 §1.3: B2B campaign end days, by city. */
+  if(s.promo&&typeof s.promo==='object'&&!Array.isArray(s.promo)){
+    const pr={};for(const k in s.promo) if(isCity(k)&&Number.isFinite(+s.promo[k])) pr[k]=num(s.promo[k],0);
+    s.promo=pr;
+  } else s.promo={};
   opsSanitize(s);
   const tier=v=>int(v,0,PORT.length-1,0),lag=v=>int(v,1,LAG_MAX,1),sid=v=>String(v==null?uid():v).slice(0,40);
   s.links=s.links.filter(l=>l&&isCity(l.a)&&isCity(l.b)&&l.a!==l.b).map(l=>{l.id=sid(l.id);if(l.list!==undefined){const L=l.list;if(l.kind==='df'&&L&&typeof L==='object'&&!Array.isArray(L)){const w=int(L.w,0,256,0),p=int(L.p,0,2,0);if(w||p)l.list={w,p};else delete l.list;}else delete l.list;}l.km=num(l.km,kmBetween(l.a,l.b));l.mo=num(l.mo,0);l.cut=num(l.cut,0);if(l.pairs!==undefined)l.pairs=Math.min(l.sub?SUB_PAIRS_MAX:s.lvl>=PAIRS_LV?PAIRS_BIG:PAIRS_MAX,Math.max(1,Math.floor(+l.pairs)||1));if(l.kind!=='df'&&l.kind!=='vxc')l.kind='wave';if(l.kind==='wave')l.tier=int(l.tier,0,LT.length-1,0);if(l.cable&&(!own(CAB,l.cable)||!cablePair(l.cable,l.a,l.b)))l.cable=null;if(l.kind==='vxc'&&!own(VXC,l.vt))l.vt=0;if(l.kind==='df'){if(!own(DF_SYS,l.sys))l.sys='lite';l.ch=Array.isArray(l.ch)?l.ch.filter(o=>own(OPT,o)):[];l.ready=num(l.ready,0);for(const k of Object.keys(SUB_UPGRADES)){const f='sub'+k;if(l[f]!==undefined){if(l.own&&l.sub&&Number.isFinite(l[f])&&l[f]>=0)l[f]=Math.round(l[f]);else delete l[f];}}if(l.seaPath!==undefined){if(l.own&&l.sub&&Array.isArray(l.seaPath)&&l.seaPath.length>=2&&l.seaPath.length<=2048&&l.seaPath.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90))l.seaPath=l.seaPath.map(p=>p.slice());else delete l.seaPath;}if(l.paid!==undefined){if(l.own&&l.sub&&Number.isFinite(l.paid)&&l.paid>=0)l.paid=Math.round(l.paid);else delete l.paid;}if(l.own&&l.sub&&!own(SEA_DESIGNS,l.seaDesign))l.seaDesign='standard';l.regen=int(l.regen,0,REGEN_MAX,0);}const deg=v=>v&&typeof v==='object'?{until:num(v.until,0),f:Math.min(1,Math.max(0,num(v.f,1)))}:null;if(l.loss)l.loss=deg(l.loss);return l;});

@@ -156,6 +156,10 @@ function _spawnOffer(preferCity){
   let city=pref||((Math.random()<0.65&&mine.length)?pick(mine):pick(OFFC.concat(cnOk()?['pek','sha']:[]))),city2=null;
   if(T.l2){city=pick(mine);const pool=(Math.random()<(T.lv>=3?0.8:0.6)?mine:OFFC).filter(c=>c!==city);city2=pick(pool.length?pool:OFFC.filter(c=>c!==city));}
   let bw=napSmall?T.opts[0]:(T.lv>=2?pick(T.opts):pick(T.opts.slice(0,mine.length>=4?4:3)));
+  /* Brief 6 §3: an RT/RW net sells DIA sizes up to its region's bwMax (2G global, 5G SEA,
+     10G IDN). Without an override this is exactly the brief-5 [1,2] behaviour. */
+  const bwCap=RD.bwMax;
+  if(S.role==='rtnet'&&t==='dia'&&bwCap){const cap=T.opts.filter(v=>v<=bwCap);bw=pick(cap.length?cap:[1]);}
   /* Brief 18 §B: on the Indonesia map the prospect pool is Indonesian and parodic. */
   const poolN=(curRegion==='idn'&&IDN_NAMES[t])?IDN_NAMES[t]:(T.names||BIZ_N);
   const list=poolN.filter(n=>!S.usedNames.includes(n));
