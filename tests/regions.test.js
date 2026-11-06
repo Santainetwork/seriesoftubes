@@ -1119,3 +1119,17 @@ test('#213 Clarovision sells peering only as a paid PNI, free only for the bigge
   assert.equal(ev("peerOk('clr','pni','sao').free"), true);
   assert.deepEqual(errors, []);
 });
+
+test('the title screen map buttons switch the map before a game starts', () => {
+  /* The buttons live on the title screen, where there is no S yet. The click handler only lets a
+     few actions through without a game, and the fork's map and role pickers were not on that list,
+     so pressing SEA or Indonesia did nothing at all. */
+  const { ev, errors } = load();
+  ev('showTitle()');
+  assert.equal(ev('typeof S'), 'object');
+  const click = (id) => ev(`(()=>{const b=document.querySelector('[data-act="pickRegion"][data-args=\\'{"id":"${id}"}\\']');if(!b)return 'no button';b.click();return JSON.stringify({region:UI.region,cities:CITIES.length});})()`);
+  assert.deepEqual(JSON.parse(click('sea')), { region: 'sea', cities: 49 });
+  assert.deepEqual(JSON.parse(click('idn')), { region: 'idn', cities: 34 });
+  assert.deepEqual(JSON.parse(click('global')), { region: 'global', cities: 402 });
+  assert.deepEqual(errors, []);
+});
