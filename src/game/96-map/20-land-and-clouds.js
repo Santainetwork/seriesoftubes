@@ -678,7 +678,12 @@ function rebuildDerived(){
     complaint it was meant to fix: "beberapa kabel masih ada yang kurang rapih".
     What actually needed fixing was the line's SHAPE, which tidyCables() now does. */
  if(curRegion!=='global'){bowCables();clearLand();dedup();smoothCables();clearLand();dedup();
- tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();}
+ tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();
+ /* Last, after the land passes: simplifyCables() drops the jitter the earlier passes keep
+    faithfully and re-smooths, and it is the only pass that would put a cable back over land if
+    it ran before clearLand(). That is why it sits at the end, and why the next build must not
+    be given a clearLand() after it: snapping the simplified line reintroduces the spikes. */
+ simplifyCables();}
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
  /* OFFC (the cities an offer may land in) is derived from ALLC at load; it has to follow the map too,
     or a regional game picks global city ids that CITY no longer holds. */

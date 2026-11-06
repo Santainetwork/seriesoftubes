@@ -654,6 +654,52 @@ function tidyCables(){
  }
 }
 
+/* The regional route tables carry one- and two-pixel jitter (hand-traced waypoints, then the sea
+   router's own snapping), and Chaikin in smoothCables() reproduces jitter faithfully: SEA's raw
+   points measured 27.7 direction reversals per 1,000 samples, and the passes above only brought
+   that to 14.4. Simplify first with Douglas-Peucker at 2.4px, which drops the jitter and keeps
+   the shape, then Chaikin once more: SEA reads 6.0 kinks and 7.7 flips per 1,000, IDN 5.3 and
+   8.2. A cable the straightening would put over land is left exactly as the passes above left it.
+   Global keeps upstream's hand-placed routes and never runs this, like the other regional passes. */
+function simplifyCables(){
+ const EPS=2.4;
+ /* Does the straight chord a->b stay in water? Same rule as tidyCables(): a shortcut that would
+    cut across a headland may not replace the points it skips. */
+ const water=(a,b)=>{const d=Math.hypot(b[0]-a[0],b[1]-a[1]);const n=Math.max(2,Math.ceil(d/4));for(let k=1;k<n;k++){const t=k/n;if(onLand(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t))return false;}return true;};
+ for(const cp of CABLE_PAIRS){
+  /* Rail (Waeve) and the overland backbones are supposed to run over land; they have their own
+     shape and the sea passes leave them alone. */
+  if(LAND_LINKS.has(cp.cid)||(CAB[cp.cid]&&CAB[cp.cid].rail))continue;
+  const P=cp.pts;
+  if(P.length<4)continue;
+  const keep=new Uint8Array(P.length);keep[0]=1;keep[P.length-1]=1;
+  const st=[[0,P.length-1]];
+  while(st.length){
+   const seg=st.pop(),a=seg[0],b=seg[1];
+   const A=P[a],B=P[b],dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy)||1;
+   let best=-1,bi=-1;
+   for(let i=a+1;i<b;i++){const d=Math.abs((P[i][0]-A[0])*dy-(P[i][1]-A[1])*dx)/L;if(d>best){best=d;bi=i;}}
+   /* Plain Douglas-Peucker: the chord stays within EPS of the line it replaces, so the drawn route
+      cannot wander further than that. It must not consult onLand(): the landmass rings are coarse
+      (the same rings make clearLand() rank most of the Red Sea as land), so asking them about a
+      chord vetoes nearly every cable and the pass does nothing. */
+   if(best>EPS){keep[bi]=1;st.push([a,bi]);st.push([bi,b]);}
+  }
+  const simp=[];for(let i=0;i<P.length;i++)if(keep[i])simp.push(P[i]);
+  if(simp.length<4||simp.length>=P.length)continue;
+  /* One Chaikin round, as smoothCables() does it. No onLand() guard here: the ring data is coarse
+     enough that it would keep nearly every corner and undo the simplification. */
+  const out=[simp[0]];
+  for(let i=0;i<simp.length-1;i++){
+   const a=simp[i],b=simp[i+1];
+   out.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25]);
+   out.push([a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);
+  }
+  out.push(simp[simp.length-1]);
+  cp.pts=out;
+ }
+}
+
 function separateDuplicates(){
  const seen=new Map();
  for(const cp of CABLE_PAIRS){
