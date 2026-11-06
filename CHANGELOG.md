@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+## [2.10.2] — 2026-11-06
+
+- The fork now plays upstream 2.7's whole world: 402 cities, 180 cables, 558 cable pairs and 381 carriers, where it had been running a 242-city, 281-carrier remnant. Upstream's landmasses are the base with the fork's 37 island rings appended, the fork's Singapore, Jakarta and Hong Kong POPs are back on the four Tier 1s that had them, and the Pacific islets upstream draws as dots rather than rings count as land.
+- The page boots again in a real browser. The 2.7 merge into `src/` dropped one line, `let onLand=(x,y)=>false;`, from beside `bowCables`; without it the map script threw on an undeclared write under `'use strict'` and REGION, the landmasses and the map never initialised. The jsdom suite could not see it, the perf job in Chromium could.
+- The traceroute window marks its hops as the report the MCP server reads back, so a carrier list this long no longer pushes them out of it.
+
 ## [2.7.0] — 2026-11-03
 
 - Three new cities in northern Australia: Port Hedland, Townsville and Alice Springs (#255). Port Hedland lands a new cable up the coast to Darwin and a branch of Darwin's cable out to Singapore; Alice Springs has no sea at all. In the wet season, November to April, fiber cuts in the tropical north, Darwin included, take twice as long to reach.
