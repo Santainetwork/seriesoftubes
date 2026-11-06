@@ -683,7 +683,11 @@ function rebuildDerived(){
     faithfully and re-smooths, and it is the only pass that would put a cable back over land if
     it ran before clearLand(). That is why it sits at the end, and why the next build must not
     be given a clearLand() after it: snapping the simplified line reintroduces the spikes. */
- simplifyCables();}
+ /* The landing points are the cable's contract with its two cities, and the passes below move
+    points around; the first and last vertex are put back exactly as the route builder left them. */
+ const ends=CABLE_PAIRS.map(cp=>[cp.pts[0].slice(),cp.pts[cp.pts.length-1].slice()]);
+ simplifyCables();tidyPass2();
+ CABLE_PAIRS.forEach((cp,i)=>{cp.pts[0]=ends[i][0];cp.pts[cp.pts.length-1]=ends[i][1];});}
  ALLC=CITIES.filter(c=>!c.cn&&!c.ru&&!c.ixOnly).map(c=>c.id);
  /* OFFC (the cities an offer may land in) is derived from ALLC at load; it has to follow the map too,
     or a regional game picks global city ids that CITY no longer holds. */

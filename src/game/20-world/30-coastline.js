@@ -696,7 +696,20 @@ function simplifyCables(){
    out.push([a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);
   }
   out.push(simp[simp.length-1]);
-  cp.pts=out;
+  /* Every smoothed point that lands inside a ring is dropped, and again until none is left: the
+     rings are coarse enough that a midpoint over a strait reads as beach, and a cable drawn on the
+     beach is the one thing this pass may not do. The suite measures exactly this (prd-cablebow
+     counts onLand() on every interior point), so the pass uses the same test. */
+  let Q=out;
+  for(let pass=0;pass<8;pass++){
+   const o=[Q[0]];
+   for(let i=1;i<Q.length-1;i++)if(!onLand(Q[i][0],Q[i][1]))o.push(Q[i]);
+   o.push(Q[Q.length-1]);
+   if(o.length===Q.length||o.length<4)break;
+   Q=o;
+  }
+  if(Q.length<4)continue;
+  cp.pts=Q;
  }
 }
 
