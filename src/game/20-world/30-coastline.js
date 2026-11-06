@@ -787,3 +787,125 @@ function cablePts(cid,a,b){
 }
 
 const LAND_LINKS=new Set(['jmb','kalt','ktim','jawa','jawa2']);
+/* The fork's cable-shape repair passes (bow, clear, smooth, tidy, separate) were tuned to build
+   the regional maps and leave shape scars on them: folded vertex pairs from clearLand()'s
+   run-snapping, 90-180 degree corners from the offset tapers, and city-approach tails chopped
+   into 0.5-2px crumbs. tidyPass2() repairs the SHAPE on the finished regional polylines: fold
+   repair with a micro-wiggle collapse, corner rounding, one Chaikin round, a bounded
+   endpoint-approach rebuild whose chord must be water outside the city's 12px halo and which
+   replaces the vertices it drops 1:1, and a fold sweep for the out-and-back needles. Runs only
+   for the regional maps: Global keeps upstream's own route data untouched. */
+function tidyWater(a,b){
+ const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
+ const n=Math.max(2,Math.ceil(d/3));
+ for(let k=1;k<n;k++){const t=k/n;if(onLand(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t))return false;}
+ return true;
+}
+function tidyChordWater(A,E,halo){
+ const d=Math.hypot(E[0]-A[0],E[1]-A[1]);
+ if(d<=halo)return false;
+ const t0=halo/d,t1=1-halo/d;
+ let ok=true;
+ const m=Math.max(2,Math.ceil(d*(t1-t0)/2.5));
+ for(let k=0;k<=m;k++){const t=t0+(t1-t0)*k/m;const x=A[0]+(E[0]-A[0])*t,y=A[1]+(E[1]-A[1])*t;if(onLand(x,y)){ok=false;break;}}
+ return ok;
+}
+function tidyPass2(){
+ for(const cp of CABLE_PAIRS){
+  if(LAND_LINKS.has(cp.cid)||(CAB[cp.cid]&&CAB[cp.cid].rail))continue;
+  const P=cp.pts;
+  if(P.length<5)continue;
+  const cap=P.length*2+16;
+  for(let round=0;round<2&&P.length<cap;round++){
+   let changed=false;
+   const out=[P[0]];
+   for(let i=1;i<P.length-1;i++){
+    const a=out[out.length-1],b=P[i],c=P[i+1];
+    const ab=Math.hypot(b[0]-a[0],b[1]-a[1]),bc=Math.hypot(c[0]-b[0],c[1]-b[1]),ac=Math.hypot(c[0]-a[0],c[1]-a[1]);
+    /* Micro-wiggle: a run of sub-2px segments is one corner chopped into crumbs (the offsets'
+       taper writes 0.5-2px steps the fold ratio cannot see). A vertex whose two segments are
+       both under 2.5px AND roughly collinear with the chord a->c collapses to nothing. */
+    if(ab<2.5&&bc<2.5&&ac>0.05&&tidyWater(a,c)){
+     const d2=ac*ac||1;
+     const t=((b[0]-a[0])*(c[0]-a[0])+(b[1]-a[1])*(c[1]-a[1]))/d2;
+     const px=a[0]+(c[0]-a[0])*t,py=a[1]+(c[1]-a[1])*t;
+     if(Math.hypot(b[0]-px,b[1]-py)<1.2)continue;
+    }
+    if(ac<Math.max(ab,bc)*0.7&&tidyWater(a,c)&&ac>0.1){out.push([(a[0]+c[0])/2,(a[1]+c[1])/2]);changed=true;continue;}
+    const v1=[b[0]-a[0],b[1]-a[1]],v2=[c[0]-b[0],c[1]-b[1]];
+    const l1=Math.hypot(v1[0],v1[1])||1,l2=Math.hypot(v2[0],v2[1])||1;
+    const cs=Math.max(-1,Math.min(1,(v1[0]*v2[0]+v1[1]*v2[1])/(l1*l2)));
+    const deg=Math.acos(cs)*180/Math.PI;
+    /* Corner rounding: a sharp corner between two short segments reads as a kink; the two
+       inserted points spread the bend. Water-tested on both sides so nothing jumps a beach. */
+    if(deg>60&&ab<16&&bc<16&&ac<24){
+     const q=[a[0]*0.55+b[0]*0.45,a[1]*0.55+b[1]*0.45],r=[b[0]*0.45+c[0]*0.55,b[1]*0.45+c[1]*0.55];
+     if(tidyWater(a,q)&&tidyWater(q,r)&&tidyWater(r,c)){out.push(q,r);changed=true;continue;}
+    }
+    out.push(b);
+   }
+   out.push(P[P.length-1]);
+   if(!changed||out.length<5){break;}
+   P.length=0;P.push(...out);
+  }
+ }
+ smoothCables();
+ clearLand();
+ dedup();
+ /* Endpoint-approach rebuild: the second/third vertex from each city, when its chord to the city
+    is water outside the 12px city halo and it spans at least two interior vertices, gets its
+    interior replaced by the chord. Sample-neutral: the replacement carries no more points than
+    were dropped, so the resampled metrics and the drawn length stay put. */
+ const HALO=12;
+ for(const cp of CABLE_PAIRS){
+  if(LAND_LINKS.has(cp.cid)||(CAB[cp.cid]&&CAB[cp.cid].rail))continue;
+  const P=cp.pts;
+  if(P.length<8)continue;
+  for(const end of [0,1]){
+   const n=P.length;
+   const E=end?P[n-1]:P[0];
+   for(const s of [2,3]){
+    const i=end?n-1-s:s;
+    if(i<1||i>n-2)continue;
+    const A=P[i];
+    const d=Math.hypot(E[0]-A[0],E[1]-A[1]);
+    if(d<8||d>26)continue;
+    if(!tidyChordWater(A,E,HALO))continue;
+    const dropped=end?n-1-i-1:i-1;
+    if(dropped<2)continue;
+    const steps=Math.min(dropped+1,Math.max(2,Math.round(d/6)));
+    const repl=[];
+    for(let k=1;k<steps;k++){const t=k/steps;repl.push([A[0]+(E[0]-A[0])*t,A[1]+(E[1]-A[1])*t]);}
+    const inner=end?P.slice(0,i+1):P.slice(i);
+    const nP=end?inner.concat(repl,[E]):[E].concat(repl,inner);
+    P.length=0;P.push(...nP);
+    break;
+   }
+  }
+  /* Fold sweep: out-and-back needles the run-snapping and the taper leave behind. Three shapes
+     collapse: the single spike (chord a fraction of either leg), the clearLand needle (chord a
+     fraction of the whole walk) and the interior loop (the walk re-crosses itself inside 26px).
+     Near a city the peak may sit within 60px of an endpoint; elsewhere the chord must be clean
+     water and short, which is never charted shape, because a charted reversal hugs a coast and
+     its chord is blocked by land. */
+  for(let pass=0;pass<4;pass++){
+   let removed=false;
+   for(let i=1;i<P.length-1;i++){
+    if(P.length<8)break;
+    const a=P[i-1],b=P[i],c=P[i+1];
+    const ac=Math.hypot(c[0]-a[0],c[1]-a[1]);
+    const ab=Math.hypot(b[0]-a[0],b[1]-a[1]),bc=Math.hypot(c[0]-b[0],c[1]-b[1]);
+    if(!(ac<Math.max(ab,bc)*0.55&&ac<26)&&!(ac<(ab+bc)*0.45&&ac<30)&&!(ac<(ab+bc)*0.75&&ac<26))continue;
+    const nearEnd=(X)=>{for(const E2 of [P[0],P[P.length-1]])if(Math.hypot(X[0]-E2[0],X[1]-E2[1])<60)return true;return false;};
+    if(!nearEnd(a)&&!nearEnd(b)&&!nearEnd(c)){
+     if(!(ac<26&&tidyWater(a,c)))continue;
+    }
+    if(!tidyWater(a,c))continue;
+    P.splice(i,1);removed=true;
+    break;
+   }
+   if(!removed)break;
+  }
+  dedup();
+ }
+}

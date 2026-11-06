@@ -678,7 +678,7 @@ function rebuildDerived(){
     complaint it was meant to fix: "beberapa kabel masih ada yang kurang rapih".
     What actually needed fixing was the line's SHAPE, which tidyCables() now does. */
  if(curRegion!=='global'){bowCables();clearLand();dedup();smoothCables();clearLand();dedup();
- tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();
+ tidyCables();clearLand();dedup();separateDuplicates();clearLand();dedup();tidyPass2();
  /* Last, after the land passes: simplifyCables() drops the jitter the earlier passes keep
     faithfully and re-smooths, and it is the only pass that would put a cable back over land if
     it ran before clearLand(). That is why it sits at the end, and why the next build must not

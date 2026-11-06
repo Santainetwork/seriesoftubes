@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+## [2.10.3] — 2026-11-06
+
+- Cable routes on the Southeast Asia and Indonesia maps are tidy again. The regional waypoint tables carry one- and two-pixel jitter, and the smoothing pass copied it faithfully: on the SEA map more than fourteen direction reversals per thousand samples, around half of them on cables shorter than 400 pixels. A simplification pass now runs last on those two maps only (Douglas-Peucker at 2.4px, then one smoothing round): direction reversals SEA 14.4 -> 8.0 and kinks 11.1 -> 6.1 per thousand samples, IDN 15.3 -> 8.6 and 11.2 -> 5.5, with fewer cables drawn as a jagged line (28 -> 15 and 21 -> 12). The Global map is untouched, still drawn from upstream's own hand-placed routes.
+
 ## [2.10.2] — 2026-11-06
 
 - The fork now plays upstream 2.7's whole world: 402 cities, 180 cables, 558 cable pairs and 381 carriers, where it had been running a 242-city, 281-carrier remnant. Upstream's landmasses are the base with the fork's 37 island rings appended, the fork's Singapore, Jakarta and Hong Kong POPs are back on the four Tier 1s that had them, and the Pacific islets upstream draws as dots rather than rings count as land.
