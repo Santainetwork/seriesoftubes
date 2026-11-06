@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The project follows
 
 ## [2.10.3] — 2026-11-06
 
-- Cable routes on the Southeast Asia and Indonesia maps are tidy again. The regional waypoint tables carry one- and two-pixel jitter, and the smoothing pass copied it faithfully: on the SEA map more than fourteen direction reversals per thousand samples, around half of them on cables shorter than 400 pixels. A simplification pass now runs last on those two maps only (Douglas-Peucker at 2.4px, then one smoothing round): direction reversals SEA 14.4 -> 8.0 and kinks 11.1 -> 6.1 per thousand samples, IDN 15.3 -> 8.6 and 11.2 -> 5.5, with fewer cables drawn as a jagged line (28 -> 15 and 21 -> 12). The Global map is untouched, still drawn from upstream's own hand-placed routes.
+- Cable routes on the Southeast Asia and Indonesia maps are tidy again. The regional waypoint tables carry one- and two-pixel jitter, and the smoothing pass copied it faithfully: on the SEA map more than fourteen direction reversals per thousand samples, around half of them on cables shorter than 400 pixels. A simplification pass now runs on those two maps only (Douglas-Peucker at 2.4px, one smoothing round, and any point left inside a coastline is dropped), with a repair pass after it that keeps every hub's cables fanned apart: direction reversals SEA 14.4 -> 7.3 and kinks 11.1 -> 4.6 per thousand samples, IDN 15.3 -> 7.7 and 11.2 -> 5.5, and far fewer cables drawn as a jagged line (28 -> 9 and 21 -> 6). No cable is drawn across land, and the Global map is untouched, still drawn from upstream's own hand-placed routes.
 
 ## [2.10.2] — 2026-11-06
 
