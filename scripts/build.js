@@ -20,7 +20,11 @@ if (!/^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$/.test(VERSION)) die(`VERSIO
 if (!/^\d{4}-\d{2}-\d{2}$/.test(BUILD_DATE)) die(`BUILD_DATE '${BUILD_DATE}' is not YYYY-MM-DD`);
 if (OUT === ROOT || OUT === path.join(ROOT, 'site') || OUT === path.join(ROOT, 'src')) die(`refusing to build into ${OUT}`);
 
-fs.rmSync(OUT, { recursive: true, force: true });
+/* Empty OUT rather than delete it: the directory itself can be a Docker bind mount (the live site
+   here is served by an nginx container with -v /opt/seriesoftubes/_site:/usr/share/nginx/html), and
+   deleting and recreating it leaves the container reading a directory that no longer exists. */
+fs.mkdirSync(OUT, { recursive: true });
+for (const e of fs.readdirSync(OUT)) fs.rmSync(path.join(OUT, e), { recursive: true, force: true });
 fs.cpSync(path.join(ROOT, 'site'), OUT, { recursive: true });
 if (fs.existsSync(path.join(OUT, 'index.html'))) die('site/index.html must not exist: the page is assembled from src/');
 // The page and the translations ship with labels shrunk to short ids (docs/adr/0003-translations-by-label.md).
