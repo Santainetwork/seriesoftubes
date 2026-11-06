@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 // The upstream project credits Thomas Kjær Aabo's "How the Internet Works" as the guide the
 // game is modelled on: in README.md, in site/llms.txt, and on the title, help and victory
@@ -31,29 +32,38 @@ test('site/llms.txt credits the guide and its author', () => {
 });
 
 test('the game itself links the guide from the title, help and victory screens', () => {
-  const html = read('site', 'index.html');
-  assert.ok(html.includes(`const HTIW='${GUIDE}'`), 'the HTIW constant is gone from index.html');
-  assert.ok(html.includes(AUTHOR), `index.html no longer names ${AUTHOR}`);
-  assert.ok(html.includes('How the Internet Works'), 'the in-game plug no longer names the guide');
-  const uses = (html.match(/\$\{plugHtml\(/g) || []).length;
+  // The page is assembled from src/ at build (docs/adr/0002): the credit lives in src/, not in a
+  // checked-in site/index.html. Count plugHtml( uses across the modal sources instead.
+  let uses = 0;
+  const walk = (dir) => { for (const f of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, f.name); if (f.isDirectory()) walk(p); else if (p.endsWith('.js')) uses += (fs.readFileSync(p, 'utf8').match(/\$\{plugHtml\(/g) || []).length; } };
+  walk(path.join(root, 'src', 'game'));
+  const src = read('src', 'game', '95-modals', '30-modal-and-names.js');
+  assert.ok(src.includes(`const HTIW='${GUIDE}'`), 'the HTIW constant is gone');
+  assert.ok(src.includes('the_real_thing_by_thomas_kj'), `the plug no longer names ${AUTHOR} (label key gone)`);
+  assert.ok(src.includes('how_the_internet_works'), 'the in-game plug no longer names the guide (label key gone)');
   assert.ok(uses >= 3, `the plug is only rendered ${uses} time(s); title, help and victory all need it`);
   // The stylesheet for the plug survived the merge on its own; if it is dropped the credit
   // renders as unstyled text and the next reader deletes it as cruft.
-  assert.ok(html.includes('.plug{display:flex'), 'the .plug stylesheet is gone');
+  const css = read('src', 'styles', '40-modal.css');
+  assert.ok(css.includes('.plug{display:flex'), 'the .plug stylesheet is gone');
 });
 
 test('every language dictionary translates the in-game credit, so no screen shows English', () => {
-  const dir = path.join(root, 'site', 'i18n');
+  // Dictionaries are label-keyed (docs/adr/0003): the English text is the key in src/i18n/en.js,
+  // the translation the value in site/i18n/<lang>.js. Every key present in English must have a
+  // non-empty translation in every language.
   const keys = [
-    'Want to know how it really works?',
-    `The real thing, by ${AUTHOR}: a zoomable, interactive map of how your packets actually travel, from Wi-Fi to undersea fiber, today, in 2010 and in 1995. This game makes it up as it goes. That one gets it right.`,
-    'The real thing: follow a packet from Wi-Fi to undersea fiber.',
-    'Explore →',
+    'help.want_to_know_how_it_really',
+    'modal_and_names.the_real_thing_by_thomas_kj',
+    'modal_and_names.the_real_thing_follow_a_packet',
+    'modal_and_names.how_the_internet_works',
+    'common.explore',
   ];
-  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.js'))) {
-    const src = fs.readFileSync(path.join(dir, file), 'utf8');
+  for (const file of fs.readdirSync(path.join(root, 'site', 'i18n')).filter((f) => f.endsWith('.js'))) {
+    const src = fs.readFileSync(path.join(root, 'site', 'i18n', file), 'utf8');
     for (const key of keys) {
-      assert.ok(src.includes(JSON.stringify(key)), `${file} is missing a translation for ${JSON.stringify(key.slice(0, 60))}`);
+      const m = src.match(new RegExp('"' + key.replace(/\./g, '\\.') + '":"((?:[^"\\\\]|\\\\.)*)"'));
+      assert.ok(m && m[1].length > 0, `${file} is missing a translation for ${key}`);
     }
   }
 });
@@ -69,9 +79,8 @@ test('the upstream MIT licence and its copyright holder ship with the fork', () 
 
 test('the credit survives the build, in the files a player and a crawler actually get', () => {
   const os = require('node:os');
-  const { execFileSync } = require('node:child_process');
   const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'tubes-attr-'));
-  execFileSync('bash', ['scripts/build.sh'], { cwd: root, env: { ...process.env, OUT, VERSION: '9.9.9', BUILD_DATE: '2030-01-01' } });
+  execFileSync(process.execPath, ['scripts/build.js'], { cwd: root, env: { ...process.env, OUT, VERSION: '9.9.9', BUILD_DATE: '2030-01-01' } });
   assert.ok(fs.readFileSync(path.join(OUT, 'llms.txt'), 'utf8').includes(AUTHOR), 'the built llms.txt lost the credit');
   assert.ok(fs.readFileSync(path.join(OUT, 'index.html'), 'utf8').includes(AUTHOR), 'the built index.html lost the credit');
 });

@@ -16,8 +16,12 @@ function region(id, city) {
 test('paint: SEA paints the regional coastline, not the world', () => {
   const { ev } = region('sea', 'mnl');
   const regional = ev('LANDP.length');
-  const global = ev('LANDP_ALL.length');
-  assert.ok(regional > global, `SEA coastline (${regional}) should be richer than the Global one (${global})`);
+  /* Upstream 2.7 added world capitals and with them a much denser Global COAST (191 rings), so
+     the old "regional is larger than Global" proxy no longer means anything. What the regression
+     was about is the source of the rings: LANDP must be built from this region's LANDS, not from
+     the frozen Global LANDP_ALL. */
+  assert.equal(regional, ev('LANDS.filter(l=>!l.hide).length + DECOR.length'),
+    'LANDP must be painted from the regional land table');
   assert.ok(regional > 150, 'expected the 158-ring Natural Earth coastline');
 });
 

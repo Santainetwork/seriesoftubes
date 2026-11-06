@@ -27,16 +27,17 @@ test('ROLES: role is stored in the save and restored on reload', () => {
   a.ev("ACT.start({})");
   assert.equal(a.ev('S.role'), 'isp');
   assert.equal(a.ev('S.cash'), 200000, 'ISP keeps the classic starting cash');
-  a.ev("save()");
-  assert.equal(a.ev("JSON.parse(localStorage.getItem('sot-save-v1:global')).role"), 'isp');
+  a.ev("save(true)");
+  // Slot system (2.x): the save lives under sot-save-v1:<slot id>, plain JSON.
+  assert.equal(a.ev("JSON.parse(localStorage.getItem('sot-save-v1:'+UI.slot)).role"), 'isp');
 
-  a.ev("UI.role='hosting';ACT.start({});save()");
+  a.ev("UI.role='hosting';ACT.start({});save(true)");
   assert.equal(a.ev('S.role'), 'hosting');
   // Brief 5 §1: hosting needs $90k so its own 3-POP footprint is affordable ($60k of POPs).
   assert.equal(a.ev('S.cash'), 90000, 'hosting starts with $90k');
-  assert.equal(a.ev("JSON.parse(localStorage.getItem('sot-save-v1:global')).role"), 'hosting');
+  assert.equal(a.ev("JSON.parse(localStorage.getItem('sot-save-v1:'+UI.slot)).role"), 'hosting');
 
-  const b = load({ storage: { 'sot-save-v1:global': a.ev("localStorage.getItem('sot-save-v1:global')") } });
+  const b = load({ storage: { ['sot-save-v1:'+a.ev('UI.slot')]: a.ev("localStorage.getItem('sot-save-v1:'+UI.slot)") } });
   assert.equal(b.ev('S.role'), 'hosting', 'the role survives a reload');
   assert.deepEqual(a.errors, []);
   assert.deepEqual(b.errors, []);

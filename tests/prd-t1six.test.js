@@ -32,7 +32,9 @@ test('Korea: all three incumbents are paid-only and quote the sender-pays bill',
 test('Korea: a sender-pays PNI bills port + fee + per-gigabit, and flows traffic', () => {
   const { ev, errors } = load();
   ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.buildPop({city:'icn'})");
-  ev("S.pops.icn.bb={d:400};ACT.buyTransit({city:'icn',net:'ntt',tier:1});ACT.pni({city:'icn',net:'ktt',tier:1});compute()");
+  /* 2.7 gives PNIs a provisioning lead time; this test is about the sender-pays bill, so the
+     order is put up on the day it is placed. */
+  ev("S.pops.icn.bb={d:400};ACT.buyTransit({city:'icn',net:'ntt',tier:1});ACT.pni({city:'icn',net:'ktt',tier:1});S.pni[0].ready=S.day;compute()");
   const used = ev('R.usePni[S.pni[0].id]||0');
   assert.ok(used > 0, 'traffic flows over the Kay-Tea PNI');
   assert.equal(
@@ -63,8 +65,10 @@ test('Sparkly Seabone is a Tier 1, and new games must peer with all six', () => 
   assert.equal(ev('NET.skl.pol'), 'restrictive', 'Tier 1s only peer over PNIs');
   assert.ok(ev("NET.skl.pops.includes('nyc')&&NET.skl.pops.includes('sao')&&NET.skl.pops.includes('pmo')"),
     'reaches the Americas and the Mediterranean');
-  assert.equal(ev('t1Need().length'), 6, 'new games need all six');
-  assert.equal(ev('NETS.filter(n=>n.type===\'t1\').length'), 6);
+  /* 2.7's global map carries nine Tier 1s (it added Tangerine, DoitscheTelekomm and AT&Tease
+     to the original six), and a new game is playing for every one of them. */
+  assert.equal(ev('t1Need().length'), 9, 'new games need every Tier 1');
+  assert.equal(ev('NETS.filter(n=>n.type===\'t1\').length'), 9);
   ev('delete S.t1v');
   assert.equal(ev('t1Need().length'), 5, 'older saves keep the five they were playing for');
   assert.deepEqual(errors, []);

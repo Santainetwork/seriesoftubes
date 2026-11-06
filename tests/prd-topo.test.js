@@ -87,13 +87,20 @@ test('NSH sums to 1 in every region', () => {
 
 test('global NETS untouched after visiting sea', () => {
   const ev = region('global');
+  /* 2.7 merge: the Global snapshot is now upstream's whole world (402 cities, 381 carriers,
+     558 cable pairs), and it will keep moving as upstream adds data. Capture the live counts instead of pinning them: the behaviour
+     under test is that a regional round trip restores Global exactly, not that the world is a
+     particular size. */
+  const globalNets = ev('NETS.length');
+  const globalNsh = ev('Object.keys(NSH).length');
+  const globalPairs = ev('CABLE_PAIRS.length');
   ev("applyRegion('sea')");
-  assert.equal(ev('NETS.length'), 157, 'NETS must not be spliced in place');
+  assert.equal(ev('NETS.length'), globalNets, 'NETS must not be spliced in place');
   assert.equal(ev('REGION.global.nets===NETS'), true, 'global nets still aliases NETS');
   ev("applyRegion('global')");
-  assert.equal(ev('NETS.length'), 157);
-  assert.equal(ev('Object.keys(NSH).length'), 157);
-  assert.equal(ev('CABLE_PAIRS.length'), 209);
+  assert.equal(ev('NETS.length'), globalNets);
+  assert.equal(ev('Object.keys(NSH).length'), globalNsh);
+  assert.equal(ev('CABLE_PAIRS.length'), globalPairs);
 });
 
 test('live network counts match the brief (45 SEA, own IDN list)', () => {
@@ -102,12 +109,16 @@ test('live network counts match the brief (45 SEA, own IDN list)', () => {
      Singapore, which is on the SEA map. The five Tier 1s are unchanged. 45 since the v1.29 merge:
      Level Tree keeps the Singapore, Jakarta and Hong Kong POPs the fork added in 1.27.6 (the
      prd-t1reach fix), and upstream's own Level Tree list never had them. */
-  assert.equal(ev('Object.keys(NET).length'), 45);
+  /* 2.7 merge: upstream added global carriers with POPs in SEA cities, so the live subset grew
+     from 45 to 69 (63 before the full world data landed). This is a data count, not a rule. */
+  assert.equal(ev('Object.keys(NET).length'), 69);
   /* Six since the v1.29 merge: Level Tree is live on the Asia maps again, because the fork's
      prd-t1reach fix gave it Singapore, Jakarta and Hong Kong POPs. The union in the NETS hunk
      keeps them, and prd-t1reach requires them: without a POP on the map a PNI is impossible and
      the Tier 1 win condition is unreachable. */
-  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 6);
+  /* 2.7 merge: upstream added Tangerine Telecom, Doitsche Telekomm and AT&Tease, all with SEA
+     POPs, so all nine global Tier 1s are live on the SEA map and the count is 9. */
+  assert.equal(ev("Object.keys(NET).filter(k=>NET[k].type==='t1').length"), 9);
   ev("applyRegion('idn')");
   /* Brief 18 §G: the Indonesia map no longer inherits the global T1/T2 carriers — a domestic
      NAP buys from Tele-Komedi, Indo-Sate and friends. CDNs and eyeball networks stay. */
@@ -135,7 +146,8 @@ test('live network counts match the brief (45 SEA, own IDN list)', () => {
 
 test('exchange member lists only include live networks', () => {
   const ev = region('sea');
-  assert.equal(ev('Object.keys(NET).length'), 45);
+  /* 2.7 merge: 45 -> 69 live SEA networks, same data growth as the count test above. */
+  assert.equal(ev('Object.keys(NET).length'), 69);
   assert.equal(ev(`XIX.every(x=>x.members.every(id=>!!NET[id]))`), true);
   ev("applyRegion('idn')");
   /* Brief 18 §G: on the Indonesia map every global Tier 1 and Tier 2 is an exchange member even
@@ -162,9 +174,11 @@ test('the 5 cities with zero PeeringDB IX keep none', () => {
 
 test('global baseline unchanged', () => {
   const ev = region('global');
-  assert.equal(ev('CITIES.length'), 178);
-  assert.equal(ev('CABLES.length'), 91);
-  assert.equal(ev('CABLE_PAIRS.length'), 209);
-  assert.equal(ev('NETS.length'), 157);
-  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 94);
+  /* 2.7 merge: upstream's global map replaced the v1.27 world this gate snapshotted. These match
+     prd-baseline.test.js and prd-m1-global.test.js. */
+  assert.equal(ev('CITIES.length'), 402);
+  assert.equal(ev('CABLES.length'), 180);
+  assert.equal(ev('CABLE_PAIRS.length'), 558);
+  assert.equal(ev('NETS.length'), 381);
+  assert.equal(ev('NETS.filter(n=>!n.tail).length'), 321);
 });
